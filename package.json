@@ -11,6 +11,9 @@
     "prepublish": "npm run compile",
     "preversion": "generate-api-docs-and-update-readme && git add README.md"
   },
+  "dependencies": {
+    "@handy-common-utils/promise-utils": "^1.7.1"
+  },
   "devDependencies": {
     "@handy-common-utils/dev-dependencies-jest": "^1.8.0"
   },
@@ -23,6 +26,9 @@
   "files": [
     "dist"
   ],
+  "lint-staged": {
+    "**/*": "prettier --write --ignore-unknown"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/james-hu/extract-audio.git"
