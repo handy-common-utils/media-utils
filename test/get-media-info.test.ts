@@ -47,6 +47,41 @@ describe('getMediaInfo with real files', () => {
       } as MediaInfo);
     });
 
+    it('should parse entine-start.h264.mp3.mp4 file', async () => {
+      const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.mp3.mp4'), { useParser: 'mp4box' });
+      expect(info.container).toBe('mp4');
+      expect(info.videoStreams.length).toBeGreaterThan(0);
+      expect(info.audioStreams.length).toBeGreaterThan(0);
+      expect(info).toEqual({
+        audioStreams: [
+          {
+            bitrate: 128553.40909090909,
+            channelCount: 2,
+            codec: 'mp3',
+            codecDetail: 'mp4a.6b',
+            durationInSeconds: 6.013968253968254,
+            sampleRate: 44100,
+          },
+        ],
+        container: 'mp4',
+        containerDetail: 'isom, isom, iso2, avc1, mp41',
+        durationInSeconds: 6.014,
+        mimeType: 'video/mp4; codecs="avc1.64001f,mp4a.6b"; profiles="isom,iso2,avc1,mp41"',
+        parser: 'mp4box',
+        videoStreams: [
+          {
+            bitrate: 349082.6666666667,
+            codec: 'h264',
+            codecDetail: 'avc1.64001f',
+            durationInSeconds: 6,
+            fps: 24,
+            height: 534,
+            width: 1280,
+          },
+        ],
+      } as MediaInfo);
+    });
+
     it('should parse engine-start.h264.aac.mov file (ISO BMFF)', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.aac.mov'), { useParser: 'mp4box' });
       expect(info.container).toBe('mp4'); // mp4box reports mov as mp4 usually or compatible
@@ -160,6 +195,38 @@ describe('getMediaInfo with real files', () => {
             codec: 'h264',
             codecDetail: 'avc1.64001f',
             durationInSeconds: 6,
+            height: 534,
+            width: 1280,
+          },
+        ],
+      } as MediaInfo);
+    });
+
+    it('should parse entine-start.h264.mp3.mp4 file', async () => {
+      const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.mp3.mp4'), { useParser: 'remotion' });
+      expect(info.container).toBe('mp4');
+      expect(info.videoStreams.length).toBeGreaterThan(0);
+      expect(info.audioStreams.length).toBeGreaterThan(0);
+      expect(info).toEqual({
+        audioStreams: [
+          {
+            channelCount: 2,
+            codec: 'mp3',
+            codecDetail: 'mp3',
+            durationInSeconds: 6.014,
+            sampleRate: 44100,
+          },
+        ],
+        container: 'mp4',
+        containerDetail: 'mp4',
+        durationInSeconds: 6.014,
+        mimeType: undefined,
+        parser: 'remotion',
+        videoStreams: [
+          {
+            codec: 'h264',
+            codecDetail: 'avc1.64001f',
+            durationInSeconds: 6.014,
             height: 534,
             width: 1280,
           },

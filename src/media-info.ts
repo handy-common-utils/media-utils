@@ -138,6 +138,16 @@ export function toAudioCodecType(codecDetail: string | undefined | null): AudioC
     }
   }
 
+  // MP3 (mp4a.6b/mp4a.69 variants)
+  if (codec.startsWith('mp4a.6') || codec.startsWith('mp4a.34')) {
+    return 'mp3';
+  }
+
+  // Opus (opus variants)
+  if (codec.startsWith('mp4a.ad')) {
+    return 'opus';
+  }
+
   // AAC (mp4a.40.x variants)
   if (codec.startsWith('mp4a')) {
     return 'aac';
