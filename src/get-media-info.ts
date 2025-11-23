@@ -76,10 +76,7 @@ export async function getMediaInfo(
   }
 
   const info = await parser.parse(stream, options);
-  return {
-    ...info,
-    parser: useParser,
-  };
+  return info;
 }
 
 /**

@@ -23,8 +23,8 @@ export interface AudioStreamInfo {
    * Parser-specific codec information
    */
   codecDetail?: string;
-  channelCount: number;
-  sampleRate: number;
+  channelCount?: number;
+  sampleRate?: number;
   bitrate?: number;
   durationInSeconds?: number;
 }

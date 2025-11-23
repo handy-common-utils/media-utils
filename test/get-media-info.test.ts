@@ -14,9 +14,6 @@ describe('getMediaInfo with real files', () => {
   describe('mp4box parser', () => {
     it('should parse entine-start.h264.aac.mp4 file', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.aac.mp4'), { useParser: 'mp4box' });
-      expect(info.container).toBe('mp4');
-      expect(info.videoStreams.length).toBeGreaterThan(0);
-      expect(info.audioStreams.length).toBeGreaterThan(0);
       expect(info).toEqual({
         audioStreams: [
           {
@@ -49,9 +46,6 @@ describe('getMediaInfo with real files', () => {
 
     it('should parse entine-start.h264.mp3.mp4 file', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.mp3.mp4'), { useParser: 'mp4box' });
-      expect(info.container).toBe('mp4');
-      expect(info.videoStreams.length).toBeGreaterThan(0);
-      expect(info.audioStreams.length).toBeGreaterThan(0);
       expect(info).toEqual({
         audioStreams: [
           {
@@ -84,9 +78,6 @@ describe('getMediaInfo with real files', () => {
 
     it('should parse engine-start.h264.aac.mov file (ISO BMFF)', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.aac.mov'), { useParser: 'mp4box' });
-      expect(info.container).toBe('mp4'); // mp4box reports mov as mp4 usually or compatible
-      expect(info.videoStreams.length).toBeGreaterThan(0);
-      expect(info.audioStreams.length).toBeGreaterThan(0);
       expect(info).toEqual({
         audioStreams: [
           {
@@ -119,9 +110,6 @@ describe('getMediaInfo with real files', () => {
 
     it('should partially parse engine-start.h264.mp3.mov file (ISO BMFF)', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.mp3.mov'), { useParser: 'mp4box' });
-      expect(info.container).toBe('mp4'); // mp4box reports mov as mp4 usually or compatible
-      expect(info.videoStreams.length).toBeGreaterThan(0);
-      // expect(info.audioStreams.length).toBeGreaterThan(0); // it doesn't seem to recognise mp3 audio in mov
       expect(info).toEqual({
         audioStreams: [
           // {
@@ -279,7 +267,7 @@ describe('getMediaInfo with real files', () => {
             width: 1280,
           },
         ],
-      } as any);
+      } as MediaInfo);
     });
 
     it.each([
@@ -302,9 +290,6 @@ describe('getMediaInfo with real files', () => {
   describe('remotion parser', () => {
     it('should parse entine-start.h264.aac.mp4 file', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.aac.mp4'), { useParser: 'remotion' });
-      expect(info.container).toBe('mp4');
-      expect(info.videoStreams.length).toBeGreaterThan(0);
-      expect(info.audioStreams.length).toBeGreaterThan(0);
       expect(info).toEqual({
         audioStreams: [
           {
@@ -334,9 +319,6 @@ describe('getMediaInfo with real files', () => {
 
     it('should parse entine-start.h264.mp3.mp4 file', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.mp3.mp4'), { useParser: 'remotion' });
-      expect(info.container).toBe('mp4');
-      expect(info.videoStreams.length).toBeGreaterThan(0);
-      expect(info.audioStreams.length).toBeGreaterThan(0);
       expect(info).toEqual({
         audioStreams: [
           {
@@ -366,9 +348,6 @@ describe('getMediaInfo with real files', () => {
 
     it('should parse entine-start.h264.aac.mov file', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.aac.mov'), { useParser: 'remotion' });
-      expect(info.container).toBe('mp4');
-      expect(info.videoStreams.length).toBeGreaterThan(0);
-      expect(info.audioStreams.length).toBeGreaterThan(0);
       expect(info).toEqual({
         audioStreams: [
           {
@@ -398,9 +377,6 @@ describe('getMediaInfo with real files', () => {
 
     it('should parse engine-start.vp9.opus.webm file', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.vp9.opus.webm'), { useParser: 'remotion' });
-      expect(info.container).toBe('webm');
-      expect(info.videoStreams.length).toBeGreaterThan(0);
-      expect(info.audioStreams.length).toBeGreaterThan(0);
       expect(info).toEqual({
         audioStreams: [
           {
@@ -446,48 +422,38 @@ describe('getMediaInfo with real files', () => {
     });
   });
 
-  /*
   describe('auto parser (default)', () => {
-    const allFiles = [mp4File, movFile, ...otherFiles];
+    const fixtures: Record<string, 'mp4box' | 'isoboxer' | 'remotion'> = {
+      'engine-start.h264.aac.mp4': 'mp4box',
+      'engine-start.h264.mp3.mp4': 'mp4box',
+      'engine-start.h264.aac.mov': 'mp4box',
+      'engine-start.h264.mp3.mov': 'mp4box',
+      'engine-start.vp9.opus.webm': 'remotion',
+    };
 
-    it.each(allFiles)('should parse %s', async (filename) => {
-      const info = await getMediaInfoFromFile(filename, { useParser: 'auto' });
+    it.each(Object.entries(fixtures))('should successfully parse %s using %s parser', async (filename, expectedParser) => {
+      const info = await getMediaInfoFromFile(sampleFile(filename));
+
+      // Verify the correct parser was used
+      expect(info.parser).toBe(expectedParser);
+
+      // Verify basic structure
+      expect(info.container).toBeDefined();
       expect(info.videoStreams.length).toBeGreaterThan(0);
-      expect(info.audioStreams.length).toBeGreaterThan(0);
     });
+
+    it.each(['engine-start.mjpeg.pcms16le.avi', 'engine-start.h264.pcms16le.avi', 'engine-start.mpeg2video.mp2.m2ts', 'engine-start.wmv2.wmav2.wmv'])(
+      'should fail to parse %s',
+      async (filename) => {
+        try {
+          await getMediaInfoFromFile(sampleFile(filename));
+          expect('').toBe('should fail to parse');
+        } catch (error) {
+          expect(error).toBeInstanceOf(Error);
+          expect(error).toHaveProperty('isUnsupportedFormatError', true);
+          // expect(error).toHaveProperty('xx', true);
+        }
+      },
+    );
   });
-
-  describe('Consistency check', () => {
-    it('should return consistent MediaInfo for .mp4 file between parsers', async () => {
-      const mp4boxInfo = await getMediaInfoFromFile(mp4File, {
-        useParser: 'mp4box',
-      });
-
-      const remotionInfo = await getMediaInfoFromFile(mp4File, {
-        useParser: 'remotion',
-      });
-
-      // Compare key fields. Note: Exact equality might fail due to floating point differences or minor parsing variations.
-      // We check for "reasonable" equality.
-
-      expect(mp4boxInfo.container).toBe('mp4');
-      // Remotion might report 'mov' or 'mp4' depending on implementation, but for .mp4 file it should be mp4
-      expect(remotionInfo.container).toBe('mp4');
-
-      expect(mp4boxInfo.videoStreams.length).toBe(remotionInfo.videoStreams.length);
-      expect(mp4boxInfo.audioStreams.length).toBe(remotionInfo.audioStreams.length);
-
-      // Duration might slightly differ due to timescale
-      expect(Math.abs((mp4boxInfo.durationInSeconds || 0) - (remotionInfo.durationInSeconds || 0))).toBeLessThan(0.1);
-
-      // Video codec
-      expect(mp4boxInfo.videoStreams[0].codec).toBeDefined();
-      expect(remotionInfo.videoStreams[0].codec).toBeDefined();
-
-      // Dimensions
-      expect(mp4boxInfo.videoStreams[0].width).toBe(remotionInfo.videoStreams[0].width);
-      expect(mp4boxInfo.videoStreams[0].height).toBe(remotionInfo.videoStreams[0].height);
-    });
-  });
-*/
 });
