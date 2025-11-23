@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+
 import { MediaInfo } from './media-info';
 
 export interface ParserRelatedOptions {

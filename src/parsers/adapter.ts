@@ -1,6 +1,7 @@
 import { withRetry } from '@handy-common-utils/promise-utils';
-import { MediaInfo } from '../media-info';
+
 import { GetMediaInfoOptions } from '../get-media-info';
+import { MediaInfo } from '../media-info';
 
 export interface ParsingError {
   isUnsupportedFormatError?: boolean;
