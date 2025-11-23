@@ -28,11 +28,11 @@ export class RemotionAdapter implements MediaParserAdapter {
   }
 
   private async parseWithoutErrorHandling(stream: ReadableStream<Uint8Array>): Promise<MediaInfo> {
+    // The first 1MB of the file is read and then feed to the parser
+    const MAX_PROBE_SIZE = 1 * 1024 * 1024; // 1MB
     const chunks: Uint8Array[] = [];
     const reader = stream.getReader();
     let bytesRead = 0;
-    const MAX_PROBE_SIZE = 10 * 1024 * 1024; // 10MB
-
     while (bytesRead < MAX_PROBE_SIZE) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -41,6 +41,7 @@ export class RemotionAdapter implements MediaParserAdapter {
         bytesRead += value.length;
       }
     }
+    reader.cancel();
 
     const blob = new Blob(chunks);
     const file = new File([blob], 'input.media');

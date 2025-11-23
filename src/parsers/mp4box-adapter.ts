@@ -96,7 +96,10 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
               }
             }
           })
-          .catch(reject);
+          .catch((error) => {
+            reject(error);
+            reader.cancel();
+          });
       }
 
       readChunk();
