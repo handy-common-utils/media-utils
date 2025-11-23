@@ -8,4 +8,9 @@ module.exports = defineConfig([
     ignores: ['dist', 'coverage', 'report', 'node_modules'],
   },
   ...config,
+  {
+    rules: {
+      'unicorn/number-literal-case': 'off',
+    },
+  },
 ]);
