@@ -1,4 +1,4 @@
-import { MediaInfo } from '../media-info';
+import { MediaInfo, toAudioCodecType, toContainerType, toVideoCodecType } from '../media-info';
 import { MediaParserAdapter, ParsingError } from './adapter';
 
 export class RemotionAdapter implements MediaParserAdapter {
@@ -14,7 +14,12 @@ export class RemotionAdapter implements MediaParserAdapter {
       return await this.parseWithoutErrorHandling(stream);
     } catch (error) {
       const msg = (error as Error)?.message;
-      if (msg && /(^Unknown [a-zA-Z0-9]+ format:)|(^Only [a-zA-Z0-9]+ is supported)|(^No tracks yet)|(^IsAnUnsupportedFileTypeError:)/.test(msg)) {
+      if (
+        msg &&
+        /(^Unknown [a-zA-Z0-9]+ format:)|(^Only [a-zA-Z0-9]+ is supported)|(^No tracks yet)|(^IsAnUnsupportedFileTypeError:)|(Unknown file format)/.test(
+          msg,
+        )
+      ) {
         (error as ParsingError).isUnsupportedFormatError = true;
       }
 
@@ -53,24 +58,27 @@ export class RemotionAdapter implements MediaParserAdapter {
     });
 
     const durationInSeconds = result.durationInSeconds ?? undefined;
-    const mimeType = result.mimeType ?? undefined;
+    const mimeType = result.mimeType || undefined;
+
     return {
       parser: 'remotion',
-      container: result.container,
+      containerDetail: result.container,
+      container: toContainerType(result.container),
       durationInSeconds: durationInSeconds,
       videoStreams: result.tracks
         .filter((t) => t.type === 'video')
         .map((t) => ({
-          codec: t.codec as any,
+          codecDetail: t.codec,
+          codec: toVideoCodecType(t.codec),
           width: t.width,
           height: t.height,
-          bitrate: undefined,
           durationInSeconds,
         })),
       audioStreams: result.tracks
         .filter((t) => t.type === 'audio')
         .map((t) => ({
-          codec: t.codec as any,
+          codecDetail: t.codec,
+          codec: toAudioCodecType(t.codec),
           channelCount: t.numberOfChannels,
           sampleRate: t.sampleRate,
           durationInSeconds,

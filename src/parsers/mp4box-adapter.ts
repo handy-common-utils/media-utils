@@ -1,5 +1,5 @@
 import { GetMediaInfoOptions } from '../get-media-info';
-import { AudioStreamInfo, MediaInfo, VideoStreamInfo } from '../media-info';
+import { AudioStreamInfo, MediaInfo, toAudioCodecType, toContainerType, toVideoCodecType, VideoStreamInfo } from '../media-info';
 import { MediaParserAdapter, ParsingError } from './adapter';
 
 export class Mp4BoxAdapter implements MediaParserAdapter {
@@ -32,7 +32,8 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
       mp4file.onReady = (info) => {
         infoFound = true;
         const videoStreams: VideoStreamInfo[] = info.videoTracks.map((track) => ({
-          codec: track.codec as any,
+          codecDetail: track.codec,
+          codec: toVideoCodecType(track.codec),
           width: track.track_width,
           height: track.track_height,
           bitrate: track.bitrate,
@@ -41,7 +42,8 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
         }));
 
         const audioStreams: AudioStreamInfo[] = info.audioTracks.map((track) => ({
-          codec: track.codec as any,
+          codecDetail: track.codec,
+          codec: toAudioCodecType(track.codec),
           channelCount: track.audio!.channel_count,
           sampleRate: track.audio!.sample_rate,
           bitrate: track.bitrate,
@@ -50,7 +52,8 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
 
         resolve({
           parser: 'mp4box',
-          container: 'mp4',
+          containerDetail: info.brands.join(', '),
+          container: toContainerType(info.brands),
           durationInSeconds: info.duration / info.timescale,
           videoStreams,
           audioStreams,
