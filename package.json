@@ -19,6 +19,7 @@
   },
   "optionalDependencies": {
     "@remotion/media-parser": "^4.0.377",
+    "codem-isoboxer": "^0.3.10",
     "mp4box": "^2.2.0"
   },
   "main": "dist/index.js",

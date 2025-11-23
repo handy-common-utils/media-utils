@@ -30,7 +30,7 @@ export interface AudioStreamInfo {
 }
 
 export interface MediaInfo {
-  parser: 'mp4box' | 'remotion' | 'auto';
+  parser: 'mp4box' | 'remotion' | 'isoboxer' | 'auto';
   container: ContainerType;
   /**
    * Parser-specific container information
@@ -139,7 +139,7 @@ export function toAudioCodecType(codecDetail: string | undefined | null): AudioC
   }
 
   // MP3 (mp4a.6b/mp4a.69 variants)
-  if (codec.startsWith('mp4a.6') || codec.startsWith('mp4a.34')) {
+  if (codec === '.mp3' || codec.startsWith('mp4a.6') || codec.startsWith('mp4a.34')) {
     return 'mp3';
   }
 

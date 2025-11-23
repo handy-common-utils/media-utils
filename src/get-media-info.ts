@@ -1,5 +1,6 @@
 import { MediaInfo } from './media-info';
 import { FallbackChainParserAdapter, MediaParserAdapter } from './parsers/adapter';
+import { IsoBoxerAdapter } from './parsers/isoboxer-adapter';
 import { Mp4BoxAdapter } from './parsers/mp4box-adapter';
 import { RemotionAdapter } from './parsers/remotion-adapter';
 import { createReadableStreamFromFile, ParserRelatedOptions } from './utils';
@@ -38,10 +39,23 @@ export async function getMediaInfo(
       }
       break;
     }
+    case 'isoboxer': {
+      try {
+        parser = new IsoBoxerAdapter();
+      } catch (error) {
+        throw new Error(`Very likely NPM package codem-isoboxer is not installed: ${error}`);
+      }
+      break;
+    }
     case 'auto': {
       const adapters = new Array<MediaParserAdapter>();
       try {
         adapters.push(new Mp4BoxAdapter());
+      } catch {
+        // Ignore
+      }
+      try {
+        adapters.push(new IsoBoxerAdapter());
       } catch {
         // Ignore
       }
@@ -51,7 +65,7 @@ export async function getMediaInfo(
         // Ignore
       }
       if (adapters.length === 0) {
-        throw new Error('Very likely none of the required NPM packages (such like mp4box or @remotion/media-parser) is installed');
+        throw new Error('Very likely none of the required NPM packages (such like mp4box, codem-isoboxer, or @remotion/media-parser) is installed');
       }
       parser = new FallbackChainParserAdapter(adapters);
       break;
