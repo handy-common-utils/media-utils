@@ -1,19 +1,16 @@
-import { GetMediaInfoOptions } from "../get-media-info";
-import { AudioStreamInfo, MediaInfo, VideoStreamInfo } from "../media-info";
-import { MediaParserAdapter, ParsingError } from "./adapter";
+import { GetMediaInfoOptions } from '../get-media-info';
+import { AudioStreamInfo, MediaInfo, VideoStreamInfo } from '../media-info';
+import { MediaParserAdapter, ParsingError } from './adapter';
 
 export class Mp4BoxAdapter implements MediaParserAdapter {
-  private mp4box: typeof import("mp4box");
+  private mp4box: typeof import('mp4box');
 
   constructor() {
     // eslint-disable-next-line @typescript-eslint/no-require-imports, unicorn/prefer-module
-    this.mp4box = require("mp4box");
+    this.mp4box = require('mp4box');
   }
 
-  async parse(
-    stream: ReadableStream<Uint8Array>,
-    options?: GetMediaInfoOptions,
-  ): Promise<MediaInfo> {
+  async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
     try {
       return await this.parseWithoutErrorHandling(stream, options);
     } catch (error) {
@@ -26,10 +23,7 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
     }
   }
 
-  private async parseWithoutErrorHandling(
-    stream: ReadableStream<Uint8Array>,
-    options?: GetMediaInfoOptions,
-  ): Promise<MediaInfo> {
+  private async parseWithoutErrorHandling(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
     return new Promise((resolve, reject) => {
       const mp4file = this.mp4box.createFile();
 
@@ -37,30 +31,26 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
 
       mp4file.onReady = (info) => {
         infoFound = true;
-        const videoStreams: VideoStreamInfo[] = info.videoTracks.map(
-          (track) => ({
-            codec: track.codec as any,
-            width: track.track_width,
-            height: track.track_height,
-            bitrate: track.bitrate,
-            durationInSeconds: track.duration / track.timescale,
-            fps: track.nb_samples / (track.duration / track.timescale),
-          }),
-        );
+        const videoStreams: VideoStreamInfo[] = info.videoTracks.map((track) => ({
+          codec: track.codec as any,
+          width: track.track_width,
+          height: track.track_height,
+          bitrate: track.bitrate,
+          durationInSeconds: track.duration / track.timescale,
+          fps: track.nb_samples / (track.duration / track.timescale),
+        }));
 
-        const audioStreams: AudioStreamInfo[] = info.audioTracks.map(
-          (track) => ({
-            codec: track.codec as any,
-            channelCount: track.audio!.channel_count,
-            sampleRate: track.audio!.sample_rate,
-            bitrate: track.bitrate,
-            durationInSeconds: track.duration / track.timescale,
-          }),
-        );
+        const audioStreams: AudioStreamInfo[] = info.audioTracks.map((track) => ({
+          codec: track.codec as any,
+          channelCount: track.audio!.channel_count,
+          sampleRate: track.audio!.sample_rate,
+          bitrate: track.bitrate,
+          durationInSeconds: track.duration / track.timescale,
+        }));
 
         resolve({
-          parser: "mp4box",
-          container: "mp4",
+          parser: 'mp4box',
+          container: 'mp4',
           durationInSeconds: info.duration / info.timescale,
           videoStreams,
           audioStreams,
@@ -82,7 +72,7 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
           .then(({ done, value }) => {
             if (done) {
               if (!infoFound) {
-                reject(new Error("Stream ended before MP4 info was found"));
+                reject(new Error('Stream ended before MP4 info was found'));
               }
               mp4file.flush();
               return;

@@ -1,6 +1,6 @@
-import { withRetry } from "@handy-common-utils/promise-utils";
-import { MediaInfo } from "../media-info";
-import { GetMediaInfoOptions } from "../get-media-info";
+import { withRetry } from '@handy-common-utils/promise-utils';
+import { MediaInfo } from '../media-info';
+import { GetMediaInfoOptions } from '../get-media-info';
 
 export interface ParsingError {
   isUnsupportedFormatError?: boolean;
@@ -19,10 +19,7 @@ export interface MediaParserAdapter {
    * @returns A promise that resolves to the extracted media information.
    * @throws The Error thrown could implement the ParsingError interface to provide more information about the error.
    */
-  parse(
-    stream: ReadableStream<Uint8Array>,
-    options?: GetMediaInfoOptions,
-  ): Promise<MediaInfo>;
+  parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo>;
 }
 
 /**
@@ -47,10 +44,7 @@ export class FallbackChainParserAdapter implements MediaParserAdapter {
    * @returns The extracted media information.
    * @throws Error from the last paseing attempt.
    */
-  async parse(
-    stream: ReadableStream<Uint8Array>,
-    options?: GetMediaInfoOptions,
-  ): Promise<MediaInfo> {
+  async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
     let i = 0;
     return withRetry(
       () => {
@@ -59,9 +53,7 @@ export class FallbackChainParserAdapter implements MediaParserAdapter {
         return this.adapters[i++].parse(s2, options);
       },
       () => 0,
-      (error) =>
-        i < this.adapters.length &&
-        (error as ParsingError)?.isUnsupportedFormatError === true,
+      (error) => i < this.adapters.length && (error as ParsingError)?.isUnsupportedFormatError === true,
     );
   }
 }

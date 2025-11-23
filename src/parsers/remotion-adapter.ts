@@ -1,12 +1,12 @@
-import { MediaInfo } from "../media-info";
-import { MediaParserAdapter, ParsingError } from "./adapter";
+import { MediaInfo } from '../media-info';
+import { MediaParserAdapter, ParsingError } from './adapter';
 
 export class RemotionAdapter implements MediaParserAdapter {
-  private mediaParser: typeof import("@remotion/media-parser");
+  private mediaParser: typeof import('@remotion/media-parser');
 
   constructor() {
     // eslint-disable-next-line @typescript-eslint/no-require-imports, unicorn/prefer-module
-    this.mediaParser = require("@remotion/media-parser");
+    this.mediaParser = require('@remotion/media-parser');
   }
 
   async parse(stream: ReadableStream<Uint8Array>): Promise<MediaInfo> {
@@ -14,12 +14,7 @@ export class RemotionAdapter implements MediaParserAdapter {
       return await this.parseWithoutErrorHandling(stream);
     } catch (error) {
       const msg = (error as Error)?.message;
-      if (
-        msg &&
-        /(^Unknown [a-zA-Z0-9]+ format:)|(^Only [a-zA-Z0-9]+ is supported)|(^No tracks yet)|(^IsAnUnsupportedFileTypeError:)/.test(
-          msg,
-        )
-      ) {
+      if (msg && /(^Unknown [a-zA-Z0-9]+ format:)|(^Only [a-zA-Z0-9]+ is supported)|(^No tracks yet)|(^IsAnUnsupportedFileTypeError:)/.test(msg)) {
         (error as ParsingError).isUnsupportedFormatError = true;
       }
 
@@ -27,9 +22,7 @@ export class RemotionAdapter implements MediaParserAdapter {
     }
   }
 
-  private async parseWithoutErrorHandling(
-    stream: ReadableStream<Uint8Array>,
-  ): Promise<MediaInfo> {
+  private async parseWithoutErrorHandling(stream: ReadableStream<Uint8Array>): Promise<MediaInfo> {
     const chunks: Uint8Array[] = [];
     const reader = stream.getReader();
     let bytesRead = 0;
@@ -45,7 +38,7 @@ export class RemotionAdapter implements MediaParserAdapter {
     }
 
     const blob = new Blob(chunks);
-    const file = new File([blob], "input.media");
+    const file = new File([blob], 'input.media');
 
     const result = await this.mediaParser.parseMedia({
       src: file,
@@ -62,11 +55,11 @@ export class RemotionAdapter implements MediaParserAdapter {
     const durationInSeconds = result.durationInSeconds ?? undefined;
     const mimeType = result.mimeType ?? undefined;
     return {
-      parser: "remotion",
+      parser: 'remotion',
       container: result.container,
       durationInSeconds: durationInSeconds,
       videoStreams: result.tracks
-        .filter((t) => t.type === "video")
+        .filter((t) => t.type === 'video')
         .map((t) => ({
           codec: t.codec as any,
           width: t.width,
@@ -75,7 +68,7 @@ export class RemotionAdapter implements MediaParserAdapter {
           durationInSeconds,
         })),
       audioStreams: result.tracks
-        .filter((t) => t.type === "audio")
+        .filter((t) => t.type === 'audio')
         .map((t) => ({
           codec: t.codec as any,
           channelCount: t.numberOfChannels,

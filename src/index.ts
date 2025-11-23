@@ -1,5 +1,5 @@
-export * from "./get-media-info";
-export * from "./media-info";
+export * from './get-media-info';
+export * from './media-info';
 
 /**
  * Extract raw audio data from the input
@@ -7,9 +7,6 @@ export * from "./media-info";
  * @param _audioStreamIndex Index of the audio stream to extract from the input
  * @returns The audio data extracted, as a readable stream
  */
-export async function extractAudio(
-  _input: ReadableStream,
-  _audioStreamIndex?: number,
-): Promise<ReadableStream> {
+export async function extractAudio(_input: ReadableStream, _audioStreamIndex?: number): Promise<ReadableStream> {
   return null as any;
 }

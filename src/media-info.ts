@@ -1,8 +1,4 @@
-import type {
-  MediaParserAudioCodec,
-  MediaParserContainer,
-  MediaParserVideoCodec,
-} from "@remotion/media-parser";
+import type { MediaParserAudioCodec, MediaParserContainer, MediaParserVideoCodec } from '@remotion/media-parser';
 
 export interface VideoStreamInfo {
   codec: MediaParserVideoCodec;
@@ -22,7 +18,7 @@ export interface AudioStreamInfo {
 }
 
 export interface MediaInfo {
-  parser: "mp4box" | "remotion" | "auto";
+  parser: 'mp4box' | 'remotion' | 'auto';
   container: MediaParserContainer;
   durationInSeconds?: number;
   videoStreams: VideoStreamInfo[];

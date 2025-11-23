@@ -1,11 +1,8 @@
-import { MediaInfo } from "./media-info";
-import {
-  FallbackChainParserAdapter,
-  MediaParserAdapter,
-} from "./parsers/adapter";
-import { Mp4BoxAdapter } from "./parsers/mp4box-adapter";
-import { RemotionAdapter } from "./parsers/remotion-adapter";
-import { createReadableStreamFromFile, ParserRelatedOptions } from "./utils";
+import { MediaInfo } from './media-info';
+import { FallbackChainParserAdapter, MediaParserAdapter } from './parsers/adapter';
+import { Mp4BoxAdapter } from './parsers/mp4box-adapter';
+import { RemotionAdapter } from './parsers/remotion-adapter';
+import { createReadableStreamFromFile, ParserRelatedOptions } from './utils';
 
 export type GetMediaInfoOptions = ParserRelatedOptions;
 
@@ -19,35 +16,29 @@ export type GetMediaInfoOptions = ParserRelatedOptions;
 export async function getMediaInfo(
   stream: ReadableStream<Uint8Array>,
   options?: GetMediaInfoOptions,
-): Promise<
-  MediaInfo & { parser: Exclude<GetMediaInfoOptions["useParser"], undefined> }
-> {
-  const useParser = options?.useParser ?? "auto";
+): Promise<MediaInfo & { parser: Exclude<GetMediaInfoOptions['useParser'], undefined> }> {
+  const useParser = options?.useParser ?? 'auto';
 
   let parser: MediaParserAdapter;
 
   switch (useParser) {
-    case "mp4box": {
+    case 'mp4box': {
       try {
         parser = new Mp4BoxAdapter();
       } catch (error) {
-        throw new Error(
-          `Very likely NPM package mp4box is not installed: ${error}`,
-        );
+        throw new Error(`Very likely NPM package mp4box is not installed: ${error}`);
       }
       break;
     }
-    case "remotion": {
+    case 'remotion': {
       try {
         parser = new RemotionAdapter();
       } catch (error) {
-        throw new Error(
-          `Very likely NPM package @remotion/media-parser is not installed: ${error}`,
-        );
+        throw new Error(`Very likely NPM package @remotion/media-parser is not installed: ${error}`);
       }
       break;
     }
-    case "auto": {
+    case 'auto': {
       const adapters = new Array<MediaParserAdapter>();
       try {
         adapters.push(new Mp4BoxAdapter());
@@ -60,9 +51,7 @@ export async function getMediaInfo(
         // Ignore
       }
       if (adapters.length === 0) {
-        throw new Error(
-          "Very likely none of the required NPM packages (such like mp4box or @remotion/media-parser) is installed",
-        );
+        throw new Error('Very likely none of the required NPM packages (such like mp4box or @remotion/media-parser) is installed');
       }
       parser = new FallbackChainParserAdapter(adapters);
       break;
@@ -86,10 +75,7 @@ export async function getMediaInfo(
  * @param options Options for the parser
  * @returns The media information
  */
-export async function getMediaInfoFromFile(
-  filePath: string,
-  options?: GetMediaInfoOptions,
-): Promise<MediaInfo> {
+export async function getMediaInfoFromFile(filePath: string, options?: GetMediaInfoOptions): Promise<MediaInfo> {
   const webStream = await createReadableStreamFromFile(filePath);
   return getMediaInfo(webStream, options);
 }
