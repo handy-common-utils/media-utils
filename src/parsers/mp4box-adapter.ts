@@ -31,21 +31,33 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
 
       mp4file.onReady = (info) => {
         infoFound = true;
+
+        // For mp3 in mov, mp4box is unable to put the mp3 track into audioTracks.
+        // Here's the patch:
+        for (const track of info.otherTracks) {
+          if (track.codec === 'mp3' && !info.audioTracks.some((audioTrack) => audioTrack.id === track.id)) {
+            info.audioTracks.push(track);
+            info.audioTracks.sort((a, b) => a.id - b.id);
+          }
+        }
+
         const videoStreams: VideoStreamInfo[] = info.videoTracks.map((track) => ({
+          id: track.id,
           codecDetail: track.codec,
           codec: toVideoCodecType(track.codec),
-          width: track.track_width,
-          height: track.track_height,
+          width: track.video?.width ?? track.track_width,
+          height: track.video?.height ?? track.track_height,
           bitrate: track.bitrate,
           durationInSeconds: track.duration / track.timescale,
           fps: track.nb_samples / (track.duration / track.timescale),
         }));
 
         const audioStreams: AudioStreamInfo[] = info.audioTracks.map((track) => ({
+          id: track.id,
           codecDetail: track.codec,
           codec: toAudioCodecType(track.codec),
-          channelCount: track.audio!.channel_count,
-          sampleRate: track.audio!.sample_rate,
+          channelCount: track.audio?.channel_count,
+          sampleRate: track.audio?.sample_rate,
           bitrate: track.bitrate,
           durationInSeconds: track.duration / track.timescale,
         }));

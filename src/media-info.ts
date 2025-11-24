@@ -5,6 +5,7 @@ export type VideoCodecType = MediaParserVideoCodec;
 export type ContainerType = MediaParserContainer;
 
 export interface VideoStreamInfo {
+  id: number;
   codec: VideoCodecType;
   /**
    * Parser-specific codec information
@@ -18,6 +19,7 @@ export interface VideoStreamInfo {
 }
 
 export interface AudioStreamInfo {
+  id: number;
   codec: AudioCodecType;
   /**
    * Parser-specific codec information

@@ -92,6 +92,7 @@ export class IsoBoxerAdapter implements MediaParserAdapter {
       const mdia = trak.boxes?.find((box: any) => box.type === 'mdia');
       if (!mdia) continue;
 
+      const tkhd = trak.boxes?.find((box: any) => box.type === 'tkhd');
       const mdhd = mdia.boxes?.find((box: any) => box.type === 'mdhd');
       const hdlr = mdia.boxes?.find((box: any) => box.type === 'hdlr');
       const minf = mdia.boxes?.find((box: any) => box.type === 'minf');
@@ -129,6 +130,7 @@ export class IsoBoxerAdapter implements MediaParserAdapter {
         const height = sampleEntry.height;
 
         videoStreams.push({
+          id: tkhd.track_ID,
           codecDetail,
           codec: toVideoCodecType(codecDetail),
           width,
@@ -142,6 +144,7 @@ export class IsoBoxerAdapter implements MediaParserAdapter {
         const codec = toAudioCodecType(codecDetail);
 
         const audioStreamInfo = {
+          id: tkhd.track_ID,
           codecDetail,
           codec,
           channelCount: channelCount ?? esdsInfo?.channels,

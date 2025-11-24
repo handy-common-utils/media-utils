@@ -17,6 +17,7 @@ describe('getMediaInfo with real files', () => {
       expect(info).toEqual({
         audioStreams: [
           {
+            id: 2,
             bitrate: 128127.0481418919,
             channelCount: 2,
             codec: 'aac',
@@ -32,6 +33,7 @@ describe('getMediaInfo with real files', () => {
         parser: 'mp4box',
         videoStreams: [
           {
+            id: 1,
             bitrate: 349082.6666666667,
             codec: 'h264',
             codecDetail: 'avc1.64001f',
@@ -49,6 +51,7 @@ describe('getMediaInfo with real files', () => {
       expect(info).toEqual({
         audioStreams: [
           {
+            id: 2,
             bitrate: 128553.40909090909,
             channelCount: 2,
             codec: 'mp3',
@@ -64,6 +67,7 @@ describe('getMediaInfo with real files', () => {
         parser: 'mp4box',
         videoStreams: [
           {
+            id: 1,
             bitrate: 349082.6666666667,
             codec: 'h264',
             codecDetail: 'avc1.64001f',
@@ -81,6 +85,7 @@ describe('getMediaInfo with real files', () => {
       expect(info).toEqual({
         audioStreams: [
           {
+            id: 2,
             bitrate: 131500.0999273256,
             channelCount: 2,
             codec: 'aac',
@@ -96,6 +101,7 @@ describe('getMediaInfo with real files', () => {
         parser: 'mp4box',
         videoStreams: [
           {
+            id: 1,
             bitrate: 939149.3969987833,
             codec: 'h264',
             codecDetail: 'avc1.4d401f',
@@ -112,14 +118,15 @@ describe('getMediaInfo with real files', () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.mp3.mov'), { useParser: 'mp4box' });
       expect(info).toEqual({
         audioStreams: [
-          // {
-          //   bitrate: 128127.0481418919,
-          //   channelCount: 2,
-          //   codec: 'aac',
-          //   codecDetail: 'mp4a.40.2',
-          //   durationInSeconds: 6,
-          //   sampleRate: 44100,
-          // },
+          {
+            id: 2,
+            bitrate: 191269.19521479064,
+            channelCount: undefined,
+            codec: 'mp3',
+            codecDetail: 'mp3',
+            durationInSeconds: 6.0048979591836735,
+            sampleRate: undefined,
+          },
         ],
         container: 'mp4',
         containerDetail: 'qt  , qt  ',
@@ -128,6 +135,7 @@ describe('getMediaInfo with real files', () => {
         parser: 'mp4box',
         videoStreams: [
           {
+            id: 1,
             bitrate: 935733.848275862,
             codec: 'h264',
             codecDetail: 'avc1.4d401f',
@@ -163,6 +171,7 @@ describe('getMediaInfo with real files', () => {
       expect(info).toEqual({
         audioStreams: [
           {
+            id: 2,
             channelCount: 2,
             codec: 'aac',
             codecDetail: 'mp4a.40',
@@ -176,6 +185,7 @@ describe('getMediaInfo with real files', () => {
         parser: 'isoboxer',
         videoStreams: [
           {
+            id: 1,
             codec: 'h264',
             codecDetail: 'avc1',
             durationInSeconds: 6,
@@ -191,6 +201,7 @@ describe('getMediaInfo with real files', () => {
       expect(info).toEqual({
         audioStreams: [
           {
+            id: 2,
             channelCount: 2,
             codec: 'mp3',
             codecDetail: 'mp4a.6b',
@@ -204,6 +215,7 @@ describe('getMediaInfo with real files', () => {
         parser: 'isoboxer',
         videoStreams: [
           {
+            id: 1,
             codec: 'h264',
             codecDetail: 'avc1',
             durationInSeconds: 6,
@@ -219,6 +231,7 @@ describe('getMediaInfo with real files', () => {
       expect(info).toEqual({
         audioStreams: [
           {
+            id: 2,
             channelCount: 2,
             codec: 'aac',
             codecDetail: 'mp4a.40',
@@ -232,6 +245,7 @@ describe('getMediaInfo with real files', () => {
         parser: 'isoboxer',
         videoStreams: [
           {
+            id: 1,
             codec: 'h264',
             codecDetail: 'avc1',
             durationInSeconds: 6.019694010416667,
@@ -247,6 +261,7 @@ describe('getMediaInfo with real files', () => {
       expect(info).toEqual({
         audioStreams: [
           {
+            id: 2,
             channelCount: undefined, // can't be found in ESDS
             codec: 'mp3',
             codecDetail: '.mp3',
@@ -260,6 +275,7 @@ describe('getMediaInfo with real files', () => {
         parser: 'isoboxer',
         videoStreams: [
           {
+            id: 1,
             codec: 'h264',
             codecDetail: 'avc1',
             durationInSeconds: 6.041666666666667,
@@ -293,6 +309,7 @@ describe('getMediaInfo with real files', () => {
       expect(info).toEqual({
         audioStreams: [
           {
+            id: 2,
             channelCount: 2,
             codec: 'aac',
             codecDetail: 'mp4a.40.02',
@@ -307,6 +324,7 @@ describe('getMediaInfo with real files', () => {
         parser: 'remotion',
         videoStreams: [
           {
+            id: 1,
             codec: 'h264',
             codecDetail: 'avc1.64001f',
             durationInSeconds: 6,
@@ -322,6 +340,7 @@ describe('getMediaInfo with real files', () => {
       expect(info).toEqual({
         audioStreams: [
           {
+            id: 2,
             channelCount: 2,
             codec: 'mp3',
             codecDetail: 'mp3',
@@ -336,6 +355,7 @@ describe('getMediaInfo with real files', () => {
         parser: 'remotion',
         videoStreams: [
           {
+            id: 1,
             codec: 'h264',
             codecDetail: 'avc1.64001f',
             durationInSeconds: 6.014,
@@ -351,6 +371,7 @@ describe('getMediaInfo with real files', () => {
       expect(info).toEqual({
         audioStreams: [
           {
+            id: 2,
             channelCount: 2,
             codec: 'aac',
             codecDetail: 'mp4a.40.02',
@@ -365,6 +386,7 @@ describe('getMediaInfo with real files', () => {
         parser: 'remotion',
         videoStreams: [
           {
+            id: 1,
             codec: 'h264',
             codecDetail: 'avc1.4d401f',
             durationInSeconds: 6.02,
@@ -380,6 +402,7 @@ describe('getMediaInfo with real files', () => {
       expect(info).toEqual({
         audioStreams: [
           {
+            id: 2,
             channelCount: 2,
             codec: 'opus',
             codecDetail: 'opus',
@@ -394,6 +417,7 @@ describe('getMediaInfo with real files', () => {
         parser: 'remotion',
         videoStreams: [
           {
+            id: 1,
             codec: 'vp9',
             codecDetail: 'vp09.00.10.08',
             durationInSeconds: 6.008,

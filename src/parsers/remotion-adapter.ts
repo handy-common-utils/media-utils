@@ -69,6 +69,7 @@ export class RemotionAdapter implements MediaParserAdapter {
       videoStreams: result.tracks
         .filter((t) => t.type === 'video')
         .map((t) => ({
+          id: t.trackId,
           codecDetail: t.codec,
           codec: toVideoCodecType(t.codec),
           width: t.width,
@@ -78,6 +79,7 @@ export class RemotionAdapter implements MediaParserAdapter {
       audioStreams: result.tracks
         .filter((t) => t.type === 'audio')
         .map((t) => ({
+          id: t.trackId,
           codecDetail: t.codec,
           codec: toAudioCodecType(t.codec),
           channelCount: t.numberOfChannels,
