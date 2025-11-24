@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { Readable } from 'node:stream';
 
 import { MediaInfo } from './media-info';
@@ -17,9 +19,42 @@ export interface ParserRelatedOptions {
  * @returns A (web) ReadableStream of Uint8Array chunks
  */
 export async function createReadableStreamFromFile(filePath: string): Promise<ReadableStream<Uint8Array>> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, unicorn/prefer-module
-  const fs = require('node:fs');
   const nodeReadable = fs.createReadStream(filePath);
   const webReadableStream = Readable.toWeb(nodeReadable);
   return webReadableStream;
+}
+
+/**
+ * Reads a Web ReadableStream and writes it to a file.
+ * This function works in Node.js environment but not in browser.
+ * @param stream The readable stream to read from
+ * @param filePath The path to the file to write to
+ */
+export async function readFromStreamToFile(stream: ReadableStream<Uint8Array>, filePath: string): Promise<void> {
+  // Ensure output directory exists
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  const reader = stream.getReader();
+  const writeStream = fs.createWriteStream(filePath);
+  const writePromise = new Promise<void>((resolve, reject) => {
+    writeStream.on('finish', resolve);
+    writeStream.on('error', reject);
+  });
+
+  try {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        writeStream.write(value);
+      }
+    }
+  } finally {
+    writeStream.end();
+    await writePromise;
+  }
 }

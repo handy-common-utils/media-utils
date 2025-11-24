@@ -1,3 +1,5 @@
+import type { Movie } from 'mp4box';
+
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioStreamInfo, MediaInfo, toAudioCodecType, toContainerType, toVideoCodecType, VideoStreamInfo } from '../media-info';
 import { MediaParserAdapter, ParsingError } from './adapter';
@@ -31,46 +33,8 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
 
       mp4file.onReady = (info) => {
         infoFound = true;
-
-        // For mp3 in mov, mp4box is unable to put the mp3 track into audioTracks.
-        // Here's the patch:
-        for (const track of info.otherTracks) {
-          if (track.codec === 'mp3' && !info.audioTracks.some((audioTrack) => audioTrack.id === track.id)) {
-            info.audioTracks.push(track);
-            info.audioTracks.sort((a, b) => a.id - b.id);
-          }
-        }
-
-        const videoStreams: VideoStreamInfo[] = info.videoTracks.map((track) => ({
-          id: track.id,
-          codecDetail: track.codec,
-          codec: toVideoCodecType(track.codec),
-          width: track.video?.width ?? track.track_width,
-          height: track.video?.height ?? track.track_height,
-          bitrate: track.bitrate,
-          durationInSeconds: track.duration / track.timescale,
-          fps: track.nb_samples / (track.duration / track.timescale),
-        }));
-
-        const audioStreams: AudioStreamInfo[] = info.audioTracks.map((track) => ({
-          id: track.id,
-          codecDetail: track.codec,
-          codec: toAudioCodecType(track.codec),
-          channelCount: track.audio?.channel_count,
-          sampleRate: track.audio?.sample_rate,
-          bitrate: track.bitrate,
-          durationInSeconds: track.duration / track.timescale,
-        }));
-
-        resolve({
-          parser: 'mp4box',
-          containerDetail: info.brands.join(', '),
-          container: toContainerType(info.brands),
-          durationInSeconds: info.duration / info.timescale,
-          videoStreams,
-          audioStreams,
-          mimeType: info.mime,
-        });
+        const mediaInfo = mp4boxInfoToMediaInfo(info);
+        resolve(mediaInfo);
         mp4file.flush();
       };
 
@@ -117,4 +81,51 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
       readChunk();
     });
   }
+}
+
+/**
+ * Convert mp4box Movie information to MediaInfo
+ * @param info mp4box Movie information which is the output from its parsing
+ * @returns MediaInfo
+ */
+export function mp4boxInfoToMediaInfo(info: Movie): MediaInfo {
+  // For mp3 in mov, mp4box is unable to put the mp3 track into audioTracks.
+  // Here's the patch:
+  for (const track of info.otherTracks) {
+    if (track.codec === 'mp3' && !info.audioTracks.some((audioTrack) => audioTrack.id === track.id)) {
+      info.audioTracks.push(track);
+      info.audioTracks.sort((a, b) => a.id - b.id);
+    }
+  }
+
+  const videoStreams: VideoStreamInfo[] = info.videoTracks.map((track) => ({
+    id: track.id,
+    codecDetail: track.codec,
+    codec: toVideoCodecType(track.codec),
+    width: track.video?.width ?? track.track_width,
+    height: track.video?.height ?? track.track_height,
+    bitrate: track.bitrate,
+    durationInSeconds: track.duration / track.timescale,
+    fps: track.nb_samples / (track.duration / track.timescale),
+  }));
+
+  const audioStreams: AudioStreamInfo[] = info.audioTracks.map((track) => ({
+    id: track.id,
+    codecDetail: track.codec,
+    codec: toAudioCodecType(track.codec),
+    channelCount: track.audio?.channel_count,
+    sampleRate: track.audio?.sample_rate,
+    bitrate: track.bitrate,
+    durationInSeconds: track.duration / track.timescale,
+  }));
+
+  return {
+    parser: 'mp4box',
+    containerDetail: info.brands.join(', '),
+    container: toContainerType(info.brands),
+    durationInSeconds: info.duration / info.timescale,
+    videoStreams,
+    audioStreams,
+    mimeType: info.mime,
+  };
 }

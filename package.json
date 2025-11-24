@@ -4,7 +4,7 @@
   "description": "A pure-JS, no-FFmpeg audio-extractor which works with popular media formats and audio codecs",
   "scripts": {
     "pretest": "eslint . --ext .ts",
-    "test": "jest",
+    "test": "jest --silent",
     "compile": "shx rm -rf dist && tsc",
     "prepare": "husky",
     "prepack": "npm run compile",
