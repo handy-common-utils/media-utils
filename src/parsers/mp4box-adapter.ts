@@ -1,5 +1,6 @@
 import type { ES_Descriptor, ISOFile, Movie } from 'mp4box';
 
+import { getAacProfileName } from '../codec-utils';
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioStreamInfo, MediaInfo, toAudioCodecType, toContainerType, toVideoCodecType, VideoStreamInfo } from '../media-info';
 import { MediaParserAdapter, ParsingError } from './adapter';
@@ -161,30 +162,4 @@ export function mp4boxInfoToMediaInfo(info: Movie, mp4file?: ISOFile): MediaInfo
     audioStreams,
     mimeType: info.mime,
   };
-}
-
-function getAacProfileName(audioObjectType: number): string | undefined {
-  switch (audioObjectType) {
-    case 1: {
-      return 'Main';
-    }
-    case 2: {
-      return 'LC';
-    }
-    case 3: {
-      return 'SSR';
-    }
-    case 4: {
-      return 'LTP';
-    }
-    case 5: {
-      return 'HE-AAC';
-    }
-    case 29: {
-      return 'HE-AAC v2';
-    }
-    default: {
-      return undefined;
-    }
-  }
 }

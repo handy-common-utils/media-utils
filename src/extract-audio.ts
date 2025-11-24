@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { Writable } from 'node:stream';
 
+import { createADTSFrame } from './codec-utils';
 import { AudioStreamInfo } from './media-info';
 import { mp4boxInfoToMediaInfo } from './parsers/mp4box-adapter';
 import { createReadableStreamFromFile } from './utils';
@@ -213,72 +214,6 @@ export async function extractAudio(
     // Start reading the input stream immediately so mp4box can parse the file
     readChunk();
   });
-}
-
-/**
- * Create an ADTS frame for AAC audio data
- * ADTS (Audio Data Transport Stream) is a container format for AAC audio
- * @param aacData Raw AAC data
- * @param streamInfo Information about the original audio stream
- * @returns AAC data with ADTS header prepended
- */
-function createADTSFrame(aacData: Uint8Array, streamInfo: AudioStreamInfo): Uint8Array {
-  const { sampleRate = 44100, channelCount = 2 } = streamInfo;
-  const profile = 2;
-
-  // ADTS header is 7 bytes (without CRC)
-  const adtsLength = 7;
-  const frameLength = adtsLength + aacData.length;
-
-  // Sampling frequency index lookup table
-  const samplingFrequencies = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350];
-  const freqIndex = samplingFrequencies.indexOf(sampleRate);
-  if (freqIndex === -1) {
-    throw new Error(`Unsupported sample rate: ${sampleRate}`);
-  }
-
-  const adtsHeader = new Uint8Array(adtsLength);
-
-  // Syncword (12 bits) - all 1s (0xFFF)
-  adtsHeader[0] = 0xff;
-  adtsHeader[1] = 0xf0;
-
-  // MPEG version (1 bit) - 0 for MPEG-4
-  // Layer (2 bits) - always 00
-  // Protection absent (1 bit) - 1 (no CRC)
-  adtsHeader[1] |= 0x01; // Protection absent = 1
-
-  // Profile (2 bits) - AAC profile minus 1
-  // Sampling frequency index (4 bits)
-  // Private bit (1 bit) - 0
-  // Channel configuration (3 bits) - starts here (2 bits)
-  adtsHeader[2] = ((profile - 1) << 6) | (freqIndex << 2) | ((channelCount >> 2) & 0x01);
-
-  // Channel configuration (1 bit continued)
-  // Originality (1 bit) - 0
-  // Home (1 bit) - 0
-  // Copyright ID bit (1 bit) - 0
-  // Copyright ID start (1 bit) - 0
-  // Frame length (13 bits) - starts here (2 bits)
-  adtsHeader[3] = ((channelCount & 0x03) << 6) | ((frameLength >> 11) & 0x03);
-
-  // Frame length (11 bits continued)
-  adtsHeader[4] = (frameLength >> 3) & 0xff;
-
-  // Frame length (3 bits continued)
-  // Buffer fullness (11 bits) - 0x7FF for VBR (starts here with 5 bits)
-  adtsHeader[5] = ((frameLength & 0x07) << 5) | 0x1f;
-
-  // Buffer fullness (6 bits continued)
-  // Number of raw data blocks (2 bits) - 0 (meaning 1 block)
-  adtsHeader[6] = 0xfc;
-
-  // Combine ADTS header with AAC data
-  const frame = new Uint8Array(frameLength);
-  frame.set(adtsHeader, 0);
-  frame.set(aacData, adtsLength);
-
-  return frame;
 }
 
 /**
