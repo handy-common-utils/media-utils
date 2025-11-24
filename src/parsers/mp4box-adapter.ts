@@ -128,8 +128,17 @@ export function mp4boxInfoToMediaInfo(info: Movie, mp4file?: ISOFile): MediaInfo
           const trak = moov.traks.find((t: any) => t.tkhd && t.tkhd.track_id === track.id);
           if (trak?.mdia?.minf?.stbl?.stsd) {
             const entry = trak.mdia.minf.stbl.stsd.entries[0];
-            if ((entry as any)?.esds?.esd?.getAudioConfig) {
-              const esd = (entry as any)?.esds?.esd as ES_Descriptor;
+
+            // Try to find ESDS - it can be directly in the entry (MP4) or in a wave box (MOV)
+            let esds = (entry as any)?.esds;
+
+            // For MOV files, ESDS is often nested in a wave box
+            if (!esds && (entry as any)?.wave?.boxes) {
+              esds = (entry as any).wave.boxes.find((b: any) => b.type === 'esds');
+            }
+
+            if (esds?.esd?.getAudioConfig) {
+              const esd = esds.esd as ES_Descriptor;
               const aot = esd.getAudioConfig();
               stream.profile = getAacProfileName(aot);
             }
