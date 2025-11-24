@@ -1,6 +1,6 @@
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioStreamInfo, MediaInfo, toAudioCodecType, toContainerType, toVideoCodecType, VideoStreamInfo } from '../media-info';
-import { MediaParserAdapter, ParsingError } from './adapter';
+import { MediaParserAdapter, ParsingError, UnsupportedFormatError } from './adapter';
 
 export class IsoBoxerAdapter implements MediaParserAdapter {
   private ISOBoxer: any;
@@ -14,9 +14,11 @@ export class IsoBoxerAdapter implements MediaParserAdapter {
     try {
       return await this.parseWithoutErrorHandling(stream, options);
     } catch (error) {
-      const msg = (error as Error)?.message;
-      if (msg && /(Unknown|Invalid|Unsupported|not found|cannot parse)/i.test(msg)) {
-        (error as ParsingError).isUnsupportedFormatError = true;
+      if (error && !(error as ParsingError).isUnsupportedFormatError) {
+        const msg = (error as Error)?.message;
+        if (msg && /(Unknown|Invalid|Unsupported|not found|cannot parse)/i.test(msg)) {
+          (error as ParsingError).isUnsupportedFormatError = true;
+        }
       }
 
       throw error;
@@ -52,13 +54,13 @@ export class IsoBoxerAdapter implements MediaParserAdapter {
     const parsedFile = this.ISOBoxer.parseBuffer(arrayBuffer);
 
     if (!parsedFile || !parsedFile.boxes) {
-      throw new Error('Failed to parse file with ISOBoxer');
+      throw new UnsupportedFormatError('Failed to parse file with ISOBoxer');
     }
 
     // Extract ftyp box for container information
     const ftyp = parsedFile.fetch('ftyp');
     if (!ftyp) {
-      throw new Error('ftyp box not found - file may not be a valid MP4/ISOBMFF file');
+      throw new UnsupportedFormatError('ftyp box not found - file may not be a valid MP4/ISOBMFF file');
     }
 
     const brands = [ftyp.major_brand, ...(ftyp.compatible_brands || [])];
@@ -67,13 +69,13 @@ export class IsoBoxerAdapter implements MediaParserAdapter {
     // Extract moov box for metadata
     const moov = parsedFile.fetch('moov');
     if (!moov) {
-      throw new Error('moov box not found - file may be incomplete or corrupted');
+      throw new UnsupportedFormatError('moov box not found - file may be incomplete or corrupted');
     }
 
     // Get all track boxes using fetchAll on the parsed file (not on moov)
     const traks = parsedFile.fetchAll('trak');
     if (!traks || traks.length === 0) {
-      throw new Error('No tracks found in file');
+      throw new UnsupportedFormatError('No tracks found in file');
     }
 
     const videoStreams: VideoStreamInfo[] = [];
@@ -233,7 +235,7 @@ function parseEsds(data: Uint8Array): EsdsInfo | undefined {
   if (offset >= data.length) return undefined;
 
   // ---- ES_Descriptor ----
-  if (data[offset] !== 0x03) throw new Error(`Expected ES_Descriptor at offset ${offset}`);
+  if (data[offset] !== 0x03) throw new UnsupportedFormatError(`Expected ES_Descriptor at offset ${offset}`);
   offset++;
   const esLengthInfo = readMp4Length(data, offset);
   offset += esLengthInfo.headerSize;
@@ -251,7 +253,7 @@ function parseEsds(data: Uint8Array): EsdsInfo | undefined {
   if (flags & 0x20) offset += 2;
 
   // ---- DecoderConfigDescriptor ----
-  if (data[offset] !== 0x04) throw new Error(`Expected DecoderConfigDescriptor at offset ${offset}`);
+  if (data[offset] !== 0x04) throw new UnsupportedFormatError(`Expected DecoderConfigDescriptor at offset ${offset}`);
   offset++;
   const dcdLengthInfo = readMp4Length(data, offset);
   offset += dcdLengthInfo.headerSize;
