@@ -1,5 +1,6 @@
 import { MediaInfo } from './media-info';
 import { FallbackChainParserAdapter, MediaParserAdapter } from './parsers/adapter';
+import { InhouseParserAdapter } from './parsers/inhouse-parsers-adapter';
 import { IsoBoxerAdapter } from './parsers/isoboxer-adapter';
 import { Mp4BoxAdapter } from './parsers/mp4box-adapter';
 import { RemotionAdapter } from './parsers/remotion-adapter';
@@ -47,8 +48,13 @@ export async function getMediaInfo(
       }
       break;
     }
+    case 'inhouse': {
+      parser = new InhouseParserAdapter();
+      break;
+    }
     case 'auto': {
       const adapters = new Array<MediaParserAdapter>();
+      adapters.push(new InhouseParserAdapter());
       try {
         adapters.push(new Mp4BoxAdapter());
       } catch {

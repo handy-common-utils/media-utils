@@ -305,6 +305,47 @@ describe('getMediaInfo with real files', () => {
     });
   });
 
+  describe('inhouse parser', () => {
+    it('should parse engine-start.aac file', async () => {
+      const info = await getMediaInfoFromFile(sampleFile('engine-start.aac'), { useParser: 'inhouse' });
+      expect(info).toEqual({
+        audioStreams: [
+          {
+            id: 1,
+            channelCount: 2,
+            codec: 'aac',
+            codecDetail: 'mp4a.40.2',
+            durationInSeconds: undefined,
+            sampleRate: 44100,
+            profile: 'LC',
+          },
+        ],
+        container: 'aac',
+        containerDetail: 'aac',
+        durationInSeconds: undefined,
+        parser: 'inhouse',
+        videoStreams: [],
+      } as MediaInfo);
+    });
+
+    it.each([
+      'engine-start.h264.aac.mp4',
+      'engine-start.mjpeg.pcms16le.avi',
+      'engine-start.h264.pcms16le.avi',
+      'engine-start.mpeg2video.mp2.m2ts',
+      'engine-start.vp9.opus.webm',
+      'engine-start.wmv2.wmav2.wmv',
+    ])('should fail to parse %s', async (filename) => {
+      try {
+        await getMediaInfoFromFile(sampleFile(filename), { useParser: 'inhouse' });
+        expect('').toBe('should fail to parse');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect(error).toHaveProperty('isUnsupportedFormatError', true);
+      }
+    });
+  });
+
   describe('remotion parser', () => {
     it('should parse entine-start.h264.aac.mp4 file', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.aac.mp4'), { useParser: 'remotion' });

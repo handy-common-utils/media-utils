@@ -33,7 +33,7 @@ export interface AudioStreamInfo {
 }
 
 export interface MediaInfo {
-  parser: 'mp4box' | 'remotion' | 'isoboxer' | 'auto';
+  parser: 'mp4box' | 'remotion' | 'isoboxer' | 'inhouse' | 'auto';
   container: ContainerType;
   /**
    * Parser-specific container information

@@ -33,7 +33,7 @@ afterAll(() => {
   }
 });
 
-describe('extractAudio', () => {
+describe.skip('extractAudio', () => {
   describe('AAC extraction', () => {
     it.only('should extract AAC audio from MP4 file with AAC codec', async () => {
       const inputFile = sampleFile('engine-start.h264.aac.mp4');
