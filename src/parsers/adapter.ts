@@ -8,6 +8,18 @@ export interface ParsingError {
 }
 
 /**
+ * Error thrown when a parser encounters an unsupported file format or invalid data.
+ */
+export class UnsupportedFormatError extends Error implements ParsingError {
+  readonly isUnsupportedFormatError = true;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnsupportedFormatError';
+  }
+}
+
+/**
  * Interface for media parser adapters.
  * Adapters bridge the gap between the generic media info extraction logic
  * and specific parser implementations (like mp4box or @remotion/media-parser).

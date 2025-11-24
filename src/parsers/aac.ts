@@ -1,5 +1,7 @@
 import { getAacProfileName } from '../codec-utils';
+import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
+import { UnsupportedFormatError } from './adapter';
 
 /**
  * Parses an ADTS (Audio Data Transport Stream) header from AAC data.
@@ -11,7 +13,7 @@ import { AudioStreamInfo, MediaInfo } from '../media-info';
  */
 export function parseADTSHeader(data: Uint8Array): AudioStreamInfo {
   if (data.length < 7) {
-    throw new Error('Not an AAC file: insufficient data');
+    throw new UnsupportedFormatError('Not an AAC file: insufficient data');
   }
 
   // Parse ADTS header (7 bytes minimum)
@@ -20,7 +22,7 @@ export function parseADTSHeader(data: Uint8Array): AudioStreamInfo {
   // Check syncword (12 bits) - should be 0xFFF
   const syncword = (header[0] << 4) | (header[1] >> 4);
   if (syncword !== 0xfff) {
-    throw new Error('Invalid ADTS header: syncword mismatch');
+    throw new UnsupportedFormatError('Invalid ADTS header: syncword mismatch');
   }
 
   // Extract MPEG version (1 bit) - bit 3 of byte 1
@@ -42,7 +44,7 @@ export function parseADTSHeader(data: Uint8Array): AudioStreamInfo {
   const sampleRate = samplingFrequencies[samplingFreqIndex];
 
   if (!sampleRate) {
-    throw new Error(`Invalid ADTS header: unsupported sampling frequency index ${samplingFreqIndex}`);
+    throw new UnsupportedFormatError(`Invalid ADTS header: unsupported sampling frequency index ${samplingFreqIndex}`);
   }
 
   // Extract channel configuration (3 bits)
@@ -80,17 +82,18 @@ export function parseADTSHeader(data: Uint8Array): AudioStreamInfo {
  * which should be set by the adapter.
  *
  * @param stream The input media stream
+ * @param _options Optional options for the parser
  * @returns Media information without the parser field
- * @throws Error if the stream is not a valid AAC file
+ * @throws UnsupportedFormatError if the stream is not a valid AAC file
  */
-export async function parseAac(stream: ReadableStream<Uint8Array>): Promise<Omit<MediaInfo, 'parser'>> {
+export async function parseAac(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
   // Read the first chunk to parse the ADTS header
   const reader = stream.getReader();
   const { done, value } = await reader.read();
   reader.cancel();
 
   if (done || !value) {
-    throw new Error('Not an AAC file: insufficient data');
+    throw new UnsupportedFormatError('Not an AAC file: insufficient data');
   }
 
   // Parse ADTS header using the AAC-specific parser

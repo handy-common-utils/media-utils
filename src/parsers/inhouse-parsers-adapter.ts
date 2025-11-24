@@ -1,26 +1,34 @@
+import { withRetry } from '@handy-common-utils/promise-utils';
+
+import { GetMediaInfoOptions } from '../get-media-info';
 import { MediaInfo } from '../media-info';
 import { parseAac } from './aac';
 import { MediaParserAdapter, ParsingError } from './adapter';
+import { parseMp3 } from './mp3';
 
 /**
- * In-house parser adapter for AAC files with ADTS headers.
- * This adapter parses ADTS (Audio Data Transport Stream) formatted AAC files
- * and extracts metadata from the ADTS header.
+ * In-house parser adapter for audio files with simple headers.
+ * Currently supports:
+ * - AAC files with ADTS headers
+ * - MP3 files with frame headers
  */
 export class InhouseParserAdapter implements MediaParserAdapter {
-  async parse(stream: ReadableStream<Uint8Array>): Promise<MediaInfo> {
-    try {
-      const mediaInfo = await parseAac(stream);
-      return {
-        ...mediaInfo,
-        parser: 'inhouse',
-      };
-    } catch (error) {
-      const msg = (error as Error)?.message;
-      if (msg && /^(Unsupported format|Invalid ADTS|Not an AAC)/.test(msg)) {
-        (error as ParsingError).isUnsupportedFormatError = true;
-      }
-      throw error;
-    }
+  private readonly parsers = [parseAac, parseMp3];
+
+  async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
+    let i = 0;
+    const info = await withRetry(
+      () => {
+        const [s1, s2] = stream.tee();
+        stream = s1;
+        return this.parsers[i++](s2, options);
+      },
+      () => 0,
+      (error) => i < this.parsers.length && (error as ParsingError)?.isUnsupportedFormatError === true,
+    );
+    return {
+      ...info,
+      parser: 'inhouse',
+    };
   }
 }

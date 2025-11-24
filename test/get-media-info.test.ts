@@ -328,6 +328,28 @@ describe('getMediaInfo with real files', () => {
       } as MediaInfo);
     });
 
+    it('should parse engine-start.mp3 file', async () => {
+      const info = await getMediaInfoFromFile(sampleFile('engine-start.mp3'), { useParser: 'inhouse' });
+      expect(info).toEqual({
+        audioStreams: [
+          {
+            id: 1,
+            bitrate: 64000,
+            channelCount: 2,
+            codec: 'mp3',
+            codecDetail: 'mp3',
+            durationInSeconds: undefined,
+            sampleRate: 44100,
+          },
+        ],
+        container: 'mp3',
+        containerDetail: 'mp3',
+        durationInSeconds: undefined,
+        parser: 'inhouse',
+        videoStreams: [],
+      } as MediaInfo);
+    });
+
     it.each([
       'engine-start.h264.aac.mp4',
       'engine-start.mjpeg.pcms16le.avi',
