@@ -29,6 +29,7 @@ export interface AudioStreamInfo {
   sampleRate?: number;
   bitrate?: number;
   durationInSeconds?: number;
+  profile?: string;
 }
 
 export interface MediaInfo {

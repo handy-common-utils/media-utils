@@ -1,4 +1,4 @@
-import type { Movie } from 'mp4box';
+import type { ES_Descriptor, ISOFile, Movie } from 'mp4box';
 
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioStreamInfo, MediaInfo, toAudioCodecType, toContainerType, toVideoCodecType, VideoStreamInfo } from '../media-info';
@@ -33,7 +33,7 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
 
       mp4file.onReady = (info) => {
         infoFound = true;
-        const mediaInfo = mp4boxInfoToMediaInfo(info);
+        const mediaInfo = mp4boxInfoToMediaInfo(info, mp4file);
         resolve(mediaInfo);
         mp4file.flush();
       };
@@ -86,9 +86,10 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
 /**
  * Convert mp4box Movie information to MediaInfo
  * @param info mp4box Movie information which is the output from its parsing
+ * @param mp4file The mp4box file object (ISOFile)
  * @returns MediaInfo
  */
-export function mp4boxInfoToMediaInfo(info: Movie): MediaInfo {
+export function mp4boxInfoToMediaInfo(info: Movie, mp4file?: ISOFile): MediaInfo {
   // For mp3 in mov, mp4box is unable to put the mp3 track into audioTracks.
   // Here's the patch:
   for (const track of info.otherTracks) {
@@ -109,15 +110,38 @@ export function mp4boxInfoToMediaInfo(info: Movie): MediaInfo {
     fps: track.nb_samples / (track.duration / track.timescale),
   }));
 
-  const audioStreams: AudioStreamInfo[] = info.audioTracks.map((track) => ({
-    id: track.id,
-    codecDetail: track.codec,
-    codec: toAudioCodecType(track.codec),
-    channelCount: track.audio?.channel_count,
-    sampleRate: track.audio?.sample_rate,
-    bitrate: track.bitrate,
-    durationInSeconds: track.duration / track.timescale,
-  }));
+  const audioStreams: AudioStreamInfo[] = info.audioTracks.map((track) => {
+    const stream: AudioStreamInfo = {
+      id: track.id,
+      codecDetail: track.codec,
+      codec: toAudioCodecType(track.codec),
+      channelCount: track.audio?.channel_count,
+      sampleRate: track.audio?.sample_rate,
+      bitrate: track.bitrate,
+      durationInSeconds: track.duration / track.timescale,
+    };
+
+    if (mp4file && stream.codec === 'aac') {
+      try {
+        const moov = mp4file.moov;
+        if (moov && moov.traks) {
+          const trak = moov.traks.find((t: any) => t.tkhd && t.tkhd.track_id === track.id);
+          if (trak?.mdia?.minf?.stbl?.stsd) {
+            const entry = trak.mdia.minf.stbl.stsd.entries[0];
+            if ((entry as any)?.esds?.esd?.getAudioConfig) {
+              const esd = (entry as any)?.esds?.esd as ES_Descriptor;
+              const aot = esd.getAudioConfig();
+              stream.profile = getAacProfileName(aot);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to extract AAC profile', error);
+      }
+    }
+
+    return stream;
+  });
 
   return {
     parser: 'mp4box',
@@ -128,4 +152,30 @@ export function mp4boxInfoToMediaInfo(info: Movie): MediaInfo {
     audioStreams,
     mimeType: info.mime,
   };
+}
+
+function getAacProfileName(audioObjectType: number): string | undefined {
+  switch (audioObjectType) {
+    case 1: {
+      return 'Main';
+    }
+    case 2: {
+      return 'LC';
+    }
+    case 3: {
+      return 'SSR';
+    }
+    case 4: {
+      return 'LTP';
+    }
+    case 5: {
+      return 'HE-AAC';
+    }
+    case 29: {
+      return 'HE-AAC v2';
+    }
+    default: {
+      return undefined;
+    }
+  }
 }

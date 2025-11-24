@@ -24,6 +24,7 @@ describe('getMediaInfo with real files', () => {
             codecDetail: 'mp4a.40.2',
             durationInSeconds: 6,
             sampleRate: 44100,
+            profile: 'LC',
           },
         ],
         container: 'mp4',
