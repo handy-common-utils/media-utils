@@ -39,7 +39,7 @@ describe('extractAudio', () => {
       const outputFilePath = outputFile('extracted-aac-from-mp4.aac');
 
       // Extract audio to file (first audio track, index 0)
-      await extractAudioFromFileToFile(inputFile, outputFilePath, { streamIndex: 0 });
+      await extractAudioFromFileToFile(inputFile, outputFilePath);
 
       // Verify the file was created and has content
       expect(fs.existsSync(outputFilePath)).toBe(true);
@@ -47,23 +47,25 @@ describe('extractAudio', () => {
       expect(stats.size).toBeGreaterThan(0);
 
       // Verify the extracted audio can be parsed by remotion
-      const extractedAudioInfo = await getMediaInfoFromFile(outputFilePath, {
-        useParser: 'remotion',
-      });
+      const extractedAudioInfo = await getMediaInfoFromFile(outputFilePath);
 
       // Verify it's recognized as AAC
       expect(extractedAudioInfo).toEqual(
         expect.objectContaining({
           container: 'aac',
           containerDetail: 'aac',
-          parser: 'remotion',
+          parser: 'inhouse',
+          durationInSeconds: undefined,
           videoStreams: [],
           audioStreams: [
             expect.objectContaining({
+              id: 1,
               codec: 'aac',
               codecDetail: 'mp4a.40.2',
+              profile: 'LC',
               channelCount: 2,
               sampleRate: 44100,
+              durationInSeconds: undefined,
             }),
           ],
         }),
@@ -85,23 +87,25 @@ describe('extractAudio', () => {
       expect(stats.size).toBeGreaterThan(0);
 
       // Verify the extracted audio can be parsed by remotion
-      const extractedAudioInfo = await getMediaInfoFromFile(outputFilePath, {
-        useParser: 'remotion',
-      });
+      const extractedAudioInfo = await getMediaInfoFromFile(outputFilePath);
 
       // Verify it's recognized as AAC
       expect(extractedAudioInfo).toEqual(
         expect.objectContaining({
           container: 'aac',
           containerDetail: 'aac',
-          parser: 'remotion',
+          parser: 'inhouse',
+          durationInSeconds: undefined,
           videoStreams: [],
           audioStreams: [
             expect.objectContaining({
+              id: 1,
               codec: 'aac',
               codecDetail: 'mp4a.40.2',
+              profile: 'LC',
               channelCount: 2,
               sampleRate: 44100,
+              durationInSeconds: undefined,
             }),
           ],
         }),
