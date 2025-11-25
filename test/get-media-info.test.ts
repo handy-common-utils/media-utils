@@ -12,7 +12,7 @@ function sampleFile(filename: string) {
 
 describe('getMediaInfo with real files', () => {
   describe('mp4box parser', () => {
-    it('should parse entine-start.h264.aac.mp4 file', async () => {
+    it('should parse engine-start.h264.aac.mp4 file', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.aac.mp4'), { useParser: 'mp4box' });
       expect(info).toEqual({
         audioStreams: [
@@ -47,7 +47,7 @@ describe('getMediaInfo with real files', () => {
       } as MediaInfo);
     });
 
-    it('should parse entine-start.h264.mp3.mp4 file', async () => {
+    it('should parse engine-start.h264.mp3.mp4 file', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.mp3.mp4'), { useParser: 'mp4box' });
       expect(info).toEqual({
         audioStreams: [
@@ -168,7 +168,7 @@ describe('getMediaInfo with real files', () => {
   });
 
   describe('isoboxer parser', () => {
-    it('should parse entine-start.h264.aac.mp4 file', async () => {
+    it('should parse engine-start.h264.aac.mp4 file', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.aac.mp4'), { useParser: 'isoboxer' });
       expect(info).toEqual({
         audioStreams: [
@@ -198,7 +198,7 @@ describe('getMediaInfo with real files', () => {
       } as MediaInfo);
     });
 
-    it('should parse entine-start.h264.mp3.mp4 file', async () => {
+    it('should parse engine-start.h264.mp3.mp4 file', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.mp3.mp4'), { useParser: 'isoboxer' });
       expect(info).toEqual({
         audioStreams: [
@@ -369,7 +369,7 @@ describe('getMediaInfo with real files', () => {
   });
 
   describe('remotion parser', () => {
-    it('should parse entine-start.h264.aac.mp4 file', async () => {
+    it('should parse engine-start.h264.aac.mp4 file', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.aac.mp4'), { useParser: 'remotion' });
       expect(info).toEqual({
         audioStreams: [
@@ -400,7 +400,7 @@ describe('getMediaInfo with real files', () => {
       } as MediaInfo);
     });
 
-    it('should parse entine-start.h264.mp3.mp4 file', async () => {
+    it('should parse engine-start.h264.mp3.mp4 file', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.mp3.mp4'), { useParser: 'remotion' });
       expect(info).toEqual({
         audioStreams: [
@@ -431,7 +431,7 @@ describe('getMediaInfo with real files', () => {
       } as MediaInfo);
     });
 
-    it('should parse entine-start.h264.aac.mov file', async () => {
+    it('should parse engine-start.h264.aac.mov file', async () => {
       const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.aac.mov'), { useParser: 'remotion' });
       expect(info).toEqual({
         audioStreams: [

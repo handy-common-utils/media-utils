@@ -169,7 +169,7 @@ export function mp4boxInfoToMediaInfo(info: Movie, mp4file?: ISOFile): MediaInfo
 }
 
 /**
- * Suppress or enable Mp4Box error logging
+ * Suppress or restore Mp4Box error logging
  * @param mp4box Mp4Box module
  * @param quiet Whether to suppress error logging or restore original behaviour
  */
