@@ -48,7 +48,7 @@ export async function getMediaInfo(
       }
       break;
     }
-    case 'inhouse': {
+    case 'media-utils': {
       parser = new InhouseParserAdapter();
       break;
     }

@@ -307,7 +307,7 @@ describe('getMediaInfo with real files', () => {
 
   describe('inhouse parser', () => {
     it('should parse engine-start.aac file', async () => {
-      const info = await getMediaInfoFromFile(sampleFile('engine-start.aac'), { useParser: 'inhouse' });
+      const info = await getMediaInfoFromFile(sampleFile('engine-start.aac'), { useParser: 'media-utils' });
       expect(info).toEqual({
         audioStreams: [
           {
@@ -323,13 +323,13 @@ describe('getMediaInfo with real files', () => {
         container: 'aac',
         containerDetail: 'aac',
         durationInSeconds: undefined,
-        parser: 'inhouse',
+        parser: 'media-utils',
         videoStreams: [],
       } as MediaInfo);
     });
 
     it('should parse engine-start.mp3 file', async () => {
-      const info = await getMediaInfoFromFile(sampleFile('engine-start.mp3'), { useParser: 'inhouse' });
+      const info = await getMediaInfoFromFile(sampleFile('engine-start.mp3'), { useParser: 'media-utils' });
       expect(info).toEqual({
         audioStreams: [
           {
@@ -345,7 +345,7 @@ describe('getMediaInfo with real files', () => {
         container: 'mp3',
         containerDetail: 'mp3',
         durationInSeconds: expect.closeTo(6, 0.1),
-        parser: 'inhouse',
+        parser: 'media-utils',
         videoStreams: [],
       });
     });
@@ -359,7 +359,7 @@ describe('getMediaInfo with real files', () => {
       'engine-start.wmv2.wmav2.wmv',
     ])('should fail to parse %s', async (filename) => {
       try {
-        await getMediaInfoFromFile(sampleFile(filename), { useParser: 'inhouse' });
+        await getMediaInfoFromFile(sampleFile(filename), { useParser: 'media-utils' });
         expect('').toBe('should fail to parse');
       } catch (error) {
         expect(error).toBeInstanceOf(Error);

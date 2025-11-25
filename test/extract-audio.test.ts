@@ -53,7 +53,7 @@ describe('extractAudio', () => {
       expect(extractedAudioInfo).toEqual({
         container: 'aac',
         containerDetail: 'aac',
-        parser: 'inhouse',
+        parser: 'media-utils',
         durationInSeconds: undefined,
         videoStreams: [],
         audioStreams: [
@@ -91,7 +91,7 @@ describe('extractAudio', () => {
       expect(extractedAudioInfo).toEqual({
         container: 'aac',
         containerDetail: 'aac',
-        parser: 'inhouse',
+        parser: 'media-utils',
         durationInSeconds: undefined,
         videoStreams: [],
         audioStreams: [
@@ -131,7 +131,7 @@ describe('extractAudio', () => {
       expect(extractedAudioInfo).toEqual({
         container: 'mp3',
         containerDetail: 'mp3',
-        parser: 'inhouse',
+        parser: 'media-utils',
         durationInSeconds: undefined,
         videoStreams: [],
         audioStreams: [
@@ -169,7 +169,7 @@ describe('extractAudio', () => {
       expect(extractedAudioInfo).toEqual({
         container: 'mp3',
         containerDetail: 'mp3',
-        parser: 'inhouse',
+        parser: 'media-utils',
         durationInSeconds: undefined,
         videoStreams: [],
         audioStreams: [

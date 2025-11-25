@@ -28,7 +28,7 @@ export class InhouseParserAdapter implements MediaParserAdapter {
     );
     return {
       ...info,
-      parser: 'inhouse',
+      parser: 'media-utils',
     };
   }
 }
