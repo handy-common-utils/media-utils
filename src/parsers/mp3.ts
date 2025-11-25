@@ -121,22 +121,12 @@ export function parseMP3Header(data: Uint8Array): AudioStreamInfo {
   };
 }
 
-/**
- * Parses MP3 file from a stream and extracts media information.
- * Note: The returned MediaInfo does not include the 'parser' field,
- * which should be set by the adapter.
- *
- * @param stream The input media stream
- * @param _options Optional options for the parser
- * @returns Media information without the parser field
- * @throws UnsupportedFormatError if the stream is not a valid MP3 file
- */
-
 // Helper to parse Xing/Info/LAME header and extract total frames
 function parseXingHeader(data: Uint8Array): { totalFrames?: number } {
   // Scan the first 256 bytes for 'Xing', 'Info', or 'LAME' header
   const scanLimit = Math.min(data.length - 12, 256); // need at least 12 bytes for header+fields
   for (let offset = 0; offset < scanLimit; ++offset) {
+    // eslint-disable-next-line unicorn/prefer-code-point
     const tag = String.fromCharCode(data[offset], data[offset + 1], data[offset + 2], data[offset + 3]);
     if (tag === 'Xing' || tag === 'Info' || tag === 'LAME') {
       // Flags at offset+4 (4 bytes)
@@ -151,6 +141,16 @@ function parseXingHeader(data: Uint8Array): { totalFrames?: number } {
   return {};
 }
 
+/**
+ * Parses MP3 file from a stream and extracts media information.
+ * Note: The returned MediaInfo does not include the 'parser' field,
+ * which should be set by the adapter.
+ *
+ * @param stream The input media stream
+ * @param _options Optional options for the parser
+ * @returns Media information without the parser field
+ * @throws UnsupportedFormatError if the stream is not a valid MP3 file
+ */
 export async function parseMp3(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
   // Read the first chunk to parse the MP3 frame header
   const reader = stream.getReader();
@@ -190,19 +190,28 @@ export async function parseMp3(stream: ReadableStream<Uint8Array>, _options?: Ge
     const header = value.slice(offset, offset + 4);
     const version = (header[1] >> 3) & 0x03;
     const layer = (header[1] >> 1) & 0x03;
-    if (layer === 1) {
-      // Layer III
-      if (version === 3) {
-        samplesPerFrame = 1152; // MPEG1
-      } else {
-        samplesPerFrame = 576; // MPEG2/2.5
+    switch (layer) {
+      case 1: {
+        // Layer III
+        // eslint-disable-next-line unicorn/prefer-ternary
+        if (version === 3) {
+          samplesPerFrame = 1152; // MPEG1
+        } else {
+          samplesPerFrame = 576; // MPEG2/2.5
+        }
+        break;
       }
-    } else if (layer === 2) {
-      // Layer II
-      samplesPerFrame = 1152;
-    } else if (layer === 3) {
-      // Layer I
-      samplesPerFrame = 384;
+      case 2: {
+        // Layer II
+        samplesPerFrame = 1152;
+        break;
+      }
+      case 3: {
+        // Layer I
+        samplesPerFrame = 384;
+        break;
+      }
+      // No default
     }
     const totalSamples = xing.totalFrames * samplesPerFrame;
     durationInSeconds = totalSamples / audioStream.sampleRate;
