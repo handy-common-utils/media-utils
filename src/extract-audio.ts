@@ -50,6 +50,12 @@ export async function extractAudio(
 
     const mp4file: ISOFile = mp4box.createFile();
 
+    // CRITICAL: Set discardMdatData to false to prevent mp4box from discarding
+    // mdat data before extraction is set up. This is essential for files where
+    // mdat comes before moov (e.g., MOV files, some MP4s), because onReady fires
+    // after mdat has been parsed, and without this flag the sample data would be gone.
+    (mp4file as any).discardMdatData = false;
+
     // Queue to store extracted samples
     const sampleQueue: Array<Sample> = [];
 
