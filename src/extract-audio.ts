@@ -1,8 +1,6 @@
-import type { ISOFile, Sample } from 'mp4box';
+/* eslint-disable @typescript-eslint/no-require-imports, unicorn/prefer-module */
 
-import fs from 'node:fs';
-import path from 'node:path';
-import { Writable } from 'node:stream';
+import type { ISOFile, Sample } from 'mp4box';
 
 import { createADTSFrame } from './codec-utils';
 import { AudioStreamInfo } from './media-info';
@@ -37,7 +35,6 @@ export async function extractAudio(
   output: WritableStream<Uint8Array>,
   options?: ExtractAudioOptions,
 ): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, unicorn/prefer-module
   const mp4box = require('mp4box');
 
   return new Promise((resolve, reject) => {
@@ -251,6 +248,10 @@ export async function extractAudioFromFile(filePath: string, output: WritableStr
  * @param options Options for the extraction process
  */
 export async function extractAudioFromFileToFile(inputFilePath: string, outputFilePath: string, options?: ExtractAudioOptions): Promise<void> {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const { Writable } = require('node:stream');
+
   const dir = path.dirname(outputFilePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });

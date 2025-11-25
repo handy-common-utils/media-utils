@@ -1,6 +1,4 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { Readable } from 'node:stream';
+/* eslint-disable @typescript-eslint/no-require-imports, unicorn/prefer-module */
 
 import { MediaInfo } from './media-info';
 
@@ -24,6 +22,9 @@ export interface ParserRelatedOptions {
  * @returns A (web) ReadableStream of Uint8Array chunks
  */
 export async function createReadableStreamFromFile(filePath: string): Promise<ReadableStream<Uint8Array>> {
+  const fs = require('node:fs');
+  const { Readable } = require('node:stream');
+
   const nodeReadable = fs.createReadStream(filePath);
   const webReadableStream = Readable.toWeb(nodeReadable);
   return webReadableStream;
@@ -36,6 +37,9 @@ export async function createReadableStreamFromFile(filePath: string): Promise<Re
  * @param filePath The path to the file to write to
  */
 export async function readFromStreamToFile(stream: ReadableStream<Uint8Array>, filePath: string): Promise<void> {
+  const fs = require('node:fs');
+  const path = require('node:path');
+
   // Ensure output directory exists
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
