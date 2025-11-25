@@ -43,7 +43,8 @@ This library picks them up automatically if they are installed.
 ```typescript
 import { getMediaInfoFromFile } from '@handy-common-utils/media-utils';
 
-// Automatically choose the best parser
+// Automatically choose the best parser (default behavior)
+// If no parser is specified, 'auto' mode will try available parsers in order
 const info = await getMediaInfoFromFile('path/to/video.mp4');
 console.log(`Duration: ${info.durationInSeconds}s`);
 console.log(`Video: ${info.videoStreams[0]?.codec}`);
@@ -74,9 +75,10 @@ You can extract raw audio streams from video files (MP4, MOV) without re-encodin
 import { extractAudioFromFileToFile } from '@handy-common-utils/media-utils';
 
 // Extract the first audio track to a new file
+// If neither trackId nor streamIndex is specified, the first audio stream/track will be extracted
 await extractAudioFromFileToFile('input-video.mp4', 'output-audio.aac');
 
-// Advanced usage with streams
+// Advanced usage with streams and options
 import { extractAudio, createReadableStreamFromFile } from '@handy-common-utils/media-utils';
 import fs from 'node:fs';
 import { Writable } from 'node:stream';
@@ -85,7 +87,8 @@ const inputStream = await createReadableStreamFromFile('input.mov');
 const outputStream = Writable.toWeb(fs.createWriteStream('output.mp3'));
 
 await extractAudio(inputStream, outputStream, {
-  trackId: 2, // Optional: specify track ID
+  trackId: 2, // Optional: specify track ID (takes precedence over streamIndex)
+  // streamIndex: 0, // Optional: specify the index in all audio streams (0-based)
 });
 ```
 
