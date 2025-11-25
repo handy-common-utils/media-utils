@@ -142,158 +142,11 @@ The function automatically creates the output directory if it doesn't exist.
 
 | Module                                    | Description |
 | ----------------------------------------- | ----------- |
-| [codec-utils](#codec-utilsreadmemd)       | -           |
 | [extract-audio](#extract-audioreadmemd)   | -           |
 | [get-media-info](#get-media-inforeadmemd) | -           |
 | [index](#indexreadmemd)                   | -           |
 | [media-info](#media-inforeadmemd)         | -           |
 | [utils](#utilsreadmemd)                   | -           |
-
-## Codec Utils
-
-<a id="codec-utilsreadmemd"></a>
-
-### codec-utils
-
-**`Internal`**
-
-#### Functions
-
-| Function                                                                                            | Description                                                                                                    |
-| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| [createADTSFrame](#codec-utilsfunctionscreateadtsframemd)                                           | Create an ADTS frame for AAC audio data ADTS (Audio Data Transport Stream) is a container format for AAC audio |
-| [getAacProfileName](#codec-utilsfunctionsgetaacprofilenamemd)                                       | Get the AAC profile name based on the audio object type                                                        |
-| [getAudioObjectTypeFromAacProfileName](#codec-utilsfunctionsgetaudioobjecttypefromaacprofilenamemd) | Get the audio object type based on the AAC profile name                                                        |
-| [toAudioCodecType](#codec-utilsfunctionstoaudiocodectypemd)                                         | Converts audio codec string to AudioCodecType                                                                  |
-| [toContainerType](#codec-utilsfunctionstocontainertypemd)                                           | Converts brand array or container stringto ContainerType                                                       |
-| [toVideoCodecType](#codec-utilsfunctionstovideocodectypemd)                                         | Converts video codec string to VideoCodecType                                                                  |
-
-### Functions
-
-<a id="codec-utilsfunctionscreateadtsframemd"></a>
-
-#### Function: createADTSFrame()
-
-> **createADTSFrame**(`aacData`, `streamInfo`): `Uint8Array`
-
-Create an ADTS frame for AAC audio data
-ADTS (Audio Data Transport Stream) is a container format for AAC audio
-
-##### Parameters
-
-| Parameter                  | Type                                                                                        | Description                                       |
-| -------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| `aacData`                  | `Uint8Array`                                                                                | Raw AAC data                                      |
-| `streamInfo`               | \{ `channelCount?`: `number`; `profile?`: `string` \| `number`; `sampleRate?`: `number`; \} | Information about the original audio stream       |
-| `streamInfo.channelCount?` | `number`                                                                                    | The number of channels in the audio stream        |
-| `streamInfo.profile?`      | `string` \| `number`                                                                        | The profile (AudioObjectType) of the audio stream |
-| `streamInfo.sampleRate?`   | `number`                                                                                    | The sample rate of the audio stream               |
-
-##### Returns
-
-`Uint8Array`
-
-AAC data with ADTS header prepended
-
-<a id="codec-utilsfunctionsgetaacprofilenamemd"></a>
-
-#### Function: getAacProfileName()
-
-> **getAacProfileName**(`audioObjectType`): `string` \| `undefined`
-
-Get the AAC profile name based on the audio object type
-
-##### Parameters
-
-| Parameter         | Type     | Description           |
-| ----------------- | -------- | --------------------- |
-| `audioObjectType` | `number` | The audio object type |
-
-##### Returns
-
-`string` \| `undefined`
-
-The profile name or undefined if not found
-
-<a id="codec-utilsfunctionsgetaudioobjecttypefromaacprofilenamemd"></a>
-
-#### Function: getAudioObjectTypeFromAacProfileName()
-
-> **getAudioObjectTypeFromAacProfileName**(`profile`): `number` \| `undefined`
-
-Get the audio object type based on the AAC profile name
-
-##### Parameters
-
-| Parameter | Type     | Description          |
-| --------- | -------- | -------------------- |
-| `profile` | `string` | The AAC profile name |
-
-##### Returns
-
-`number` \| `undefined`
-
-The audio object type or undefined if not found
-
-<a id="codec-utilsfunctionstoaudiocodectypemd"></a>
-
-#### Function: toAudioCodecType()
-
-> **toAudioCodecType**(`codecDetail`): `MediaParserAudioCodec`
-
-Converts audio codec string to AudioCodecType
-
-##### Parameters
-
-| Parameter     | Type                              | Description                                     |
-| ------------- | --------------------------------- | ----------------------------------------------- |
-| `codecDetail` | `string` \| `null` \| `undefined` | codec string (e.g., "mp4a.40.2", "opus", "mp3") |
-
-##### Returns
-
-`MediaParserAudioCodec`
-
-Standardized audio codec identifier
-
-<a id="codec-utilsfunctionstocontainertypemd"></a>
-
-#### Function: toContainerType()
-
-> **toContainerType**(`brands`): `MediaParserContainer`
-
-Converts brand array or container stringto ContainerType
-
-##### Parameters
-
-| Parameter | Type                                            | Description                                                                        |
-| --------- | ----------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `brands`  | `string` \| `string`[] \| `null` \| `undefined` | Array of MP4 brand identifiers (e.g., ["isom", "iso2", "mp41"]) or a single string |
-
-##### Returns
-
-`MediaParserContainer`
-
-Standardized container format identifier
-
-<a id="codec-utilsfunctionstovideocodectypemd"></a>
-
-#### Function: toVideoCodecType()
-
-> **toVideoCodecType**(`codecDetail`): `MediaParserVideoCodec`
-
-Converts video codec string to VideoCodecType
-
-##### Parameters
-
-| Parameter     | Type                              | Description                                        |
-| ------------- | --------------------------------- | -------------------------------------------------- |
-| `codecDetail` | `string` \| `null` \| `undefined` | codec string (e.g., "avc1.64001f", "hvc1", "vp09") |
-
-##### Returns
-
-`MediaParserVideoCodec`
-
-Standardized video codec identifier
 
 ## Extract Audio
 
@@ -321,17 +174,17 @@ Standardized video codec identifier
 
 #### Function: extractAudio()
 
-> **extractAudio**(`input`, `output`, `options?`): `Promise`\<`void`\>
+> **extractAudio**(`input`, `output`, `optionsInput?`): `Promise`\<`void`\>
 
 Extract raw audio data from the input
 
 ##### Parameters
 
-| Parameter  | Type                                                                   | Description                                       |
-| ---------- | ---------------------------------------------------------------------- | ------------------------------------------------- |
-| `input`    | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>                  | The input data provided through a readable stream |
-| `output`   | `WritableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>                  | The output stream to write extracted audio to     |
-| `options?` | [`ExtractAudioOptions`](#extract-audiointerfacesextractaudiooptionsmd) | Options for the extraction process                |
+| Parameter       | Type                                                                   | Description                                       |
+| --------------- | ---------------------------------------------------------------------- | ------------------------------------------------- |
+| `input`         | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>                  | The input data provided through a readable stream |
+| `output`        | `WritableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>                  | The output stream to write extracted audio to     |
+| `optionsInput?` | [`ExtractAudioOptions`](#extract-audiointerfacesextractaudiooptionsmd) | Options for the extraction process                |
 
 ##### Returns
 
@@ -387,10 +240,11 @@ This function works in Node.js environment but not in browser.
 
 ##### Properties
 
-| Property                                    | Type     | Description                                                                                                                                                                                                           |
-| ------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a id="api-streamindex"></a> `streamIndex?` | `number` | The index of the stream/track to extract audio from. If this option is provided, `trackId` is ignored. If `trackId` is not provided and this option is not specified, the first audio stream/track will be extracted. |
-| <a id="api-trackid"></a> `trackId?`         | `number` | The ID of the track to extract audio from If this option is provided, `streamIndex` is ignored. If both `trackId` and `streamIndex` are not provided, the first audio stream/track will be extracted.                 |
+| Property                                    | Type      | Description                                                                                                                                                                                                           |
+| ------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| <a id="api-quiet"></a> `quiet?`             | `boolean` | Whether to suppress console output. Default value is true.                                                                                                                                                            |
+| <a id="api-streamindex"></a> `streamIndex?` | `number`  | The index of the stream/track to extract audio from. If this option is provided, `trackId` is ignored. If `trackId` is not provided and this option is not specified, the first audio stream/track will be extracted. |
+| <a id="api-trackid"></a> `trackId?`         | `number`  | The ID of the track to extract audio from If this option is provided, `streamIndex` is ignored. If both `trackId` and `streamIndex` are not provided, the first audio stream/track will be extracted.                 |
 
 ## Get Media Info
 
@@ -417,16 +271,16 @@ This function works in Node.js environment but not in browser.
 
 #### Function: getMediaInfo()
 
-> **getMediaInfo**(`stream`, `options?`): `Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd) & `object`\>
+> **getMediaInfo**(`stream`, `optionsInput?`): `Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd) & `object`\>
 
 Get media information from a stream
 
 ##### Parameters
 
-| Parameter  | Type                                                             | Description                                                                                                                             |
-| ---------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `stream`   | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>            | The input Web ReadableStream (not Node Readable). To convert a Node Readable to Web ReadableStream, use `Readable.toWeb(nodeReadable)`. |
-| `options?` | [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd) | Options for the parser                                                                                                                  |
+| Parameter       | Type                                                                      | Description                                                                                                                             |
+| --------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `stream`        | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>                     | The input Web ReadableStream (not Node Readable). To convert a Node Readable to Web ReadableStream, use `Readable.toWeb(nodeReadable)`. |
+| `optionsInput?` | [`GetMediaInfoOptions`](#get-media-infotype-aliasesgetmediainfooptionsmd) | Options for the parser                                                                                                                  |
 
 ##### Returns
 
@@ -445,10 +299,10 @@ This function works in Node.js environment but not in browser.
 
 ##### Parameters
 
-| Parameter  | Type                                                             | Description                |
-| ---------- | ---------------------------------------------------------------- | -------------------------- |
-| `filePath` | `string`                                                         | The path to the media file |
-| `options?` | [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd) | Options for the parser     |
+| Parameter  | Type                                                                      | Description                |
+| ---------- | ------------------------------------------------------------------------- | -------------------------- |
+| `filePath` | `string`                                                                  | The path to the media file |
+| `options?` | [`GetMediaInfoOptions`](#get-media-infotype-aliasesgetmediainfooptionsmd) | Options for the parser     |
 
 ##### Returns
 
@@ -462,7 +316,13 @@ The media information
 
 #### Type Alias: GetMediaInfoOptions
 
-> **GetMediaInfoOptions** = [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd)
+> **GetMediaInfoOptions** = [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd) & `object`
+
+##### Type Declaration
+
+| Name     | Type      | Description                                                |
+| -------- | --------- | ---------------------------------------------------------- |
+| `quiet?` | `boolean` | Whether to suppress console output. Default value is true. |
 
 ## Index
 
@@ -584,30 +444,6 @@ Re-exports [readFromStreamToFile](#utilsfunctionsreadfromstreamtofilemd)
 
 ---
 
-<a id="api-toaudiocodectype"></a>
-
-##### toAudioCodecType
-
-Re-exports [toAudioCodecType](#media-infofunctionstoaudiocodectypemd)
-
----
-
-<a id="api-tocontainertype"></a>
-
-##### toContainerType
-
-Re-exports [toContainerType](#media-infofunctionstocontainertypemd)
-
----
-
-<a id="api-tovideocodectype"></a>
-
-##### toVideoCodecType
-
-Re-exports [toVideoCodecType](#media-infofunctionstovideocodectypemd)
-
----
-
 <a id="api-videocodectype"></a>
 
 ##### VideoCodecType
@@ -643,82 +479,6 @@ Re-exports [VideoStreamInfo](#media-infointerfacesvideostreaminfomd)
 | [AudioCodecType](#media-infotype-aliasesaudiocodectypemd) | -           |
 | [ContainerType](#media-infotype-aliasescontainertypemd)   | -           |
 | [VideoCodecType](#media-infotype-aliasesvideocodectypemd) | -           |
-
-#### Functions
-
-| Function                                                   | Description                                              |
-| ---------------------------------------------------------- | -------------------------------------------------------- |
-| [toAudioCodecType](#media-infofunctionstoaudiocodectypemd) | Converts audio codec string to AudioCodecType            |
-| [toContainerType](#media-infofunctionstocontainertypemd)   | Converts brand array or container stringto ContainerType |
-| [toVideoCodecType](#media-infofunctionstovideocodectypemd) | Converts video codec string to VideoCodecType            |
-
-### Functions
-
-<a id="media-infofunctionstoaudiocodectypemd"></a>
-
-#### Function: toAudioCodecType()
-
-> **toAudioCodecType**(`codecDetail`): `MediaParserAudioCodec`
-
-**`Internal`**
-
-Converts audio codec string to AudioCodecType
-
-##### Parameters
-
-| Parameter     | Type                              | Description                                     |
-| ------------- | --------------------------------- | ----------------------------------------------- |
-| `codecDetail` | `string` \| `null` \| `undefined` | codec string (e.g., "mp4a.40.2", "opus", "mp3") |
-
-##### Returns
-
-`MediaParserAudioCodec`
-
-Standardized audio codec identifier
-
-<a id="media-infofunctionstocontainertypemd"></a>
-
-#### Function: toContainerType()
-
-> **toContainerType**(`brands`): `MediaParserContainer`
-
-**`Internal`**
-
-Converts brand array or container stringto ContainerType
-
-##### Parameters
-
-| Parameter | Type                                            | Description                                                                        |
-| --------- | ----------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `brands`  | `string` \| `string`[] \| `null` \| `undefined` | Array of MP4 brand identifiers (e.g., ["isom", "iso2", "mp41"]) or a single string |
-
-##### Returns
-
-`MediaParserContainer`
-
-Standardized container format identifier
-
-<a id="media-infofunctionstovideocodectypemd"></a>
-
-#### Function: toVideoCodecType()
-
-> **toVideoCodecType**(`codecDetail`): `MediaParserVideoCodec`
-
-**`Internal`**
-
-Converts video codec string to VideoCodecType
-
-##### Parameters
-
-| Parameter     | Type                              | Description                                        |
-| ------------- | --------------------------------- | -------------------------------------------------- |
-| `codecDetail` | `string` \| `null` \| `undefined` | codec string (e.g., "avc1.64001f", "hvc1", "vp09") |
-
-##### Returns
-
-`MediaParserVideoCodec`
-
-Standardized video codec identifier
 
 ### Interfaces
 

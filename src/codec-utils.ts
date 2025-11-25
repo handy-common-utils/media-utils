@@ -1,8 +1,3 @@
-/**
- * @internal
- * @module
- */
-
 import { AudioCodecType, ContainerType, VideoCodecType } from './media-info';
 
 const standardContainerValues = new Set<ContainerType>(['aac', 'avi', 'flac', 'm3u8', 'mp3', 'mp4', 'transport-stream', 'wav', 'webm']);
