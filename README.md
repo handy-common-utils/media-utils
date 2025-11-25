@@ -2,6 +2,10 @@
 
 A pure-JS, no-FFmpeg media info parser and audio stream extractor which works with popular formats and codecs.
 
+[![Version](https://img.shields.io/npm/v/@handy-common-utils/media-utils.svg)](https://npmjs.org/package/@handy-common-utils/media-utils)
+[![Downloads/week](https://img.shields.io/npm/dw/@handy-common-utils/media-utils.svg)](https://npmjs.org/package/@handy-common-utils/media-utils)
+[![CI](https://github.com/handy-common-utils/media-utils/actions/workflows/ci.yml/badge.svg)](https://github.com/handy-common-utils/media-utils/actions/workflows/ci.yml)
+
 ## Getting Media Information
 
 This library provides a unified interface to extract media information (duration, video/audio streams, codecs, etc.) from various media formats. It can use its own lightweight in-house parsers or different 3rd party parsers (`mp4box`, `codem-isoboxer`, `@remotion/media-parser`). Those 3rd party parsers are optional dependencies of this library.
