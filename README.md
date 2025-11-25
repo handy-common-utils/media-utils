@@ -15,10 +15,10 @@ This library provides a unified interface to extract media information (duration
 - **Unified API**: Get consistent `MediaInfo` object regardless of the parser used.
 - **Browser & Node.js**: Works in both environments (file system helpers are Node.js only).
 - **Smart Fallback**: The `auto` mode tries parsers in this order:
-  1. `media-utils` (In-house): Fast, lightweight, for raw AAC/MP3 files.
-  2. `mp4box`: Robust for MP4/MOV files.
-  3. `isoboxer`: Alternative for MP4/MOV.
-  4. `remotion`: Supports a wider range of formats (WebM, etc.).
+  1. `media-utils` (this library): Fast, lightweight, for raw AAC/MP3 files.
+  2. `mp4box`: [mp4box](https://www.npmjs.com/package/mp4box)
+  3. `isoboxer`: [codem-isoboxer](https://www.npmjs.com/package/codem-isoboxer)
+  4. `remotion`: [@remotion/media-parser](https://www.npmjs.com/package/@remotion/media-parser)
 
 ### Verified Combinations
 
@@ -36,9 +36,9 @@ This library provides a unified interface to extract media information (duration
 
 To support different formats, you may need to install optional dependencies:
 
-- `mp4box`: Recommended for MP4/MOV support.
-- `codem-isoboxer`: Alternative for MP4/MOV.
-- `@remotion/media-parser`: Required for WebM and other formats.
+- `mp4box`: [mp4box](https://www.npmjs.com/package/mp4box) - Recommended for MP4/MOV support.
+- `codem-isoboxer`: [codem-isoboxer](https://www.npmjs.com/package/codem-isoboxer) - Alternative for MP4/MOV.
+- `@remotion/media-parser`: [@remotion/media-parser](https://www.npmjs.com/package/@remotion/media-parser) - Supports WebM and other formats.
 
 This library picks them up automatically if they are installed.
 
@@ -140,27 +140,22 @@ The function automatically creates the output directory if it doesn't exist.
 
 ### Modules
 
-| Module                                                                     | Description |
-| -------------------------------------------------------------------------- | ----------- |
-| [codec-utils](#codec-utilsreadmemd)                                        | -           |
-| [extract-audio](#extract-audioreadmemd)                                    | -           |
-| [get-media-info](#get-media-inforeadmemd)                                  | -           |
-| [index](#indexreadmemd)                                                    | -           |
-| [media-info](#media-inforeadmemd)                                          | -           |
-| [parsers/aac](#parsersaacreadmemd)                                         | -           |
-| [parsers/adapter](#parsersadapterreadmemd)                                 | -           |
-| [parsers/inhouse-parsers-adapter](#parsersinhouse-parsers-adapterreadmemd) | -           |
-| [parsers/isoboxer-adapter](#parsersisoboxer-adapterreadmemd)               | -           |
-| [parsers/mp3](#parsersmp3readmemd)                                         | -           |
-| [parsers/mp4box-adapter](#parsersmp4box-adapterreadmemd)                   | -           |
-| [parsers/remotion-adapter](#parsersremotion-adapterreadmemd)               | -           |
-| [utils](#utilsreadmemd)                                                    | -           |
+| Module                                    | Description |
+| ----------------------------------------- | ----------- |
+| [codec-utils](#codec-utilsreadmemd)       | -           |
+| [extract-audio](#extract-audioreadmemd)   | -           |
+| [get-media-info](#get-media-inforeadmemd) | -           |
+| [index](#indexreadmemd)                   | -           |
+| [media-info](#media-inforeadmemd)         | -           |
+| [utils](#utilsreadmemd)                   | -           |
 
 ## Codec Utils
 
 <a id="codec-utilsreadmemd"></a>
 
 ### codec-utils
+
+**`Internal`**
 
 #### Functions
 
@@ -169,6 +164,9 @@ The function automatically creates the output directory if it doesn't exist.
 | [createADTSFrame](#codec-utilsfunctionscreateadtsframemd)                                           | Create an ADTS frame for AAC audio data ADTS (Audio Data Transport Stream) is a container format for AAC audio |
 | [getAacProfileName](#codec-utilsfunctionsgetaacprofilenamemd)                                       | Get the AAC profile name based on the audio object type                                                        |
 | [getAudioObjectTypeFromAacProfileName](#codec-utilsfunctionsgetaudioobjecttypefromaacprofilenamemd) | Get the audio object type based on the AAC profile name                                                        |
+| [toAudioCodecType](#codec-utilsfunctionstoaudiocodectypemd)                                         | Converts audio codec string to AudioCodecType                                                                  |
+| [toContainerType](#codec-utilsfunctionstocontainertypemd)                                           | Converts brand array or container stringto ContainerType                                                       |
+| [toVideoCodecType](#codec-utilsfunctionstovideocodectypemd)                                         | Converts video codec string to VideoCodecType                                                                  |
 
 ### Functions
 
@@ -236,6 +234,66 @@ Get the audio object type based on the AAC profile name
 `number` \| `undefined`
 
 The audio object type or undefined if not found
+
+<a id="codec-utilsfunctionstoaudiocodectypemd"></a>
+
+#### Function: toAudioCodecType()
+
+> **toAudioCodecType**(`codecDetail`): `MediaParserAudioCodec`
+
+Converts audio codec string to AudioCodecType
+
+##### Parameters
+
+| Parameter     | Type                              | Description                                     |
+| ------------- | --------------------------------- | ----------------------------------------------- |
+| `codecDetail` | `string` \| `null` \| `undefined` | codec string (e.g., "mp4a.40.2", "opus", "mp3") |
+
+##### Returns
+
+`MediaParserAudioCodec`
+
+Standardized audio codec identifier
+
+<a id="codec-utilsfunctionstocontainertypemd"></a>
+
+#### Function: toContainerType()
+
+> **toContainerType**(`brands`): `MediaParserContainer`
+
+Converts brand array or container stringto ContainerType
+
+##### Parameters
+
+| Parameter | Type                                            | Description                                                                        |
+| --------- | ----------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `brands`  | `string` \| `string`[] \| `null` \| `undefined` | Array of MP4 brand identifiers (e.g., ["isom", "iso2", "mp41"]) or a single string |
+
+##### Returns
+
+`MediaParserContainer`
+
+Standardized container format identifier
+
+<a id="codec-utilsfunctionstovideocodectypemd"></a>
+
+#### Function: toVideoCodecType()
+
+> **toVideoCodecType**(`codecDetail`): `MediaParserVideoCodec`
+
+Converts video codec string to VideoCodecType
+
+##### Parameters
+
+| Parameter     | Type                              | Description                                        |
+| ------------- | --------------------------------- | -------------------------------------------------- |
+| `codecDetail` | `string` \| `null` \| `undefined` | codec string (e.g., "avc1.64001f", "hvc1", "vp09") |
+
+##### Returns
+
+`MediaParserVideoCodec`
+
+Standardized video codec identifier
 
 ## Extract Audio
 
@@ -602,6 +660,8 @@ Re-exports [VideoStreamInfo](#media-infointerfacesvideostreaminfomd)
 
 > **toAudioCodecType**(`codecDetail`): `MediaParserAudioCodec`
 
+**`Internal`**
+
 Converts audio codec string to AudioCodecType
 
 ##### Parameters
@@ -622,6 +682,8 @@ Standardized audio codec identifier
 
 > **toContainerType**(`brands`): `MediaParserContainer`
 
+**`Internal`**
+
 Converts brand array or container stringto ContainerType
 
 ##### Parameters
@@ -641,6 +703,8 @@ Standardized container format identifier
 #### Function: toVideoCodecType()
 
 > **toVideoCodecType**(`codecDetail`): `MediaParserVideoCodec`
+
+**`Internal`**
 
 Converts video codec string to VideoCodecType
 
@@ -727,620 +791,6 @@ Standardized video codec identifier
 #### Type Alias: VideoCodecType
 
 > **VideoCodecType** = `MediaParserVideoCodec`
-
-## Parsers
-
-### Aac
-
-<a id="parsersaacreadmemd"></a>
-
-#### parsers/aac
-
-##### Functions
-
-| Function                                                 | Description                                                                                                                                                         |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [parseAac](#parsersaacfunctionsparseaacmd)               | Parses AAC file from a stream and extracts media information. Note: The returned MediaInfo does not include the 'parser' field, which should be set by the adapter. |
-| [parseADTSHeader](#parsersaacfunctionsparseadtsheadermd) | Parses an ADTS (Audio Data Transport Stream) header from AAC data. ADTS headers are 7 bytes (without CRC) or 9 bytes (with CRC).                                    |
-
-#### Functions
-
-<a id="parsersaacfunctionsparseadtsheadermd"></a>
-
-##### Function: parseADTSHeader()
-
-> **parseADTSHeader**(`data`): [`AudioStreamInfo`](#media-infointerfacesaudiostreaminfomd)
-
-Parses an ADTS (Audio Data Transport Stream) header from AAC data.
-ADTS headers are 7 bytes (without CRC) or 9 bytes (with CRC).
-
-###### Parameters
-
-| Parameter | Type         | Description                   |
-| --------- | ------------ | ----------------------------- |
-| `data`    | `Uint8Array` | The AAC data with ADTS header |
-
-###### Returns
-
-[`AudioStreamInfo`](#media-infointerfacesaudiostreaminfomd)
-
-Audio stream information extracted from the ADTS header
-
-###### Throws
-
-Error if the data is not a valid ADTS header
-
-<a id="parsersaacfunctionsparseaacmd"></a>
-
-##### Function: parseAac()
-
-> **parseAac**(`stream`, `_options?`): `Promise`\<`Omit`\<[`MediaInfo`](#media-infointerfacesmediainfomd), `"parser"`\>\>
-
-Parses AAC file from a stream and extracts media information.
-Note: The returned MediaInfo does not include the 'parser' field,
-which should be set by the adapter.
-
-###### Parameters
-
-| Parameter   | Type                                                             | Description                     |
-| ----------- | ---------------------------------------------------------------- | ------------------------------- |
-| `stream`    | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>            | The input media stream          |
-| `_options?` | [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd) | Optional options for the parser |
-
-###### Returns
-
-`Promise`\<`Omit`\<[`MediaInfo`](#media-infointerfacesmediainfomd), `"parser"`\>\>
-
-Media information without the parser field
-
-###### Throws
-
-UnsupportedFormatError if the stream is not a valid AAC file
-
-### Adapter
-
-<a id="parsersadapterreadmemd"></a>
-
-#### parsers/adapter
-
-##### Classes
-
-| Class                                                                            | Description                                                                                                             |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| [FallbackChainParserAdapter](#parsersadapterclassesfallbackchainparseradaptermd) | A composite parser adapter that tries multiple adapters in sequence. It implements the Chain of Responsibility pattern. |
-| [UnsupportedFormatError](#parsersadapterclassesunsupportedformaterrormd)         | Error thrown when a parser encounters an unsupported file format or invalid data.                                       |
-
-##### Interfaces
-
-| Interface                                                           | Description                                                                                                                                                                               |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [MediaParserAdapter](#parsersadapterinterfacesmediaparseradaptermd) | Interface for media parser adapters. Adapters bridge the gap between the generic media info extraction logic and specific parser implementations (like mp4box or @remotion/media-parser). |
-| [ParsingError](#parsersadapterinterfacesparsingerrormd)             | -                                                                                                                                                                                         |
-
-#### Classes
-
-<a id="parsersadapterclassesfallbackchainparseradaptermd"></a>
-
-##### Class: FallbackChainParserAdapter
-
-A composite parser adapter that tries multiple adapters in sequence.
-It implements the Chain of Responsibility pattern.
-
-###### Implements
-
-- [`MediaParserAdapter`](#parsersadapterinterfacesmediaparseradaptermd)
-
-###### Constructors
-
-<a id="api-constructor"></a>
-
-####### Constructor
-
-> **new FallbackChainParserAdapter**(`adapters`): `FallbackChainParserAdapter`
-
-Creates a new FallbackChainParserAdapter.
-
-######## Parameters
-
-| Parameter  | Type                                                                    | Description                            |
-| ---------- | ----------------------------------------------------------------------- | -------------------------------------- |
-| `adapters` | [`MediaParserAdapter`](#parsersadapterinterfacesmediaparseradaptermd)[] | The list of adapters to try, in order. |
-
-######## Returns
-
-`FallbackChainParserAdapter`
-
-###### Methods
-
-<a id="api-parse"></a>
-
-####### parse()
-
-> **parse**(`stream`, `options?`): `Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd)\>
-
-Tries to parse the stream using the first adapter that supports it.
-
-######## Parameters
-
-| Parameter  | Type                                                             | Description                      |
-| ---------- | ---------------------------------------------------------------- | -------------------------------- |
-| `stream`   | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>            | The input media stream.          |
-| `options?` | [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd) | Optional options for the parser. |
-
-######## Returns
-
-`Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd)\>
-
-The extracted media information.
-
-######## Throws
-
-Error from the last paseing attempt.
-
-######## Implementation of
-
-[`MediaParserAdapter`](#parsersadapterinterfacesmediaparseradaptermd).[`parse`](#parse)
-
-<a id="parsersadapterclassesunsupportedformaterrormd"></a>
-
-##### Class: UnsupportedFormatError
-
-Error thrown when a parser encounters an unsupported file format or invalid data.
-
-###### Extends
-
-- `Error`
-
-###### Implements
-
-- [`ParsingError`](#parsersadapterinterfacesparsingerrormd)
-
-###### Constructors
-
-<a id="api-constructor"></a>
-
-####### Constructor
-
-> **new UnsupportedFormatError**(`message`): `UnsupportedFormatError`
-
-######## Parameters
-
-| Parameter | Type     |
-| --------- | -------- |
-| `message` | `string` |
-
-######## Returns
-
-`UnsupportedFormatError`
-
-######## Overrides
-
-`Error.constructor`
-
-###### Properties
-
-| Property                                                             | Modifier   | Type   | Default value |
-| -------------------------------------------------------------------- | ---------- | ------ | ------------- |
-| <a id="api-isunsupportedformaterror"></a> `isUnsupportedFormatError` | `readonly` | `true` | `true`        |
-
-#### Interfaces
-
-<a id="parsersadapterinterfacesmediaparseradaptermd"></a>
-
-##### Interface: MediaParserAdapter
-
-Interface for media parser adapters.
-Adapters bridge the gap between the generic media info extraction logic
-and specific parser implementations (like mp4box or @remotion/media-parser).
-
-###### Methods
-
-<a id="api-parse"></a>
-
-####### parse()
-
-> **parse**(`stream`, `options?`): `Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd)\>
-
-Parses the stream and extracts media information.
-
-######## Parameters
-
-| Parameter  | Type                                                             | Description                      |
-| ---------- | ---------------------------------------------------------------- | -------------------------------- |
-| `stream`   | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>            | The input media stream.          |
-| `options?` | [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd) | Optional options for the parser. |
-
-######## Returns
-
-`Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd)\>
-
-A promise that resolves to the extracted media information.
-
-######## Throws
-
-The Error thrown could implement the ParsingError interface to provide more information about the error.
-
-<a id="parsersadapterinterfacesparsingerrormd"></a>
-
-##### Interface: ParsingError
-
-###### Properties
-
-| Property                                                              | Type      |
-| --------------------------------------------------------------------- | --------- |
-| <a id="api-isunsupportedformaterror"></a> `isUnsupportedFormatError?` | `boolean` |
-
-### Inhouse Parsers Adapter
-
-<a id="parsersinhouse-parsers-adapterreadmemd"></a>
-
-#### parsers/inhouse-parsers-adapter
-
-##### Classes
-
-| Class                                                                                | Description                                                                                                                                   |
-| ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| [InhouseParserAdapter](#parsersinhouse-parsers-adapterclassesinhouseparseradaptermd) | In-house parser adapter for audio files with simple headers. Currently supports: - AAC files with ADTS headers - MP3 files with frame headers |
-
-#### Classes
-
-<a id="parsersinhouse-parsers-adapterclassesinhouseparseradaptermd"></a>
-
-##### Class: InhouseParserAdapter
-
-In-house parser adapter for audio files with simple headers.
-Currently supports:
-
-- AAC files with ADTS headers
-- MP3 files with frame headers
-
-###### Implements
-
-- [`MediaParserAdapter`](#parsersadapterinterfacesmediaparseradaptermd)
-
-###### Constructors
-
-<a id="api-constructor"></a>
-
-####### Constructor
-
-> **new InhouseParserAdapter**(): `InhouseParserAdapter`
-
-######## Returns
-
-`InhouseParserAdapter`
-
-###### Methods
-
-<a id="api-parse"></a>
-
-####### parse()
-
-> **parse**(`stream`, `options?`): `Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd)\>
-
-Parses the stream and extracts media information.
-
-######## Parameters
-
-| Parameter  | Type                                                             | Description                      |
-| ---------- | ---------------------------------------------------------------- | -------------------------------- |
-| `stream`   | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>            | The input media stream.          |
-| `options?` | [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd) | Optional options for the parser. |
-
-######## Returns
-
-`Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd)\>
-
-A promise that resolves to the extracted media information.
-
-######## Throws
-
-The Error thrown could implement the ParsingError interface to provide more information about the error.
-
-######## Implementation of
-
-[`MediaParserAdapter`](#parsersadapterinterfacesmediaparseradaptermd).[`parse`](#parse)
-
-### Isoboxer Adapter
-
-<a id="parsersisoboxer-adapterreadmemd"></a>
-
-#### parsers/isoboxer-adapter
-
-##### Classes
-
-| Class                                                               | Description                                                                                                                                                                               |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [IsoBoxerAdapter](#parsersisoboxer-adapterclassesisoboxeradaptermd) | Interface for media parser adapters. Adapters bridge the gap between the generic media info extraction logic and specific parser implementations (like mp4box or @remotion/media-parser). |
-
-#### Classes
-
-<a id="parsersisoboxer-adapterclassesisoboxeradaptermd"></a>
-
-##### Class: IsoBoxerAdapter
-
-Interface for media parser adapters.
-Adapters bridge the gap between the generic media info extraction logic
-and specific parser implementations (like mp4box or @remotion/media-parser).
-
-###### Implements
-
-- [`MediaParserAdapter`](#parsersadapterinterfacesmediaparseradaptermd)
-
-###### Constructors
-
-<a id="api-constructor"></a>
-
-####### Constructor
-
-> **new IsoBoxerAdapter**(): `IsoBoxerAdapter`
-
-######## Returns
-
-`IsoBoxerAdapter`
-
-###### Methods
-
-<a id="api-parse"></a>
-
-####### parse()
-
-> **parse**(`stream`, `options?`): `Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd)\>
-
-Parses the stream and extracts media information.
-
-######## Parameters
-
-| Parameter  | Type                                                             | Description                      |
-| ---------- | ---------------------------------------------------------------- | -------------------------------- |
-| `stream`   | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>            | The input media stream.          |
-| `options?` | [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd) | Optional options for the parser. |
-
-######## Returns
-
-`Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd)\>
-
-A promise that resolves to the extracted media information.
-
-######## Throws
-
-The Error thrown could implement the ParsingError interface to provide more information about the error.
-
-######## Implementation of
-
-[`MediaParserAdapter`](#parsersadapterinterfacesmediaparseradaptermd).[`parse`](#parse)
-
-### Mp 3
-
-<a id="parsersmp3readmemd"></a>
-
-#### parsers/mp3
-
-##### Functions
-
-| Function                                               | Description                                                                                                                                                         |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [parseMp3](#parsersmp3functionsparsemp3md)             | Parses MP3 file from a stream and extracts media information. Note: The returned MediaInfo does not include the 'parser' field, which should be set by the adapter. |
-| [parseMP3Header](#parsersmp3functionsparsemp3headermd) | Parses an MP3 frame header and extracts audio stream information.                                                                                                   |
-
-#### Functions
-
-<a id="parsersmp3functionsparsemp3headermd"></a>
-
-##### Function: parseMP3Header()
-
-> **parseMP3Header**(`data`): [`AudioStreamInfo`](#media-infointerfacesaudiostreaminfomd)
-
-Parses an MP3 frame header and extracts audio stream information.
-
-###### Parameters
-
-| Parameter | Type         | Description                    |
-| --------- | ------------ | ------------------------------ |
-| `data`    | `Uint8Array` | The MP3 data with frame header |
-
-###### Returns
-
-[`AudioStreamInfo`](#media-infointerfacesaudiostreaminfomd)
-
-Audio stream information extracted from the MP3 frame header
-
-###### Throws
-
-UnsupportedFormatError if the data is not a valid MP3 frame header
-
-<a id="parsersmp3functionsparsemp3md"></a>
-
-##### Function: parseMp3()
-
-> **parseMp3**(`stream`, `_options?`): `Promise`\<`Omit`\<[`MediaInfo`](#media-infointerfacesmediainfomd), `"parser"`\>\>
-
-Parses MP3 file from a stream and extracts media information.
-Note: The returned MediaInfo does not include the 'parser' field,
-which should be set by the adapter.
-
-###### Parameters
-
-| Parameter   | Type                                                             | Description                     |
-| ----------- | ---------------------------------------------------------------- | ------------------------------- |
-| `stream`    | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>            | The input media stream          |
-| `_options?` | [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd) | Optional options for the parser |
-
-###### Returns
-
-`Promise`\<`Omit`\<[`MediaInfo`](#media-infointerfacesmediainfomd), `"parser"`\>\>
-
-Media information without the parser field
-
-###### Throws
-
-UnsupportedFormatError if the stream is not a valid MP3 file
-
-### Mp 4 Box Adapter
-
-<a id="parsersmp4box-adapterreadmemd"></a>
-
-#### parsers/mp4box-adapter
-
-##### Classes
-
-| Class                                                         | Description                                                                                                                                                                               |
-| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Mp4BoxAdapter](#parsersmp4box-adapterclassesmp4boxadaptermd) | Interface for media parser adapters. Adapters bridge the gap between the generic media info extraction logic and specific parser implementations (like mp4box or @remotion/media-parser). |
-
-##### Functions
-
-| Function                                                                        | Description                                   |
-| ------------------------------------------------------------------------------- | --------------------------------------------- |
-| [mp4boxInfoToMediaInfo](#parsersmp4box-adapterfunctionsmp4boxinfotomediainfomd) | Convert mp4box Movie information to MediaInfo |
-
-#### Classes
-
-<a id="parsersmp4box-adapterclassesmp4boxadaptermd"></a>
-
-##### Class: Mp4BoxAdapter
-
-Interface for media parser adapters.
-Adapters bridge the gap between the generic media info extraction logic
-and specific parser implementations (like mp4box or @remotion/media-parser).
-
-###### Implements
-
-- [`MediaParserAdapter`](#parsersadapterinterfacesmediaparseradaptermd)
-
-###### Constructors
-
-<a id="api-constructor"></a>
-
-####### Constructor
-
-> **new Mp4BoxAdapter**(): `Mp4BoxAdapter`
-
-######## Returns
-
-`Mp4BoxAdapter`
-
-###### Methods
-
-<a id="api-parse"></a>
-
-####### parse()
-
-> **parse**(`stream`, `options?`): `Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd)\>
-
-Parses the stream and extracts media information.
-
-######## Parameters
-
-| Parameter  | Type                                                             | Description                      |
-| ---------- | ---------------------------------------------------------------- | -------------------------------- |
-| `stream`   | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>            | The input media stream.          |
-| `options?` | [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd) | Optional options for the parser. |
-
-######## Returns
-
-`Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd)\>
-
-A promise that resolves to the extracted media information.
-
-######## Throws
-
-The Error thrown could implement the ParsingError interface to provide more information about the error.
-
-######## Implementation of
-
-[`MediaParserAdapter`](#parsersadapterinterfacesmediaparseradaptermd).[`parse`](#parse)
-
-#### Functions
-
-<a id="parsersmp4box-adapterfunctionsmp4boxinfotomediainfomd"></a>
-
-##### Function: mp4boxInfoToMediaInfo()
-
-> **mp4boxInfoToMediaInfo**(`info`, `mp4file?`): [`MediaInfo`](#media-infointerfacesmediainfomd)
-
-Convert mp4box Movie information to MediaInfo
-
-###### Parameters
-
-| Parameter  | Type                              | Description                                                   |
-| ---------- | --------------------------------- | ------------------------------------------------------------- |
-| `info`     | `Movie`                           | mp4box Movie information which is the output from its parsing |
-| `mp4file?` | `ISOFile`\<`unknown`, `unknown`\> | The mp4box file object (ISOFile)                              |
-
-###### Returns
-
-[`MediaInfo`](#media-infointerfacesmediainfomd)
-
-MediaInfo
-
-### Remotion Adapter
-
-<a id="parsersremotion-adapterreadmemd"></a>
-
-#### parsers/remotion-adapter
-
-##### Classes
-
-| Class                                                               | Description                                                                                                                                                                               |
-| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [RemotionAdapter](#parsersremotion-adapterclassesremotionadaptermd) | Interface for media parser adapters. Adapters bridge the gap between the generic media info extraction logic and specific parser implementations (like mp4box or @remotion/media-parser). |
-
-#### Classes
-
-<a id="parsersremotion-adapterclassesremotionadaptermd"></a>
-
-##### Class: RemotionAdapter
-
-Interface for media parser adapters.
-Adapters bridge the gap between the generic media info extraction logic
-and specific parser implementations (like mp4box or @remotion/media-parser).
-
-###### Implements
-
-- [`MediaParserAdapter`](#parsersadapterinterfacesmediaparseradaptermd)
-
-###### Constructors
-
-<a id="api-constructor"></a>
-
-####### Constructor
-
-> **new RemotionAdapter**(): `RemotionAdapter`
-
-######## Returns
-
-`RemotionAdapter`
-
-###### Methods
-
-<a id="api-parse"></a>
-
-####### parse()
-
-> **parse**(`stream`): `Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd)\>
-
-Parses the stream and extracts media information.
-
-######## Parameters
-
-| Parameter | Type                                                  | Description             |
-| --------- | ----------------------------------------------------- | ----------------------- |
-| `stream`  | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\> | The input media stream. |
-
-######## Returns
-
-`Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd)\>
-
-A promise that resolves to the extracted media information.
-
-######## Throws
-
-The Error thrown could implement the ParsingError interface to provide more information about the error.
-
-######## Implementation of
-
-[`MediaParserAdapter`](#parsersadapterinterfacesmediaparseradaptermd).[`parse`](#parse)
 
 ## Utils
 

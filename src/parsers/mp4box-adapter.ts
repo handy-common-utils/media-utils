@@ -1,8 +1,8 @@
 import type { ES_Descriptor, ISOFile, Movie } from 'mp4box';
 
-import { getAacProfileName } from '../codec-utils';
+import { getAacProfileName, toAudioCodecType, toContainerType, toVideoCodecType } from '../codec-utils';
 import { GetMediaInfoOptions } from '../get-media-info';
-import { AudioStreamInfo, MediaInfo, toAudioCodecType, toContainerType, toVideoCodecType, VideoStreamInfo } from '../media-info';
+import { AudioStreamInfo, MediaInfo, VideoStreamInfo } from '../media-info';
 import { MediaParserAdapter, ParsingError, UnsupportedFormatError } from './adapter';
 
 export class Mp4BoxAdapter implements MediaParserAdapter {

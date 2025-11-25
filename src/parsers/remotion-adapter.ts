@@ -1,4 +1,5 @@
-import { MediaInfo, toAudioCodecType, toContainerType, toVideoCodecType } from '../media-info';
+import { toAudioCodecType, toContainerType, toVideoCodecType } from '../codec-utils';
+import { MediaInfo } from '../media-info';
 import { MediaParserAdapter, ParsingError } from './adapter';
 
 export class RemotionAdapter implements MediaParserAdapter {
