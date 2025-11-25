@@ -1,5 +1,6 @@
+import { toAudioCodecType, toContainerType, toVideoCodecType } from '../codec-utils';
 import { GetMediaInfoOptions } from '../get-media-info';
-import { AudioStreamInfo, MediaInfo, toAudioCodecType, toContainerType, toVideoCodecType, VideoStreamInfo } from '../media-info';
+import { AudioStreamInfo, MediaInfo, VideoStreamInfo } from '../media-info';
 import { MediaParserAdapter, ParsingError, UnsupportedFormatError } from './adapter';
 
 export class IsoBoxerAdapter implements MediaParserAdapter {
