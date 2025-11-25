@@ -50,26 +50,24 @@ describe('extractAudio', () => {
       const extractedAudioInfo = await getMediaInfoFromFile(outputFilePath);
 
       // Verify it's recognized as AAC
-      expect(extractedAudioInfo).toEqual(
-        expect.objectContaining({
-          container: 'aac',
-          containerDetail: 'aac',
-          parser: 'inhouse',
-          durationInSeconds: undefined,
-          videoStreams: [],
-          audioStreams: [
-            expect.objectContaining({
-              id: 1,
-              codec: 'aac',
-              codecDetail: 'mp4a.40.2',
-              profile: 'LC',
-              channelCount: 2,
-              sampleRate: 44100,
-              durationInSeconds: undefined,
-            }),
-          ],
-        }),
-      );
+      expect(extractedAudioInfo).toEqual({
+        container: 'aac',
+        containerDetail: 'aac',
+        parser: 'inhouse',
+        durationInSeconds: undefined,
+        videoStreams: [],
+        audioStreams: [
+          {
+            id: 1,
+            codec: 'aac',
+            codecDetail: 'mp4a.40.2',
+            profile: 'LC',
+            channelCount: 2,
+            sampleRate: 44100,
+            durationInSeconds: undefined,
+          },
+        ],
+      });
 
       filesToCleanup.push(outputFilePath);
     });
@@ -90,26 +88,24 @@ describe('extractAudio', () => {
       const extractedAudioInfo = await getMediaInfoFromFile(outputFilePath);
 
       // Verify it's recognized as AAC
-      expect(extractedAudioInfo).toEqual(
-        expect.objectContaining({
-          container: 'aac',
-          containerDetail: 'aac',
-          parser: 'inhouse',
-          durationInSeconds: undefined,
-          videoStreams: [],
-          audioStreams: [
-            expect.objectContaining({
-              id: 1,
-              codec: 'aac',
-              codecDetail: 'mp4a.40.2',
-              profile: 'LC',
-              channelCount: 2,
-              sampleRate: 44100,
-              durationInSeconds: undefined,
-            }),
-          ],
-        }),
-      );
+      expect(extractedAudioInfo).toEqual({
+        container: 'aac',
+        containerDetail: 'aac',
+        parser: 'inhouse',
+        durationInSeconds: undefined,
+        videoStreams: [],
+        audioStreams: [
+          {
+            id: 1,
+            codec: 'aac',
+            codecDetail: 'mp4a.40.2',
+            profile: 'LC',
+            channelCount: 2,
+            sampleRate: 44100,
+            durationInSeconds: undefined,
+          },
+        ],
+      });
 
       filesToCleanup.push(outputFilePath);
     });
@@ -132,26 +128,24 @@ describe('extractAudio', () => {
       const extractedAudioInfo = await getMediaInfoFromFile(outputFilePath);
 
       // Verify it's recognized as MP3
-      expect(extractedAudioInfo).toEqual(
-        expect.objectContaining({
-          container: 'mp3',
-          containerDetail: 'mp3',
-          parser: 'inhouse',
-          durationInSeconds: undefined,
-          videoStreams: [],
-          audioStreams: [
-            expect.objectContaining({
-              id: 1,
-              codec: 'mp3',
-              codecDetail: 'mp3',
-              channelCount: 2,
-              sampleRate: 44100,
-              bitrate: 128000,
-              durationInSeconds: undefined,
-            }),
-          ],
-        }),
-      );
+      expect(extractedAudioInfo).toEqual({
+        container: 'mp3',
+        containerDetail: 'mp3',
+        parser: 'inhouse',
+        durationInSeconds: undefined,
+        videoStreams: [],
+        audioStreams: [
+          {
+            id: 1,
+            codec: 'mp3',
+            codecDetail: 'mp3',
+            channelCount: 2,
+            sampleRate: 44100,
+            bitrate: 128000,
+            durationInSeconds: undefined,
+          },
+        ],
+      });
 
       filesToCleanup.push(outputFilePath);
     });
@@ -172,26 +166,24 @@ describe('extractAudio', () => {
       const extractedAudioInfo = await getMediaInfoFromFile(outputFilePath);
 
       // Verify it's recognized as MP3
-      expect(extractedAudioInfo).toEqual(
-        expect.objectContaining({
-          container: 'mp3',
-          containerDetail: 'mp3',
-          parser: 'inhouse',
-          durationInSeconds: undefined,
-          videoStreams: [],
-          audioStreams: [
-            expect.objectContaining({
-              id: 1,
-              codec: 'mp3',
-              codecDetail: 'mp3',
-              channelCount: 2,
-              sampleRate: 44100,
-              bitrate: 192000,
-              durationInSeconds: undefined,
-            }),
-          ],
-        }),
-      );
+      expect(extractedAudioInfo).toEqual({
+        container: 'mp3',
+        containerDetail: 'mp3',
+        parser: 'inhouse',
+        durationInSeconds: undefined,
+        videoStreams: [],
+        audioStreams: [
+          {
+            id: 1,
+            codec: 'mp3',
+            codecDetail: 'mp3',
+            channelCount: 2,
+            sampleRate: 44100,
+            bitrate: 192000,
+            durationInSeconds: undefined,
+          },
+        ],
+      });
 
       filesToCleanup.push(outputFilePath);
     });
