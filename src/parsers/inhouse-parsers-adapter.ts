@@ -13,7 +13,7 @@ import { parseMp3 } from './mp3';
  * - MP3 files with frame headers
  */
 export class InhouseParserAdapter implements MediaParserAdapter {
-  private readonly parsers = [parseAac, parseMp3];
+  private readonly parsers = [parseMp3, parseAac];
 
   async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
     let i = 0;
