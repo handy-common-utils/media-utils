@@ -1,7 +1,7 @@
 {
-  "name": "extract-audio",
+  "name": "@handy-common-utils/media-utils",
   "version": "1.0.0",
-  "description": "A pure-JS, no-FFmpeg audio-extractor which works with popular media formats and audio codecs",
+  "description": "A pure-JS, no-FFmpeg media info parser and audio stream extractor which works with popular formats and codecs",
   "scripts": {
     "pretest": "eslint . --ext .ts",
     "test": "jest --silent",
@@ -32,7 +32,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/james-hu/extract-audio.git"
+    "url": "git+https://github.com/handy-common-utils/media-utils.git"
   },
   "keywords": [
     "extract",
@@ -48,7 +48,7 @@
   "author": "James Hu",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/james-hu/extract-audio/issues"
+    "url": "https://github.com/handy-common-utils/media-utils/issues"
   },
-  "homepage": "https://github.com/james-hu/extract-audio#readme"
+  "homepage": "https://github.com/handy-common-utils/media-utils#readme"
 }

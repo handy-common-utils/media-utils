@@ -1,6 +1,6 @@
-# extract-audio
+# @handy-common-utils/media-utils
 
-A pure-JS, no-FFmpeg audio-extractor which works with popular media formats and audio codecs.
+A pure-JS, no-FFmpeg media info parser and audio stream extractor which works with popular formats and codecs.
 
 # API
 
@@ -8,7 +8,7 @@ A pure-JS, no-FFmpeg audio-extractor which works with popular media formats and 
 
 <a name="readmemd"></a>
 
-## extract-audio
+## @handy-common-utils/media-utils
 
 ### Modules
 
