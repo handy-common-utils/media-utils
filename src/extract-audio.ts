@@ -111,8 +111,6 @@ export async function extractAudio(
     mp4file.onReady = (info: any) => {
       const mediaInfo = mp4boxInfoToMediaInfo(info);
 
-      console.error('Got mediaInfo', mediaInfo);
-
       if (mediaInfo.audioStreams.length === 0) {
         const error = new Error('No audio streams/tracks found');
         abort(error);
@@ -149,13 +147,10 @@ export async function extractAudio(
       });
 
       mp4file.start();
-      console.error('Called mp4file.start()', stream.id);
     };
 
     mp4file.onSamples = (trackId, _user, samples) => {
       if (trackId !== stream.id) return;
-
-      console.error('Got samples', trackId, samples.length);
 
       // Store samples in queue
       for (const sample of samples) {
@@ -170,7 +165,6 @@ export async function extractAudio(
 
     mp4file.onError = (e: string) => {
       const error = new Error(`MP4Box error: ${e}`);
-      console.error(error);
       abort(error);
     };
 
@@ -186,7 +180,6 @@ export async function extractAudio(
         .then(({ done, value }) => {
           if (done) {
             mp4file.flush();
-            console.error('done', offset);
 
             // Process any remaining samples and wait for chain to finish, then all done.
             processSampleQueue()
@@ -209,7 +202,6 @@ export async function extractAudio(
             buffer.fileStart = offset;
             mp4file.appendBuffer(buffer);
             offset += value.length;
-            console.error('Appended buffer', buffer.byteLength, offset);
 
             readChunk();
           }
