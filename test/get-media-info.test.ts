@@ -338,16 +338,16 @@ describe('getMediaInfo with real files', () => {
             channelCount: 2,
             codec: 'mp3',
             codecDetail: 'mp3',
-            durationInSeconds: undefined,
+            durationInSeconds: expect.closeTo(6, 0.1),
             sampleRate: 44100,
           },
         ],
         container: 'mp3',
         containerDetail: 'mp3',
-        durationInSeconds: undefined,
+        durationInSeconds: expect.closeTo(6, 0.1),
         parser: 'inhouse',
         videoStreams: [],
-      } as MediaInfo);
+      });
     });
 
     it.each([
