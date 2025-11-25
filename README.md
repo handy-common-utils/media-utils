@@ -140,16 +140,199 @@ The function automatically creates the output directory if it doesn't exist.
 
 ### Modules
 
-| Module                                                       | Description |
-| ------------------------------------------------------------ | ----------- |
-| [get-media-info](#get-media-inforeadmemd)                    | -           |
-| [index](#indexreadmemd)                                      | -           |
-| [media-info](#media-inforeadmemd)                            | -           |
-| [parsers/adapter](#parsersadapterreadmemd)                   | -           |
-| [parsers/isoboxer-adapter](#parsersisoboxer-adapterreadmemd) | -           |
-| [parsers/mp4box-adapter](#parsersmp4box-adapterreadmemd)     | -           |
-| [parsers/remotion-adapter](#parsersremotion-adapterreadmemd) | -           |
-| [utils](#utilsreadmemd)                                      | -           |
+| Module                                                                     | Description |
+| -------------------------------------------------------------------------- | ----------- |
+| [codec-utils](#codec-utilsreadmemd)                                        | -           |
+| [extract-audio](#extract-audioreadmemd)                                    | -           |
+| [get-media-info](#get-media-inforeadmemd)                                  | -           |
+| [index](#indexreadmemd)                                                    | -           |
+| [media-info](#media-inforeadmemd)                                          | -           |
+| [parsers/aac](#parsersaacreadmemd)                                         | -           |
+| [parsers/adapter](#parsersadapterreadmemd)                                 | -           |
+| [parsers/inhouse-parsers-adapter](#parsersinhouse-parsers-adapterreadmemd) | -           |
+| [parsers/isoboxer-adapter](#parsersisoboxer-adapterreadmemd)               | -           |
+| [parsers/mp3](#parsersmp3readmemd)                                         | -           |
+| [parsers/mp4box-adapter](#parsersmp4box-adapterreadmemd)                   | -           |
+| [parsers/remotion-adapter](#parsersremotion-adapterreadmemd)               | -           |
+| [utils](#utilsreadmemd)                                                    | -           |
+
+## Codec Utils
+
+<a id="codec-utilsreadmemd"></a>
+
+### codec-utils
+
+#### Functions
+
+| Function                                                                                            | Description                                                                                                    |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [createADTSFrame](#codec-utilsfunctionscreateadtsframemd)                                           | Create an ADTS frame for AAC audio data ADTS (Audio Data Transport Stream) is a container format for AAC audio |
+| [getAacProfileName](#codec-utilsfunctionsgetaacprofilenamemd)                                       | Get the AAC profile name based on the audio object type                                                        |
+| [getAudioObjectTypeFromAacProfileName](#codec-utilsfunctionsgetaudioobjecttypefromaacprofilenamemd) | Get the audio object type based on the AAC profile name                                                        |
+
+### Functions
+
+<a id="codec-utilsfunctionscreateadtsframemd"></a>
+
+#### Function: createADTSFrame()
+
+> **createADTSFrame**(`aacData`, `streamInfo`): `Uint8Array`
+
+Create an ADTS frame for AAC audio data
+ADTS (Audio Data Transport Stream) is a container format for AAC audio
+
+##### Parameters
+
+| Parameter                  | Type                                                                                        | Description                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `aacData`                  | `Uint8Array`                                                                                | Raw AAC data                                      |
+| `streamInfo`               | \{ `channelCount?`: `number`; `profile?`: `string` \| `number`; `sampleRate?`: `number`; \} | Information about the original audio stream       |
+| `streamInfo.channelCount?` | `number`                                                                                    | The number of channels in the audio stream        |
+| `streamInfo.profile?`      | `string` \| `number`                                                                        | The profile (AudioObjectType) of the audio stream |
+| `streamInfo.sampleRate?`   | `number`                                                                                    | The sample rate of the audio stream               |
+
+##### Returns
+
+`Uint8Array`
+
+AAC data with ADTS header prepended
+
+<a id="codec-utilsfunctionsgetaacprofilenamemd"></a>
+
+#### Function: getAacProfileName()
+
+> **getAacProfileName**(`audioObjectType`): `string` \| `undefined`
+
+Get the AAC profile name based on the audio object type
+
+##### Parameters
+
+| Parameter         | Type     | Description           |
+| ----------------- | -------- | --------------------- |
+| `audioObjectType` | `number` | The audio object type |
+
+##### Returns
+
+`string` \| `undefined`
+
+The profile name or undefined if not found
+
+<a id="codec-utilsfunctionsgetaudioobjecttypefromaacprofilenamemd"></a>
+
+#### Function: getAudioObjectTypeFromAacProfileName()
+
+> **getAudioObjectTypeFromAacProfileName**(`profile`): `number` \| `undefined`
+
+Get the audio object type based on the AAC profile name
+
+##### Parameters
+
+| Parameter | Type     | Description          |
+| --------- | -------- | -------------------- |
+| `profile` | `string` | The AAC profile name |
+
+##### Returns
+
+`number` \| `undefined`
+
+The audio object type or undefined if not found
+
+## Extract Audio
+
+<a id="extract-audioreadmemd"></a>
+
+### extract-audio
+
+#### Interfaces
+
+| Interface                                                            | Description |
+| -------------------------------------------------------------------- | ----------- |
+| [ExtractAudioOptions](#extract-audiointerfacesextractaudiooptionsmd) | -           |
+
+#### Functions
+
+| Function                                                                          | Description                                                                                                                   |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| [extractAudio](#extract-audiofunctionsextractaudiomd)                             | Extract raw audio data from the input                                                                                         |
+| [extractAudioFromFile](#extract-audiofunctionsextractaudiofromfilemd)             | Extract raw audio data from a file This function works in Node.js environment but not in browser.                             |
+| [extractAudioFromFileToFile](#extract-audiofunctionsextractaudiofromfiletofilemd) | Extract raw audio data from a file and write to an output file This function works in Node.js environment but not in browser. |
+
+### Functions
+
+<a id="extract-audiofunctionsextractaudiomd"></a>
+
+#### Function: extractAudio()
+
+> **extractAudio**(`input`, `output`, `options?`): `Promise`\<`void`\>
+
+Extract raw audio data from the input
+
+##### Parameters
+
+| Parameter  | Type                                                                   | Description                                       |
+| ---------- | ---------------------------------------------------------------------- | ------------------------------------------------- |
+| `input`    | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>                  | The input data provided through a readable stream |
+| `output`   | `WritableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>                  | The output stream to write extracted audio to     |
+| `options?` | [`ExtractAudioOptions`](#extract-audiointerfacesextractaudiooptionsmd) | Options for the extraction process                |
+
+##### Returns
+
+`Promise`\<`void`\>
+
+<a id="extract-audiofunctionsextractaudiofromfilemd"></a>
+
+#### Function: extractAudioFromFile()
+
+> **extractAudioFromFile**(`filePath`, `output`, `options?`): `Promise`\<`void`\>
+
+Extract raw audio data from a file
+This function works in Node.js environment but not in browser.
+
+##### Parameters
+
+| Parameter  | Type                                                                   | Description                                   |
+| ---------- | ---------------------------------------------------------------------- | --------------------------------------------- |
+| `filePath` | `string`                                                               | The path to the media file                    |
+| `output`   | `WritableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>                  | The output stream to write extracted audio to |
+| `options?` | [`ExtractAudioOptions`](#extract-audiointerfacesextractaudiooptionsmd) | Options for the extraction process            |
+
+##### Returns
+
+`Promise`\<`void`\>
+
+<a id="extract-audiofunctionsextractaudiofromfiletofilemd"></a>
+
+#### Function: extractAudioFromFileToFile()
+
+> **extractAudioFromFileToFile**(`inputFilePath`, `outputFilePath`, `options?`): `Promise`\<`void`\>
+
+Extract raw audio data from a file and write to an output file
+This function works in Node.js environment but not in browser.
+
+##### Parameters
+
+| Parameter        | Type                                                                   | Description                        |
+| ---------------- | ---------------------------------------------------------------------- | ---------------------------------- |
+| `inputFilePath`  | `string`                                                               | The path to the input media file   |
+| `outputFilePath` | `string`                                                               | The path to the output audio file  |
+| `options?`       | [`ExtractAudioOptions`](#extract-audiointerfacesextractaudiooptionsmd) | Options for the extraction process |
+
+##### Returns
+
+`Promise`\<`void`\>
+
+### Interfaces
+
+<a id="extract-audiointerfacesextractaudiooptionsmd"></a>
+
+#### Interface: ExtractAudioOptions
+
+##### Properties
+
+| Property                                    | Type     | Description                                                                                                                                                                                                           |
+| ------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| <a id="api-streamindex"></a> `streamIndex?` | `number` | The index of the stream/track to extract audio from. If this option is provided, `trackId` is ignored. If `trackId` is not provided and this option is not specified, the first audio stream/track will be extracted. |
+| <a id="api-trackid"></a> `trackId?`         | `number` | The ID of the track to extract audio from If this option is provided, `streamIndex` is ignored. If both `trackId` and `streamIndex` are not provided, the first audio stream/track will be extracted.                 |
 
 ## Get Media Info
 
@@ -229,12 +412,6 @@ The media information
 
 ### index
 
-#### Functions
-
-| Function                                      | Description                           |
-| --------------------------------------------- | ------------------------------------- |
-| [extractAudio](#indexfunctionsextractaudiomd) | Extract raw audio data from the input |
-
 #### References
 
 <a id="api-audiocodectype"></a>
@@ -258,6 +435,46 @@ Re-exports [AudioStreamInfo](#media-infointerfacesaudiostreaminfomd)
 ##### ContainerType
 
 Re-exports [ContainerType](#media-infotype-aliasescontainertypemd)
+
+---
+
+<a id="api-createreadablestreamfromfile"></a>
+
+##### createReadableStreamFromFile
+
+Re-exports [createReadableStreamFromFile](#utilsfunctionscreatereadablestreamfromfilemd)
+
+---
+
+<a id="api-extractaudio"></a>
+
+##### extractAudio
+
+Re-exports [extractAudio](#extract-audiofunctionsextractaudiomd)
+
+---
+
+<a id="api-extractaudiofromfile"></a>
+
+##### extractAudioFromFile
+
+Re-exports [extractAudioFromFile](#extract-audiofunctionsextractaudiofromfilemd)
+
+---
+
+<a id="api-extractaudiofromfiletofile"></a>
+
+##### extractAudioFromFileToFile
+
+Re-exports [extractAudioFromFileToFile](#extract-audiofunctionsextractaudiofromfiletofilemd)
+
+---
+
+<a id="api-extractaudiooptions"></a>
+
+##### ExtractAudioOptions
+
+Re-exports [ExtractAudioOptions](#extract-audiointerfacesextractaudiooptionsmd)
 
 ---
 
@@ -290,6 +507,22 @@ Re-exports [GetMediaInfoOptions](#get-media-infotype-aliasesgetmediainfooptionsm
 ##### MediaInfo
 
 Re-exports [MediaInfo](#media-infointerfacesmediainfomd)
+
+---
+
+<a id="api-parserrelatedoptions"></a>
+
+##### ParserRelatedOptions
+
+Re-exports [ParserRelatedOptions](#utilsinterfacesparserrelatedoptionsmd)
+
+---
+
+<a id="api-readfromstreamtofile"></a>
+
+##### readFromStreamToFile
+
+Re-exports [readFromStreamToFile](#utilsfunctionsreadfromstreamtofilemd)
 
 ---
 
@@ -330,29 +563,6 @@ Re-exports [VideoCodecType](#media-infotype-aliasesvideocodectypemd)
 ##### VideoStreamInfo
 
 Re-exports [VideoStreamInfo](#media-infointerfacesvideostreaminfomd)
-
-### Functions
-
-<a id="indexfunctionsextractaudiomd"></a>
-
-#### Function: extractAudio()
-
-> **extractAudio**(`_input`, `_audioStreamIndex?`): `Promise`\<`ReadableStream`\<`any`\>\>
-
-Extract raw audio data from the input
-
-##### Parameters
-
-| Parameter            | Type             | Description                                         |
-| -------------------- | ---------------- | --------------------------------------------------- |
-| `_input`             | `ReadableStream` | The input data provided through a readable stream   |
-| `_audioStreamIndex?` | `number`         | Index of the audio stream to extract from the input |
-
-##### Returns
-
-`Promise`\<`ReadableStream`\<`any`\>\>
-
-The audio data extracted, as a readable stream
 
 ## Media Info
 
@@ -461,6 +671,8 @@ Standardized video codec identifier
 | <a id="api-codec"></a> `codec`                          | `MediaParserAudioCodec` | -                                 |
 | <a id="api-codecdetail"></a> `codecDetail?`             | `string`                | Parser-specific codec information |
 | <a id="api-durationinseconds"></a> `durationInSeconds?` | `number`                | -                                 |
+| <a id="api-id"></a> `id`                                | `number`                | -                                 |
+| <a id="api-profile"></a> `profile?`                     | `string`                | -                                 |
 | <a id="api-samplerate"></a> `sampleRate?`               | `number`                | -                                 |
 
 <a id="media-infointerfacesmediainfomd"></a>
@@ -469,15 +681,15 @@ Standardized video codec identifier
 
 ##### Properties
 
-| Property                                                | Type                                                          | Description                           |
-| ------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------- |
-| <a id="api-audiostreams"></a> `audioStreams`            | [`AudioStreamInfo`](#media-infointerfacesaudiostreaminfomd)[] | -                                     |
-| <a id="api-container"></a> `container`                  | `MediaParserContainer`                                        | -                                     |
-| <a id="api-containerdetail"></a> `containerDetail?`     | `string`                                                      | Parser-specific container information |
-| <a id="api-durationinseconds"></a> `durationInSeconds?` | `number`                                                      | -                                     |
-| <a id="api-mimetype"></a> `mimeType?`                   | `string`                                                      | -                                     |
-| <a id="api-parser"></a> `parser`                        | `"mp4box"` \| `"remotion"` \| `"isoboxer"` \| `"auto"`        | -                                     |
-| <a id="api-videostreams"></a> `videoStreams`            | [`VideoStreamInfo`](#media-infointerfacesvideostreaminfomd)[] | -                                     |
+| Property                                                | Type                                                                      | Description                           |
+| ------------------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------- |
+| <a id="api-audiostreams"></a> `audioStreams`            | [`AudioStreamInfo`](#media-infointerfacesaudiostreaminfomd)[]             | -                                     |
+| <a id="api-container"></a> `container`                  | `MediaParserContainer`                                                    | -                                     |
+| <a id="api-containerdetail"></a> `containerDetail?`     | `string`                                                                  | Parser-specific container information |
+| <a id="api-durationinseconds"></a> `durationInSeconds?` | `number`                                                                  | -                                     |
+| <a id="api-mimetype"></a> `mimeType?`                   | `string`                                                                  | -                                     |
+| <a id="api-parser"></a> `parser`                        | `"mp4box"` \| `"remotion"` \| `"isoboxer"` \| `"media-utils"` \| `"auto"` | -                                     |
+| <a id="api-videostreams"></a> `videoStreams`            | [`VideoStreamInfo`](#media-infointerfacesvideostreaminfomd)[]             | -                                     |
 
 <a id="media-infointerfacesvideostreaminfomd"></a>
 
@@ -493,6 +705,7 @@ Standardized video codec identifier
 | <a id="api-durationinseconds"></a> `durationInSeconds?` | `number`                | -                                 |
 | <a id="api-fps"></a> `fps?`                             | `number`                | -                                 |
 | <a id="api-height"></a> `height`                        | `number`                | -                                 |
+| <a id="api-id"></a> `id`                                | `number`                | -                                 |
 | <a id="api-width"></a> `width`                          | `number`                | -                                 |
 
 ### Type Aliases
@@ -517,6 +730,73 @@ Standardized video codec identifier
 
 ## Parsers
 
+### Aac
+
+<a id="parsersaacreadmemd"></a>
+
+#### parsers/aac
+
+##### Functions
+
+| Function                                                 | Description                                                                                                                                                         |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [parseAac](#parsersaacfunctionsparseaacmd)               | Parses AAC file from a stream and extracts media information. Note: The returned MediaInfo does not include the 'parser' field, which should be set by the adapter. |
+| [parseADTSHeader](#parsersaacfunctionsparseadtsheadermd) | Parses an ADTS (Audio Data Transport Stream) header from AAC data. ADTS headers are 7 bytes (without CRC) or 9 bytes (with CRC).                                    |
+
+#### Functions
+
+<a id="parsersaacfunctionsparseadtsheadermd"></a>
+
+##### Function: parseADTSHeader()
+
+> **parseADTSHeader**(`data`): [`AudioStreamInfo`](#media-infointerfacesaudiostreaminfomd)
+
+Parses an ADTS (Audio Data Transport Stream) header from AAC data.
+ADTS headers are 7 bytes (without CRC) or 9 bytes (with CRC).
+
+###### Parameters
+
+| Parameter | Type         | Description                   |
+| --------- | ------------ | ----------------------------- |
+| `data`    | `Uint8Array` | The AAC data with ADTS header |
+
+###### Returns
+
+[`AudioStreamInfo`](#media-infointerfacesaudiostreaminfomd)
+
+Audio stream information extracted from the ADTS header
+
+###### Throws
+
+Error if the data is not a valid ADTS header
+
+<a id="parsersaacfunctionsparseaacmd"></a>
+
+##### Function: parseAac()
+
+> **parseAac**(`stream`, `_options?`): `Promise`\<`Omit`\<[`MediaInfo`](#media-infointerfacesmediainfomd), `"parser"`\>\>
+
+Parses AAC file from a stream and extracts media information.
+Note: The returned MediaInfo does not include the 'parser' field,
+which should be set by the adapter.
+
+###### Parameters
+
+| Parameter   | Type                                                             | Description                     |
+| ----------- | ---------------------------------------------------------------- | ------------------------------- |
+| `stream`    | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>            | The input media stream          |
+| `_options?` | [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd) | Optional options for the parser |
+
+###### Returns
+
+`Promise`\<`Omit`\<[`MediaInfo`](#media-infointerfacesmediainfomd), `"parser"`\>\>
+
+Media information without the parser field
+
+###### Throws
+
+UnsupportedFormatError if the stream is not a valid AAC file
+
 ### Adapter
 
 <a id="parsersadapterreadmemd"></a>
@@ -528,6 +808,7 @@ Standardized video codec identifier
 | Class                                                                            | Description                                                                                                             |
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | [FallbackChainParserAdapter](#parsersadapterclassesfallbackchainparseradaptermd) | A composite parser adapter that tries multiple adapters in sequence. It implements the Chain of Responsibility pattern. |
+| [UnsupportedFormatError](#parsersadapterclassesunsupportedformaterrormd)         | Error thrown when a parser encounters an unsupported file format or invalid data.                                       |
 
 ##### Interfaces
 
@@ -600,6 +881,48 @@ Error from the last paseing attempt.
 
 [`MediaParserAdapter`](#parsersadapterinterfacesmediaparseradaptermd).[`parse`](#parse)
 
+<a id="parsersadapterclassesunsupportedformaterrormd"></a>
+
+##### Class: UnsupportedFormatError
+
+Error thrown when a parser encounters an unsupported file format or invalid data.
+
+###### Extends
+
+- `Error`
+
+###### Implements
+
+- [`ParsingError`](#parsersadapterinterfacesparsingerrormd)
+
+###### Constructors
+
+<a id="api-constructor"></a>
+
+####### Constructor
+
+> **new UnsupportedFormatError**(`message`): `UnsupportedFormatError`
+
+######## Parameters
+
+| Parameter | Type     |
+| --------- | -------- |
+| `message` | `string` |
+
+######## Returns
+
+`UnsupportedFormatError`
+
+######## Overrides
+
+`Error.constructor`
+
+###### Properties
+
+| Property                                                             | Modifier   | Type   | Default value |
+| -------------------------------------------------------------------- | ---------- | ------ | ------------- |
+| <a id="api-isunsupportedformaterror"></a> `isUnsupportedFormatError` | `readonly` | `true` | `true`        |
+
 #### Interfaces
 
 <a id="parsersadapterinterfacesmediaparseradaptermd"></a>
@@ -646,6 +969,77 @@ The Error thrown could implement the ParsingError interface to provide more info
 | Property                                                              | Type      |
 | --------------------------------------------------------------------- | --------- |
 | <a id="api-isunsupportedformaterror"></a> `isUnsupportedFormatError?` | `boolean` |
+
+### Inhouse Parsers Adapter
+
+<a id="parsersinhouse-parsers-adapterreadmemd"></a>
+
+#### parsers/inhouse-parsers-adapter
+
+##### Classes
+
+| Class                                                                                | Description                                                                                                                                   |
+| ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| [InhouseParserAdapter](#parsersinhouse-parsers-adapterclassesinhouseparseradaptermd) | In-house parser adapter for audio files with simple headers. Currently supports: - AAC files with ADTS headers - MP3 files with frame headers |
+
+#### Classes
+
+<a id="parsersinhouse-parsers-adapterclassesinhouseparseradaptermd"></a>
+
+##### Class: InhouseParserAdapter
+
+In-house parser adapter for audio files with simple headers.
+Currently supports:
+
+- AAC files with ADTS headers
+- MP3 files with frame headers
+
+###### Implements
+
+- [`MediaParserAdapter`](#parsersadapterinterfacesmediaparseradaptermd)
+
+###### Constructors
+
+<a id="api-constructor"></a>
+
+####### Constructor
+
+> **new InhouseParserAdapter**(): `InhouseParserAdapter`
+
+######## Returns
+
+`InhouseParserAdapter`
+
+###### Methods
+
+<a id="api-parse"></a>
+
+####### parse()
+
+> **parse**(`stream`, `options?`): `Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd)\>
+
+Parses the stream and extracts media information.
+
+######## Parameters
+
+| Parameter  | Type                                                             | Description                      |
+| ---------- | ---------------------------------------------------------------- | -------------------------------- |
+| `stream`   | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>            | The input media stream.          |
+| `options?` | [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd) | Optional options for the parser. |
+
+######## Returns
+
+`Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd)\>
+
+A promise that resolves to the extracted media information.
+
+######## Throws
+
+The Error thrown could implement the ParsingError interface to provide more information about the error.
+
+######## Implementation of
+
+[`MediaParserAdapter`](#parsersadapterinterfacesmediaparseradaptermd).[`parse`](#parse)
 
 ### Isoboxer Adapter
 
@@ -716,6 +1110,72 @@ The Error thrown could implement the ParsingError interface to provide more info
 
 [`MediaParserAdapter`](#parsersadapterinterfacesmediaparseradaptermd).[`parse`](#parse)
 
+### Mp 3
+
+<a id="parsersmp3readmemd"></a>
+
+#### parsers/mp3
+
+##### Functions
+
+| Function                                               | Description                                                                                                                                                         |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [parseMp3](#parsersmp3functionsparsemp3md)             | Parses MP3 file from a stream and extracts media information. Note: The returned MediaInfo does not include the 'parser' field, which should be set by the adapter. |
+| [parseMP3Header](#parsersmp3functionsparsemp3headermd) | Parses an MP3 frame header and extracts audio stream information.                                                                                                   |
+
+#### Functions
+
+<a id="parsersmp3functionsparsemp3headermd"></a>
+
+##### Function: parseMP3Header()
+
+> **parseMP3Header**(`data`): [`AudioStreamInfo`](#media-infointerfacesaudiostreaminfomd)
+
+Parses an MP3 frame header and extracts audio stream information.
+
+###### Parameters
+
+| Parameter | Type         | Description                    |
+| --------- | ------------ | ------------------------------ |
+| `data`    | `Uint8Array` | The MP3 data with frame header |
+
+###### Returns
+
+[`AudioStreamInfo`](#media-infointerfacesaudiostreaminfomd)
+
+Audio stream information extracted from the MP3 frame header
+
+###### Throws
+
+UnsupportedFormatError if the data is not a valid MP3 frame header
+
+<a id="parsersmp3functionsparsemp3md"></a>
+
+##### Function: parseMp3()
+
+> **parseMp3**(`stream`, `_options?`): `Promise`\<`Omit`\<[`MediaInfo`](#media-infointerfacesmediainfomd), `"parser"`\>\>
+
+Parses MP3 file from a stream and extracts media information.
+Note: The returned MediaInfo does not include the 'parser' field,
+which should be set by the adapter.
+
+###### Parameters
+
+| Parameter   | Type                                                             | Description                     |
+| ----------- | ---------------------------------------------------------------- | ------------------------------- |
+| `stream`    | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>            | The input media stream          |
+| `_options?` | [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd) | Optional options for the parser |
+
+###### Returns
+
+`Promise`\<`Omit`\<[`MediaInfo`](#media-infointerfacesmediainfomd), `"parser"`\>\>
+
+Media information without the parser field
+
+###### Throws
+
+UnsupportedFormatError if the stream is not a valid MP3 file
+
 ### Mp 4 Box Adapter
 
 <a id="parsersmp4box-adapterreadmemd"></a>
@@ -727,6 +1187,12 @@ The Error thrown could implement the ParsingError interface to provide more info
 | Class                                                         | Description                                                                                                                                                                               |
 | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [Mp4BoxAdapter](#parsersmp4box-adapterclassesmp4boxadaptermd) | Interface for media parser adapters. Adapters bridge the gap between the generic media info extraction logic and specific parser implementations (like mp4box or @remotion/media-parser). |
+
+##### Functions
+
+| Function                                                                        | Description                                   |
+| ------------------------------------------------------------------------------- | --------------------------------------------- |
+| [mp4boxInfoToMediaInfo](#parsersmp4box-adapterfunctionsmp4boxinfotomediainfomd) | Convert mp4box Movie information to MediaInfo |
 
 #### Classes
 
@@ -784,6 +1250,29 @@ The Error thrown could implement the ParsingError interface to provide more info
 ######## Implementation of
 
 [`MediaParserAdapter`](#parsersadapterinterfacesmediaparseradaptermd).[`parse`](#parse)
+
+#### Functions
+
+<a id="parsersmp4box-adapterfunctionsmp4boxinfotomediainfomd"></a>
+
+##### Function: mp4boxInfoToMediaInfo()
+
+> **mp4boxInfoToMediaInfo**(`info`, `mp4file?`): [`MediaInfo`](#media-infointerfacesmediainfomd)
+
+Convert mp4box Movie information to MediaInfo
+
+###### Parameters
+
+| Parameter  | Type                              | Description                                                   |
+| ---------- | --------------------------------- | ------------------------------------------------------------- |
+| `info`     | `Movie`                           | mp4box Movie information which is the output from its parsing |
+| `mp4file?` | `ISOFile`\<`unknown`, `unknown`\> | The mp4box file object (ISOFile)                              |
+
+###### Returns
+
+[`MediaInfo`](#media-infointerfacesmediainfomd)
+
+MediaInfo
 
 ### Remotion Adapter
 
@@ -870,6 +1359,7 @@ The Error thrown could implement the ParsingError interface to provide more info
 | Function                                                                      | Description                                                                                                           |
 | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | [createReadableStreamFromFile](#utilsfunctionscreatereadablestreamfromfilemd) | Creates a Web ReadableStream from a Node.js file path. This function works in Node.js environment but not in browser. |
+| [readFromStreamToFile](#utilsfunctionsreadfromstreamtofilemd)                 | Reads a Web ReadableStream and writes it to a file. This function works in Node.js environment but not in browser.    |
 
 ### Functions
 
@@ -881,6 +1371,10 @@ The Error thrown could implement the ParsingError interface to provide more info
 
 Creates a Web ReadableStream from a Node.js file path.
 This function works in Node.js environment but not in browser.
+
+**Important:** The caller is responsible for properly consuming or cancelling
+the returned stream to ensure the underlying file handle is released.
+If the stream is not fully consumed, call `stream.cancel()` to clean up resources.
 
 ##### Parameters
 
@@ -894,6 +1388,26 @@ This function works in Node.js environment but not in browser.
 
 A (web) ReadableStream of Uint8Array chunks
 
+<a id="utilsfunctionsreadfromstreamtofilemd"></a>
+
+#### Function: readFromStreamToFile()
+
+> **readFromStreamToFile**(`stream`, `filePath`): `Promise`\<`void`\>
+
+Reads a Web ReadableStream and writes it to a file.
+This function works in Node.js environment but not in browser.
+
+##### Parameters
+
+| Parameter  | Type                                                  | Description                      |
+| ---------- | ----------------------------------------------------- | -------------------------------- |
+| `stream`   | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\> | The readable stream to read from |
+| `filePath` | `string`                                              | The path to the file to write to |
+
+##### Returns
+
+`Promise`\<`void`\>
+
 ### Interfaces
 
 <a id="utilsinterfacesparserrelatedoptionsmd"></a>
@@ -902,8 +1416,8 @@ A (web) ReadableStream of Uint8Array chunks
 
 ##### Properties
 
-| Property                                | Type                                                   | Description                                                                                                                             |
-| --------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| <a id="api-useparser"></a> `useParser?` | `"mp4box"` \| `"remotion"` \| `"isoboxer"` \| `"auto"` | Which parser library/package to use The default is 'auto', which will try to use mp4box first and fallback to remotion if mp4box fails. |
+| Property                                | Type                                                                      | Description                                                                                                                             |
+| --------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| <a id="api-useparser"></a> `useParser?` | `"mp4box"` \| `"remotion"` \| `"isoboxer"` \| `"media-utils"` \| `"auto"` | Which parser library/package to use The default is 'auto', which will try to use mp4box first and fallback to remotion if mp4box fails. |
 
 <!-- API end -->
