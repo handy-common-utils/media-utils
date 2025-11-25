@@ -1,0 +1,29 @@
+name: Release if needed
+on:
+  workflow_run:
+    workflows: ['CI']
+    branches: [main, master]
+    types:
+      - completed
+
+jobs:
+  release-if-should:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+          cache-dependency-path: |
+            package.json
+            package-lock.json
+      - run: npm ci
+      - run: npx semantic-release
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_PUBLISH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GORELEASER_PAT }}
