@@ -42,9 +42,14 @@ export async function extractAudio(
 
   return new Promise((resolve, reject) => {
     const writer = output.getWriter();
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
 
     function abort(error: Error) {
-      writer.abort(error);
+      // Cancel reader if it exists to release the stream lock
+      if (reader) {
+        reader.cancel().catch(() => {});
+      }
+      writer.abort(error).catch(() => {});
       reject(error);
     }
 
@@ -173,10 +178,12 @@ export async function extractAudio(
     };
 
     // Start reading the input stream
-    const reader = input.getReader();
+    reader = input.getReader();
     let offset = 0;
 
     function readChunk() {
+      if (!reader) return; // Should never happen, but satisfies TypeScript
+
       reader
         .read()
         .then(({ done, value }) => {
@@ -211,7 +218,9 @@ export async function extractAudio(
           }
         })
         .catch((error) => {
-          reader.cancel();
+          if (reader) {
+            reader.cancel();
+          }
           writer.abort(error).catch(() => {});
           reject(error);
         });

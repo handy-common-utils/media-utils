@@ -15,6 +15,11 @@ export interface ParserRelatedOptions {
 /**
  * Creates a Web ReadableStream from a Node.js file path.
  * This function works in Node.js environment but not in browser.
+ *
+ * **Important:** The caller is responsible for properly consuming or cancelling
+ * the returned stream to ensure the underlying file handle is released.
+ * If the stream is not fully consumed, call `stream.cancel()` to clean up resources.
+ *
  * @param filePath The path to the file
  * @returns A (web) ReadableStream of Uint8Array chunks
  */
@@ -53,6 +58,10 @@ export async function readFromStreamToFile(stream: ReadableStream<Uint8Array>, f
         writeStream.write(value);
       }
     }
+  } catch (error) {
+    // Cancel reader to release the stream lock
+    reader.cancel().catch(() => {});
+    throw error;
   } finally {
     writeStream.end();
     await writePromise;
