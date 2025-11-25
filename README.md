@@ -25,8 +25,8 @@ This library provides a unified interface to extract media information (duration
 | **MOV**  | H.264 / AAC |   ✅   |               |    ✅    |     ✅     |     ✅     |
 | **MOV**  | H.264 / MP3 |   ✅   |               |    ✅    |     ✅     |            |
 | **WebM** | VP9 / Opus  |   ✅   |               |          |            |     ✅     |
-| **AAC**  | AAC (Raw)   |   ✅   |      ✅       |          |            |     ✅     |
-| **MP3**  | MP3 (Raw)   |   ✅   |      ✅       |          |            |     ✅     |
+| **AAC**  | AAC         |   ✅   |      ✅       |          |            |     ✅     |
+| **MP3**  | MP3         |   ✅   |      ✅       |          |            |     ✅     |
 
 ### Optional Dependencies
 
