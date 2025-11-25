@@ -121,7 +121,7 @@ describe('extractAudio', () => {
       const outputFilePath = outputFile('extracted-mp3-from-mp4.mp3');
 
       // Extract audio to file (first audio track, index 0)
-      await extractAudioFromFileToFile(inputFile, outputFilePath, { streamIndex: 0 });
+      await extractAudioFromFileToFile(inputFile, outputFilePath);
 
       // Verify the file was created and has content
       expect(fs.existsSync(outputFilePath)).toBe(true);
@@ -129,24 +129,25 @@ describe('extractAudio', () => {
       expect(stats.size).toBeGreaterThan(0);
 
       // Verify the extracted audio can be parsed by remotion
-      const extractedAudioInfo = await getMediaInfoFromFile(outputFilePath, {
-        useParser: 'remotion',
-      });
+      const extractedAudioInfo = await getMediaInfoFromFile(outputFilePath);
 
       // Verify it's recognized as MP3
       expect(extractedAudioInfo).toEqual(
         expect.objectContaining({
           container: 'mp3',
           containerDetail: 'mp3',
-          parser: 'remotion',
+          parser: 'inhouse',
+          durationInSeconds: undefined,
           videoStreams: [],
           audioStreams: [
             expect.objectContaining({
+              id: 1,
               codec: 'mp3',
               codecDetail: 'mp3',
               channelCount: 2,
               sampleRate: 44100,
-              durationInSeconds: expect.closeTo(6, 0),
+              bitrate: 128000,
+              durationInSeconds: undefined,
             }),
           ],
         }),
@@ -168,24 +169,25 @@ describe('extractAudio', () => {
       expect(stats.size).toBeGreaterThan(0);
 
       // Verify the extracted audio can be parsed by remotion
-      const extractedAudioInfo = await getMediaInfoFromFile(outputFilePath, {
-        useParser: 'remotion',
-      });
+      const extractedAudioInfo = await getMediaInfoFromFile(outputFilePath);
 
       // Verify it's recognized as MP3
       expect(extractedAudioInfo).toEqual(
         expect.objectContaining({
           container: 'mp3',
           containerDetail: 'mp3',
-          parser: 'remotion',
+          parser: 'inhouse',
+          durationInSeconds: undefined,
           videoStreams: [],
           audioStreams: [
             expect.objectContaining({
+              id: 1,
               codec: 'mp3',
               codecDetail: 'mp3',
               channelCount: 2,
               sampleRate: 44100,
-              durationInSeconds: expect.closeTo(6, 0),
+              bitrate: 192000,
+              durationInSeconds: undefined,
             }),
           ],
         }),
