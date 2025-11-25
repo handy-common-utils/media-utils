@@ -1,4 +1,5 @@
 import { toAudioCodecType, toContainerType, toVideoCodecType } from '../codec-utils';
+import { GetMediaInfoOptions } from '../get-media-info';
 import { MediaInfo } from '../media-info';
 import { MediaParserAdapter, ParsingError } from './adapter';
 
@@ -10,9 +11,9 @@ export class RemotionAdapter implements MediaParserAdapter {
     this.mediaParser = require('@remotion/media-parser');
   }
 
-  async parse(stream: ReadableStream<Uint8Array>): Promise<MediaInfo> {
+  async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
     try {
-      return await this.parseWithoutErrorHandling(stream);
+      return await this.parseWithoutErrorHandling(stream, options);
     } catch (error) {
       const msg = (error as Error)?.message;
       if (
@@ -28,7 +29,7 @@ export class RemotionAdapter implements MediaParserAdapter {
     }
   }
 
-  private async parseWithoutErrorHandling(stream: ReadableStream<Uint8Array>): Promise<MediaInfo> {
+  private async parseWithoutErrorHandling(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
     // The first 1MB of the file is read and then feed to the parser
     const MAX_PROBE_SIZE = 1 * 1024 * 1024; // 1MB
     const chunks: Uint8Array[] = [];
@@ -57,6 +58,7 @@ export class RemotionAdapter implements MediaParserAdapter {
         tracks: true,
         mimeType: true,
       },
+      acknowledgeRemotionLicense: options?.quiet,
     });
 
     const durationInSeconds = result.durationInSeconds ?? undefined;

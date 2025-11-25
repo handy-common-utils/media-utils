@@ -4,7 +4,7 @@ import type { ISOFile, Sample } from 'mp4box';
 
 import { createADTSFrame } from './codec-utils';
 import { AudioStreamInfo } from './media-info';
-import { mp4boxInfoToMediaInfo } from './parsers/mp4box-adapter';
+import { makeMp4BoxQuiet, mp4boxInfoToMediaInfo } from './parsers/mp4box-adapter';
 import { createReadableStreamFromFile } from './utils';
 
 export interface ExtractAudioOptions {
@@ -22,20 +22,34 @@ export interface ExtractAudioOptions {
    * the first audio stream/track will be extracted.
    */
   streamIndex?: number;
+  /**
+   * Whether to suppress console output.
+   * Default value is true.
+   */
+  quiet?: boolean;
 }
 
 /**
  * Extract raw audio data from the input
  * @param input The input data provided through a readable stream
  * @param output The output stream to write extracted audio to
- * @param options Options for the extraction process
+ * @param optionsInput Options for the extraction process
  */
 export async function extractAudio(
   input: ReadableStream<Uint8Array>,
   output: WritableStream<Uint8Array>,
-  options?: ExtractAudioOptions,
+  optionsInput?: ExtractAudioOptions,
 ): Promise<void> {
+  const options = {
+    quiet: true,
+    ...optionsInput,
+  };
+
   const mp4box = require('mp4box');
+
+  // Modify error logging behaviour only once when entering this function,
+  // because restoring it won't be reliable in case of multiple concurrent calls to this function.
+  makeMp4BoxQuiet(mp4box, options?.quiet);
 
   return new Promise((resolve, reject) => {
     const writer = output.getWriter();

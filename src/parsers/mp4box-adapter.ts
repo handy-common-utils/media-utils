@@ -7,10 +7,12 @@ import { MediaParserAdapter, ParsingError, UnsupportedFormatError } from './adap
 
 export class Mp4BoxAdapter implements MediaParserAdapter {
   private mp4box: typeof import('mp4box');
+  private originalMp4BoxLogError: (typeof import('mp4box'))['Log']['error'];
 
   constructor() {
     // eslint-disable-next-line @typescript-eslint/no-require-imports, unicorn/prefer-module
     this.mp4box = require('mp4box');
+    this.originalMp4BoxLogError = this.mp4box.Log.error;
   }
 
   async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
@@ -28,8 +30,12 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
     }
   }
 
-  private async parseWithoutErrorHandling(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<MediaInfo> {
-    return new Promise((resolve, reject) => {
+  private async parseWithoutErrorHandling(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
+    // Modify error logging behaviour only once when entering this function,
+    // because restoring it won't be reliable in case of multiple concurrent calls to this function.
+    makeMp4BoxQuiet(this.mp4box, options?.quiet);
+
+    return new Promise<MediaInfo>((resolve, reject) => {
       const mp4file = this.mp4box.createFile();
 
       let infoFound = false;
@@ -160,4 +166,26 @@ export function mp4boxInfoToMediaInfo(info: Movie, mp4file?: ISOFile): MediaInfo
     audioStreams,
     mimeType: info.mime,
   };
+}
+
+/**
+ * Suppress or enable Mp4Box error logging
+ * @param mp4box Mp4Box module
+ * @param quiet Whether to suppress error logging or restore original behaviour
+ */
+export function makeMp4BoxQuiet(mp4box: typeof import('mp4box'), quiet: boolean | undefined) {
+  if (quiet) {
+    (mp4box.Log as any).originalError = mp4box.Log.error;
+    mp4box.Log.error = (module: string, msg?: string, isofile?: ISOFile) => {
+      // This implementation is copied from mp4box source code
+      if (isofile?.onError) {
+        isofile.onError(module, msg ?? '');
+      }
+    };
+  } else {
+    const originalError = (mp4box.Log as any).originalError;
+    if (originalError) {
+      mp4box.Log.error = originalError;
+    }
+  }
 }

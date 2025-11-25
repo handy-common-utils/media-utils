@@ -6,20 +6,32 @@ import { Mp4BoxAdapter } from './parsers/mp4box-adapter';
 import { RemotionAdapter } from './parsers/remotion-adapter';
 import { createReadableStreamFromFile, ParserRelatedOptions } from './utils';
 
-export type GetMediaInfoOptions = ParserRelatedOptions;
+export type GetMediaInfoOptions = ParserRelatedOptions & {
+  /**
+   * Whether to suppress console output.
+   * Default value is true.
+   */
+  quiet?: boolean;
+};
 
 /**
  * Get media information from a stream
  * @param stream The input Web ReadableStream (not Node Readable).
  *               To convert a Node Readable to Web ReadableStream, use `Readable.toWeb(nodeReadable)`.
- * @param options Options for the parser
+ * @param optionsInput Options for the parser
  * @returns The media information
  */
 export async function getMediaInfo(
   stream: ReadableStream<Uint8Array>,
-  options?: GetMediaInfoOptions,
+  optionsInput?: GetMediaInfoOptions,
 ): Promise<MediaInfo & { parser: Exclude<GetMediaInfoOptions['useParser'], undefined> }> {
-  const useParser = options?.useParser ?? 'auto';
+  const options = {
+    useParser: 'auto' as GetMediaInfoOptions['useParser'],
+    quiet: true,
+    ...optionsInput,
+  };
+
+  const { useParser } = options;
 
   let parser: MediaParserAdapter;
 
