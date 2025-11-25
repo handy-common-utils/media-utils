@@ -2,6 +2,127 @@
 
 A pure-JS, no-FFmpeg media info parser and audio stream extractor which works with popular formats and codecs.
 
+## Getting Media Information
+
+This library provides a unified interface to extract media information (duration, video/audio streams, codecs, etc.) from various media formats. It can use its own lightweight in-house parsers or different 3rd party parsers (`mp4box`, `codem-isoboxer`, `@remotion/media-parser`). Those 3rd party parsers are optional dependencies of this library.
+
+### Key Features
+
+- **Unified API**: Get consistent `MediaInfo` object regardless of the parser used.
+- **Browser & Node.js**: Works in both environments (file system helpers are Node.js only).
+- **Smart Fallback**: The `auto` mode tries parsers in this order:
+  1. `media-utils` (In-house): Fast, lightweight, for raw AAC/MP3 files.
+  2. `mp4box`: Robust for MP4/MOV files.
+  3. `isoboxer`: Alternative for MP4/MOV.
+  4. `remotion`: Supports a wider range of formats (WebM, etc.).
+
+### Verified Combinations
+
+| Format   | Codecs      | `auto` | `media-utils` | `mp4box` | `isoboxer` | `remotion` |
+| :------- | :---------- | :----: | :-----------: | :------: | :--------: | :--------: |
+| **MP4**  | H.264 / AAC |   ✅   |               |    ✅    |     ✅     |     ✅     |
+| **MP4**  | H.264 / MP3 |   ✅   |               |    ✅    |     ✅     |     ✅     |
+| **MOV**  | H.264 / AAC |   ✅   |               |    ✅    |     ✅     |     ✅     |
+| **MOV**  | H.264 / MP3 |   ✅   |               |    ✅    |     ✅     |            |
+| **WebM** | VP9 / Opus  |   ✅   |               |          |            |     ✅     |
+| **AAC**  | AAC (Raw)   |   ✅   |      ✅       |          |            |     ✅     |
+| **MP3**  | MP3 (Raw)   |   ✅   |      ✅       |          |            |     ✅     |
+
+### Optional Dependencies
+
+To support different formats, you may need to install optional dependencies:
+
+- `mp4box`: Recommended for MP4/MOV support.
+- `codem-isoboxer`: Alternative for MP4/MOV.
+- `@remotion/media-parser`: Required for WebM and other formats.
+
+This library picks them up automatically if they are installed.
+
+### Example
+
+```typescript
+import { getMediaInfoFromFile } from '@handy-common-utils/media-utils';
+
+// Automatically choose the best parser
+const info = await getMediaInfoFromFile('path/to/video.mp4');
+console.log(`Duration: ${info.durationInSeconds}s`);
+console.log(`Video: ${info.videoStreams[0]?.codec}`);
+console.log(`Audio: ${info.audioStreams[0]?.codec}`);
+
+// Force a specific parser
+const infoMp4Box = await getMediaInfoFromFile('path/to/video.mp4', { useParser: 'mp4box' });
+```
+
+## Extracting Audio Stream
+
+You can extract raw audio streams from video files (MP4, MOV) without re-encoding. This is fast and preserves original quality.
+
+### Supported Scenarios
+
+- **Containers**: MP4, MOV (ISO BMFF based).
+- **Audio Codecs**:
+  - **AAC**: Can be saved as .aac
+  - **MP3**: Can be saved as .mp3
+
+### Dependencies
+
+- Requires `mp4box` to be installed.
+
+### Example
+
+```typescript
+import { extractAudioFromFileToFile } from '@handy-common-utils/media-utils';
+
+// Extract the first audio track to a new file
+await extractAudioFromFileToFile('input-video.mp4', 'output-audio.aac');
+
+// Advanced usage with streams
+import { extractAudio, createReadableStreamFromFile } from '@handy-common-utils/media-utils';
+import fs from 'node:fs';
+import { Writable } from 'node:stream';
+
+const inputStream = await createReadableStreamFromFile('input.mov');
+const outputStream = Writable.toWeb(fs.createWriteStream('output.mp3'));
+
+await extractAudio(inputStream, outputStream, {
+  trackId: 2, // Optional: specify track ID
+});
+```
+
+## Utility Functions
+
+This library exports several utility functions to help you work with media streams in Node.js environments.
+
+### `createReadableStreamFromFile(filePath: string)`
+
+Creates a Web `ReadableStream` from a Node.js file path. This is useful when you need to convert a file into a stream for processing.
+
+**Note**: This function only works in Node.js, not in browsers.
+
+```typescript
+import { createReadableStreamFromFile } from '@handy-common-utils/media-utils';
+
+const stream = await createReadableStreamFromFile('path/to/media.mp4');
+// Use the stream with getMediaInfo or extractAudio
+```
+
+**Important**: The caller is responsible for properly consuming or cancelling the returned stream to ensure the underlying file handle is released. If the stream is not fully consumed, call `stream.cancel()` to clean up resources.
+
+### `readFromStreamToFile(stream: ReadableStream<Uint8Array>, filePath: string)`
+
+Reads a Web `ReadableStream` and writes it to a file. This is useful for saving processed streams back to disk.
+
+**Note**: This function only works in Node.js, not in browsers.
+
+```typescript
+import { readFromStreamToFile } from '@handy-common-utils/media-utils';
+
+// Assuming you have a ReadableStream from some processing
+await readFromStreamToFile(myStream, 'path/to/output.mp4');
+```
+
+The function automatically creates the output directory if it doesn't exist.
+
 # API
 
 <!-- API start -->
