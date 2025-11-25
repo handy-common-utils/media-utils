@@ -29,6 +29,15 @@ export function parseADTSHeader(data: Uint8Array): AudioStreamInfo {
   // 0 = MPEG-4, 1 = MPEG-2
   const _mpegVersion = (header[1] >> 3) & 0x01;
 
+  // Extract layer (2 bits) - bits 1-2 of byte 1
+  // For AAC ADTS, this MUST be 0 (indicating no layer, as AAC doesn't use layers)
+  // For MP3, this would be 1-3 (Layer III, II, or I)
+  // This is the key difference that distinguishes AAC from MP3
+  const layer = (header[1] >> 1) & 0x03;
+  if (layer !== 0) {
+    throw new UnsupportedFormatError('Invalid ADTS header: layer must be 0 for AAC (this might be MP3)');
+  }
+
   // Extract protection absent (1 bit) - bit 0 of byte 1
   const _protectionAbsent = header[1] & 0x01;
 
