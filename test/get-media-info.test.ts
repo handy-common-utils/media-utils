@@ -380,6 +380,96 @@ describe('getMediaInfo with real files', () => {
       } as MediaInfo);
     });
 
+    it('should parse engine-start.vp8.vorbis.webm file', async () => {
+      const info = await getMediaInfoFromFile(sampleFile('engine-start.vp8.vorbis.webm'), { useParser: 'media-utils' });
+      expect(info).toEqual({
+        audioStreams: [
+          {
+            id: 2,
+            channelCount: 2,
+            codec: 'vorbis',
+            codecDetail: 'A_VORBIS',
+            durationInSeconds: 6.007,
+            sampleRate: 48000,
+          },
+        ],
+        container: 'webm',
+        containerDetail: 'webm',
+        durationInSeconds: 6.007,
+        parser: 'media-utils',
+        videoStreams: [
+          {
+            id: 1,
+            codec: 'vp8',
+            codecDetail: 'V_VP8',
+            durationInSeconds: 6.007,
+            height: 534,
+            width: 1280,
+          },
+        ],
+      } as MediaInfo);
+    });
+
+    it('should parse engine-start.vp9.vorbis.webm file', async () => {
+      const info = await getMediaInfoFromFile(sampleFile('engine-start.vp9.vorbis.webm'), { useParser: 'media-utils' });
+      expect(info).toEqual({
+        audioStreams: [
+          {
+            id: 2,
+            channelCount: 2,
+            codec: 'vorbis',
+            codecDetail: 'A_VORBIS',
+            durationInSeconds: 6.007,
+            sampleRate: 48000,
+          },
+        ],
+        container: 'webm',
+        containerDetail: 'webm',
+        durationInSeconds: 6.007,
+        parser: 'media-utils',
+        videoStreams: [
+          {
+            id: 1,
+            codec: 'vp9',
+            codecDetail: 'V_VP9',
+            durationInSeconds: 6.007,
+            height: 534,
+            width: 1280,
+          },
+        ],
+      } as MediaInfo);
+    });
+
+    it('should parse engine-start.av1.opus.webm file', async () => {
+      const info = await getMediaInfoFromFile(sampleFile('engine-start.av1.opus.webm'), { useParser: 'media-utils' });
+      expect(info).toEqual({
+        audioStreams: [
+          {
+            id: 2,
+            channelCount: 2,
+            codec: 'opus',
+            codecDetail: 'A_OPUS',
+            durationInSeconds: 6.008,
+            sampleRate: 48000,
+          },
+        ],
+        container: 'webm',
+        containerDetail: 'webm',
+        durationInSeconds: 6.008,
+        parser: 'media-utils',
+        videoStreams: [
+          {
+            id: 1,
+            codec: 'av1',
+            codecDetail: 'V_AV1',
+            durationInSeconds: 6.008,
+            height: 534,
+            width: 1280,
+          },
+        ],
+      } as MediaInfo);
+    });
+
     it.each([
       'engine-start.h264.aac.mp4',
       'engine-start.mjpeg.pcms16le.avi',
