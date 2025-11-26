@@ -5,6 +5,7 @@ import { MediaInfo } from '../media-info';
 import { parseAac } from './aac';
 import { MediaParserAdapter, ParsingError } from './adapter';
 import { parseMp3 } from './mp3';
+import { parseWebm } from './webm';
 
 /**
  * In-house parser adapter for audio files with simple headers.
@@ -13,7 +14,7 @@ import { parseMp3 } from './mp3';
  * - MP3 files with frame headers
  */
 export class InhouseParserAdapter implements MediaParserAdapter {
-  private readonly parsers = [parseMp3, parseAac];
+  private readonly parsers = [parseMp3, parseAac, parseWebm];
 
   async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
     let i = 0;

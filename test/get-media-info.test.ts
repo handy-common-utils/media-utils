@@ -350,12 +350,41 @@ describe('getMediaInfo with real files', () => {
       });
     });
 
+    it('should parse engine-start.vp9.opus.webm file', async () => {
+      const info = await getMediaInfoFromFile(sampleFile('engine-start.vp9.opus.webm'), { useParser: 'media-utils' });
+      expect(info).toEqual({
+        audioStreams: [
+          {
+            id: 2,
+            channelCount: 2,
+            codec: 'opus',
+            codecDetail: 'A_OPUS',
+            durationInSeconds: 6.008,
+            sampleRate: 48000,
+          },
+        ],
+        container: 'webm',
+        containerDetail: 'webm',
+        durationInSeconds: 6.008,
+        parser: 'media-utils',
+        videoStreams: [
+          {
+            id: 1,
+            codec: 'vp9',
+            codecDetail: 'V_VP9',
+            durationInSeconds: 6.008,
+            height: 534,
+            width: 1280,
+          },
+        ],
+      } as MediaInfo);
+    });
+
     it.each([
       'engine-start.h264.aac.mp4',
       'engine-start.mjpeg.pcms16le.avi',
       'engine-start.h264.pcms16le.avi',
       'engine-start.mpeg2video.mp2.m2ts',
-      'engine-start.vp9.opus.webm',
       'engine-start.wmv2.wmav2.wmv',
     ])('should fail to parse %s', async (filename) => {
       try {
@@ -512,12 +541,12 @@ describe('getMediaInfo with real files', () => {
   });
 
   describe('auto parser (default)', () => {
-    const fixtures: Record<string, 'mp4box' | 'isoboxer' | 'remotion'> = {
+    const fixtures: Record<string, 'mp4box' | 'isoboxer' | 'remotion' | 'media-utils'> = {
       'engine-start.h264.aac.mp4': 'mp4box',
       'engine-start.h264.mp3.mp4': 'mp4box',
       'engine-start.h264.aac.mov': 'mp4box',
       'engine-start.h264.mp3.mov': 'mp4box',
-      'engine-start.vp9.opus.webm': 'remotion',
+      'engine-start.vp9.opus.webm': 'media-utils',
     };
 
     it.each(Object.entries(fixtures))('should successfully parse %s using %s parser', async (filename, expectedParser) => {
