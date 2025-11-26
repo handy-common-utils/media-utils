@@ -36,7 +36,9 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
     makeMp4BoxQuiet(this.mp4box, options?.quiet);
 
     return new Promise<MediaInfo>((resolve, reject) => {
-      const mp4file = this.mp4box.createFile();
+      // Sometimes mdat comes before moov (e.g., MOV files, some MP4s), because onReady fires
+      // after mdat has been parsed, and without this flag the sample data would be gone.
+      const mp4file = this.mp4box.createFile(true);
 
       let infoFound = false;
 

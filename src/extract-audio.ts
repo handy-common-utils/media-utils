@@ -45,7 +45,7 @@ export async function extractAudio(
     ...optionsInput,
   };
 
-  const mp4box = require('mp4box');
+  const mp4box: typeof import('mp4box') = require('mp4box');
 
   // Modify error logging behaviour only once when entering this function,
   // because restoring it won't be reliable in case of multiple concurrent calls to this function.
@@ -64,13 +64,9 @@ export async function extractAudio(
       reject(error);
     }
 
-    const mp4file: ISOFile = mp4box.createFile();
-
-    // CRITICAL: Set discardMdatData to false to prevent mp4box from discarding
-    // mdat data before extraction is set up. This is essential for files where
-    // mdat comes before moov (e.g., MOV files, some MP4s), because onReady fires
+    // Sometimes mdat comes before moov (e.g., MOV files, some MP4s), because onReady fires
     // after mdat has been parsed, and without this flag the sample data would be gone.
-    (mp4file as any).discardMdatData = false;
+    const mp4file: ISOFile = mp4box.createFile(true);
 
     // Queue to store extracted samples
     const sampleQueue: Array<Sample> = [];
