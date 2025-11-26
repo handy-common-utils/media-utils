@@ -1,8 +1,8 @@
 import type { MediaParserAudioCodec, MediaParserContainer, MediaParserVideoCodec } from '@remotion/media-parser';
 
-export type AudioCodecType = MediaParserAudioCodec;
+export type AudioCodecType = MediaParserAudioCodec | 'wmav2';
 export type VideoCodecType = MediaParserVideoCodec;
-export type ContainerType = MediaParserContainer;
+export type ContainerType = MediaParserContainer | 'asf' | 'mov' | 'ogg';
 
 export interface VideoStreamInfo {
   id: number;

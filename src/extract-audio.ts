@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/no-require-imports, unicorn/prefer-module */
 
-import type { ISOFile, Sample } from 'mp4box';
-
-import { createADTSFrame } from './codec-utils';
-import { AudioStreamInfo } from './media-info';
-import { makeMp4BoxQuiet, mp4boxInfoToMediaInfo } from './parsers/mp4box-adapter';
+import { extractFromAsf } from './extractors/asf-extractor';
+import { extractFromMp4 } from './extractors/mp4-extractor';
+import { extractFromWebm } from './extractors/webm-extractor';
+import { getMediaInfo } from './get-media-info';
 import { createReadableStreamFromFile } from './utils';
 
 export interface ExtractAudioOptions {
@@ -34,6 +33,7 @@ export interface ExtractAudioOptions {
  * @param input The input data provided through a readable stream
  * @param output The output stream to write extracted audio to
  * @param optionsInput Options for the extraction process
+ * @returns Promise that resolves when extraction is complete
  */
 export async function extractAudio(
   input: ReadableStream<Uint8Array>,
@@ -45,189 +45,29 @@ export async function extractAudio(
     ...optionsInput,
   };
 
-  const mp4box: typeof import('mp4box') = require('mp4box');
+  // Tee the stream: one for detection, one for extraction
+  const [detectStream, extractStream] = input.tee();
 
-  // Modify error logging behaviour only once when entering this function,
-  // because restoring it won't be reliable in case of multiple concurrent calls to this function.
-  makeMp4BoxQuiet(mp4box, options?.quiet);
+  // Detect container type
+  const mediaInfo = await getMediaInfo(detectStream);
+  const container = mediaInfo.container;
 
-  return new Promise((resolve, reject) => {
-    const writer = output.getWriter();
-    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
-
-    function abort(error: Error) {
-      // Cancel reader if it exists to release the stream lock
-      if (reader) {
-        reader.cancel().catch(() => {});
-      }
-      writer.abort(error).catch(() => {});
-      reject(error);
+  // Route to appropriate extractor
+  switch (container) {
+    case 'mp4':
+    case 'mov': {
+      return extractFromMp4(extractStream, output, mediaInfo, options);
     }
-
-    // Sometimes mdat comes before moov (e.g., MOV files, some MP4s), because onReady fires
-    // after mdat has been parsed, and without this flag the sample data would be gone.
-    const mp4file: ISOFile = mp4box.createFile(true);
-
-    // Queue to store extracted samples
-    const sampleQueue: Array<Sample> = [];
-
-    /**
-     * The audio stream/track to be extracted
-     */
-    let stream: AudioStreamInfo;
-
-    // Promise chain to ensure sequential processing
-    let processingChain = Promise.resolve();
-
-    /**
-     * Wait for all previous samples to be processed,
-     * then process all the samples currently in the queue.
-     * @returns A Promise that resolves when all previous samples and current samples have been processed.
-     */
-    async function processSampleQueue(): Promise<void> {
-      if (!stream?.codec) return processingChain;
-
-      const task = async () => {
-        while (sampleQueue.length > 0) {
-          const sample = sampleQueue.shift();
-          if (!sample?.data) continue;
-
-          const sampleData = new Uint8Array(sample.data);
-
-          try {
-            if (stream.codec === 'aac') {
-              // AAC codec - need to add ADTS headers
-              const adtsFrame = createADTSFrame(sampleData, stream);
-              await writer.write(adtsFrame);
-            } else if (stream.codec === 'mp3') {
-              // MP3 codec - samples should already have frame headers
-              await writer.write(sampleData);
-            } else {
-              // For other codecs, just pass through the raw data
-              await writer.write(sampleData);
-            }
-          } catch (error) {
-            writer.abort(error);
-            throw error;
-          }
-        }
-      };
-
-      // Chain the task
-      processingChain = processingChain.then(task);
-      return processingChain;
+    case 'webm': {
+      return extractFromWebm(extractStream, output, mediaInfo, options);
     }
-
-    mp4file.onReady = (info: any) => {
-      const mediaInfo = mp4boxInfoToMediaInfo(info);
-
-      if (mediaInfo.audioStreams.length === 0) {
-        const error = new Error('No audio streams/tracks found');
-        abort(error);
-        return;
-      }
-
-      if (options?.trackId) {
-        // Use trackId if provided
-        const streamFound = mediaInfo.audioStreams.find((t: any) => t.id === options.trackId);
-        if (!streamFound) {
-          const error = new Error(
-            `Audio stream/track with ID ${options.trackId} not found. Available track IDs: ${mediaInfo.audioStreams.map((t: any) => t.id).join(', ')}`,
-          );
-          abort(error);
-          return;
-        }
-        stream = streamFound;
-      } else {
-        // Use streamIndex (defaults to 0)
-        const streamIndex = options?.streamIndex ?? 0;
-        if (streamIndex >= mediaInfo.audioStreams.length) {
-          const error = new Error(
-            `Audio stream/track index ${streamIndex} not found. Available streams/tracks: 0 - ${mediaInfo.audioStreams.length - 1}`,
-          );
-          abort(error);
-          return;
-        }
-        stream = mediaInfo.audioStreams[streamIndex];
-      }
-
-      // Set up extraction
-      mp4file.setExtractionOptions(stream.id, null, {
-        nbSamples: 1000, // size of a batch
-      });
-
-      mp4file.start();
-    };
-
-    mp4file.onSamples = (trackId, _user, samples) => {
-      if (trackId !== stream.id) return;
-
-      // Store samples in queue
-      for (const sample of samples) {
-        sampleQueue.push(sample);
-      }
-
-      // Process the queue
-      processSampleQueue().catch((error) => {
-        abort(error);
-      });
-    };
-
-    mp4file.onError = (e: string) => {
-      const error = new Error(`MP4Box error: ${e}`);
-      abort(error);
-    };
-
-    // Start reading the input stream
-    reader = input.getReader();
-    let offset = 0;
-
-    function readChunk() {
-      if (!reader) return; // Should never happen, but satisfies TypeScript
-
-      reader
-        .read()
-        .then(({ done, value }) => {
-          if (done) {
-            mp4file.flush();
-
-            // Process any remaining samples and wait for chain to finish, then all done.
-            processSampleQueue()
-              .then(async () => {
-                await writer.close();
-                resolve();
-              })
-              .catch((error) => {
-                // Ignore error if writer is already closed/aborted
-                writer.abort(error).catch(() => {});
-                reject(error);
-              });
-            return;
-          }
-
-          if (value) {
-            const buffer = value.buffer as ArrayBuffer & {
-              fileStart: number;
-            };
-            buffer.fileStart = offset;
-            mp4file.appendBuffer(buffer);
-            offset += value.length;
-
-            readChunk();
-          }
-        })
-        .catch((error) => {
-          if (reader) {
-            reader.cancel();
-          }
-          writer.abort(error).catch(() => {});
-          reject(error);
-        });
+    case 'asf': {
+      return extractFromAsf(extractStream, output, mediaInfo, options);
     }
-
-    // Start reading the input stream immediately so mp4box can parse the file
-    readChunk();
-  });
+    default: {
+      throw new Error(`Unsupported container format: ${container}. Supported formats: mp4, mov, webm, asf`);
+    }
+  }
 }
 
 /**

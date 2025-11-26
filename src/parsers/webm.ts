@@ -13,6 +13,7 @@ const TRACK_ENTRY_ID = 0xae;
 const TRACK_NUMBER_ID = 0xd7;
 const TRACK_TYPE_ID = 0x83;
 const CODEC_ID_ID = 0x86;
+const CODEC_PRIVATE_ID = 0x63a2;
 const AUDIO_ID = 0xe1;
 const SAMPLING_FREQUENCY_ID = 0xb5;
 const CHANNELS_ID = 0x9f;
@@ -29,6 +30,7 @@ interface TrackInfo {
   number: number;
   type: number; // 1=video, 2=audio
   codecId: string;
+  codecPrivate?: Uint8Array;
   audio?: {
     samplingFrequency: number;
     channels: number;
@@ -231,6 +233,10 @@ export class WebmParser {
       }
       case CODEC_ID_ID: {
         this.getCurrentTrack().codecId = this.readString(data);
+        break;
+      }
+      case CODEC_PRIVATE_ID: {
+        this.getCurrentTrack().codecPrivate = new Uint8Array(data);
         break;
       }
       case SAMPLING_FREQUENCY_ID: {
@@ -465,6 +471,15 @@ export class WebmParser {
   private getVideoTrack(): { width: number; height: number } {
     if (!this.currentTrack.video) this.currentTrack.video = { width: 0, height: 0 };
     return this.currentTrack.video;
+  }
+
+  /**
+   * Get track information by track number
+   * @param trackNumber The track number to look up
+   * @returns Track information or undefined if not found
+   */
+  getTrackInfo(trackNumber: number): TrackInfo | undefined {
+    return this.tracks.get(trackNumber);
   }
 }
 

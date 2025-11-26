@@ -288,21 +288,18 @@ describe('getMediaInfo with real files', () => {
       } as MediaInfo);
     });
 
-    it.each([
-      'engine-start.mjpeg.pcms16le.avi',
-      'engine-start.h264.pcms16le.avi',
-      'engine-start.mpeg2video.mp2.m2ts',
-      'engine-start.vp9.opus.webm',
-      'engine-start.wmv2.wmav2.wmv',
-    ])('should fail to parse %s', async (filename) => {
-      try {
-        await getMediaInfoFromFile(sampleFile(filename), { useParser: 'isoboxer' });
-        expect('').toBe('should fail to parse');
-      } catch (error) {
-        expect(error).toBeInstanceOf(Error);
-        expect(error).toHaveProperty('isUnsupportedFormatError', true);
-      }
-    });
+    it.each(['engine-start.mjpeg.pcms16le.avi', 'engine-start.h264.pcms16le.avi', 'engine-start.mpeg2video.mp2.m2ts', 'engine-start.vp9.opus.webm'])(
+      'should fail to parse %s',
+      async (filename) => {
+        try {
+          await getMediaInfoFromFile(sampleFile(filename), { useParser: 'isoboxer' });
+          expect('').toBe('should fail to parse');
+        } catch (error) {
+          expect(error).toBeInstanceOf(Error);
+          expect(error).toHaveProperty('isUnsupportedFormatError', true);
+        }
+      },
+    );
   });
 
   describe('inhouse parser', () => {
@@ -470,21 +467,102 @@ describe('getMediaInfo with real files', () => {
       } as MediaInfo);
     });
 
-    it.each([
-      'engine-start.h264.aac.mp4',
-      'engine-start.mjpeg.pcms16le.avi',
-      'engine-start.h264.pcms16le.avi',
-      'engine-start.mpeg2video.mp2.m2ts',
-      'engine-start.wmv2.wmav2.wmv',
-    ])('should fail to parse %s', async (filename) => {
-      try {
-        await getMediaInfoFromFile(sampleFile(filename), { useParser: 'media-utils' });
-        expect('').toBe('should fail to parse');
-      } catch (error) {
-        expect(error).toBeInstanceOf(Error);
-        expect(error).toHaveProperty('isUnsupportedFormatError', true);
-      }
+    it('should parse engine-start.pcms16le.wav file', async () => {
+      const info = await getMediaInfoFromFile(sampleFile('engine-start.pcms16le.wav'), { useParser: 'media-utils' });
+      expect(info).toEqual({
+        audioStreams: [
+          {
+            id: 1,
+            channelCount: 2,
+            codec: 'pcm-s16',
+            codecDetail: 'pcm_s16le',
+            durationInSeconds: expect.closeTo(6, 0.1),
+            sampleRate: 44100,
+          },
+        ],
+        container: 'wav',
+        containerDetail: 'wav',
+        durationInSeconds: expect.closeTo(6, 0.1),
+        parser: 'media-utils',
+        videoStreams: [],
+      });
     });
+
+    it('should parse engine-start.vorbis.ogg file', async () => {
+      const info = await getMediaInfoFromFile(sampleFile('engine-start.vorbis.ogg'), { useParser: 'media-utils' });
+      expect(info).toEqual({
+        audioStreams: [
+          {
+            id: 1,
+            channelCount: 2,
+            codec: 'vorbis',
+            codecDetail: 'vorbis',
+            durationInSeconds: undefined,
+            sampleRate: 48000,
+          },
+        ],
+        container: 'ogg',
+        containerDetail: 'ogg',
+        durationInSeconds: undefined,
+        parser: 'media-utils',
+        videoStreams: [],
+      } as MediaInfo);
+    });
+
+    it('should parse engine-start.opus.ogg file', async () => {
+      const info = await getMediaInfoFromFile(sampleFile('engine-start.opus.ogg'), { useParser: 'media-utils' });
+      expect(info).toEqual({
+        audioStreams: [
+          {
+            id: 1,
+            channelCount: 2,
+            codec: 'opus',
+            codecDetail: 'opus',
+            durationInSeconds: undefined,
+            sampleRate: 48000,
+          },
+        ],
+        container: 'ogg',
+        containerDetail: 'ogg',
+        durationInSeconds: undefined,
+        parser: 'media-utils',
+        videoStreams: [],
+      } as MediaInfo);
+    });
+
+    it('should parse engine-start.wmav2.wma file', async () => {
+      const info = await getMediaInfoFromFile(sampleFile('engine-start.wmav2.wma'), { useParser: 'media-utils' });
+      expect(info).toEqual({
+        audioStreams: [
+          {
+            id: 1,
+            channelCount: 2,
+            codec: 'wmav2',
+            codecDetail: 'wmav2',
+            durationInSeconds: undefined,
+            sampleRate: 44100,
+          },
+        ],
+        container: 'asf',
+        containerDetail: 'wma',
+        durationInSeconds: undefined,
+        parser: 'media-utils',
+        videoStreams: [],
+      } as MediaInfo);
+    });
+
+    it.each(['engine-start.h264.aac.mp4', 'engine-start.mjpeg.pcms16le.avi', 'engine-start.h264.pcms16le.avi', 'engine-start.mpeg2video.mp2.m2ts'])(
+      'should fail to parse %s',
+      async (filename) => {
+        try {
+          await getMediaInfoFromFile(sampleFile(filename), { useParser: 'media-utils' });
+          expect('').toBe('should fail to parse');
+        } catch (error) {
+          expect(error).toBeInstanceOf(Error);
+          expect(error).toHaveProperty('isUnsupportedFormatError', true);
+        }
+      },
+    );
   });
 
   describe('remotion parser', () => {
@@ -650,7 +728,7 @@ describe('getMediaInfo with real files', () => {
       expect(info.videoStreams.length).toBeGreaterThan(0);
     });
 
-    it.each(['engine-start.mjpeg.pcms16le.avi', 'engine-start.h264.pcms16le.avi', 'engine-start.mpeg2video.mp2.m2ts', 'engine-start.wmv2.wmav2.wmv'])(
+    it.each(['engine-start.mjpeg.pcms16le.avi', 'engine-start.h264.pcms16le.avi', 'engine-start.mpeg2video.mp2.m2ts'])(
       'should fail to parse %s',
       async (filename) => {
         try {
