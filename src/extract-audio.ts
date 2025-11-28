@@ -4,9 +4,10 @@ import { extractFromAsf } from './extractors/asf-extractor';
 import { extractFromMp4 } from './extractors/mp4-extractor';
 import { extractFromWebm } from './extractors/webm-extractor';
 import { getMediaInfo } from './get-media-info';
-import { createReadableStreamFromFile, UnsupportedFormatError } from './utils';
+import { AsfMediaInfo } from './parsers/asf';
+import { createReadableStreamFromFile, ParserRelatedOptions, UnsupportedFormatError } from './utils';
 
-export interface ExtractAudioOptions {
+export interface ExtractAudioOptions extends ParserRelatedOptions {
   /**
    * The ID of the track to extract audio from
    * If this option is provided, `streamIndex` is ignored.
@@ -49,7 +50,7 @@ export async function extractAudio(
   const [detectStream, extractStream] = input.tee();
 
   // Detect container type
-  const mediaInfo = await getMediaInfo(detectStream);
+  const mediaInfo = await getMediaInfo(detectStream, options);
   const container = mediaInfo.container;
 
   // Route to appropriate extractor
@@ -63,7 +64,7 @@ export async function extractAudio(
     }
     case 'wma':
     case 'asf': {
-      return extractFromAsf(extractStream, output, mediaInfo, options);
+      return extractFromAsf(extractStream, output, mediaInfo as unknown as AsfMediaInfo, options);
     }
     default: {
       throw new UnsupportedFormatError(`Unsupported container format: ${container}. Supported formats: mp4, mov, webm, asf, wma`);

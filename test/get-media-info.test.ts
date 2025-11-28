@@ -3,6 +3,8 @@ import path from 'node:path';
 
 import { getMediaInfoFromFile } from '../src/get-media-info';
 import { MediaInfo } from '../src/media-info';
+import { AsfMediaInfo, parseAsf } from '../src/parsers/asf';
+import { createReadableStreamFromFile } from '../src/utils';
 
 // eslint-disable-next-line unicorn/prefer-module
 const SAMPLE_DIR = path.join(__dirname, 'sample-media-files');
@@ -541,6 +543,7 @@ describe('getMediaInfo with real files', () => {
             codecDetail: 'WMAv2',
             durationInSeconds: 6,
             sampleRate: 44100,
+            bitsPerSample: 16,
           },
         ],
         container: 'asf',
@@ -548,7 +551,14 @@ describe('getMediaInfo with real files', () => {
         durationInSeconds: 6,
         parser: 'media-utils',
         videoStreams: [],
-      } as MediaInfo);
+        fileProperties: {
+          playDuration: 91360000,
+          sendDuration: 60360000,
+          preroll: 3100,
+          packetSize: 3200,
+        },
+        additionalStreamInfo: expect.any(Map) as any,
+      } as AsfMediaInfo);
     });
 
     it('should parse engine-start.wmv2.wmav2.wmv file', async () => {
@@ -562,6 +572,7 @@ describe('getMediaInfo with real files', () => {
             codecDetail: 'WMAv2',
             durationInSeconds: 6,
             sampleRate: 44100,
+            bitsPerSample: 16,
           },
         ],
         container: 'asf',
@@ -579,7 +590,64 @@ describe('getMediaInfo with real files', () => {
             fps: undefined,
           },
         ],
-      } as MediaInfo);
+        fileProperties: {
+          playDuration: 91460000,
+          sendDuration: 60460000,
+          preroll: 3100,
+          packetSize: 3200,
+        },
+        additionalStreamInfo: expect.any(Map) as any,
+      } as AsfMediaInfo);
+    });
+
+    it('should parse engine-start.wmv2.wmav2.wmv file and return additional information', async () => {
+      const webStream = await createReadableStreamFromFile(sampleFile('engine-start.wmv2.wmav2.wmv'));
+      const info = await parseAsf(webStream, { extractStreams: [2] });
+      expect(info).toEqual({
+        audioStreams: [
+          {
+            id: 2,
+            channelCount: 2,
+            codec: 'wmav2',
+            codecDetail: 'WMAv2',
+            durationInSeconds: 6,
+            sampleRate: 44100,
+            bitsPerSample: 16,
+          },
+        ],
+        container: 'asf',
+        containerDetail: 'wmv',
+        durationInSeconds: 6,
+        videoStreams: [
+          {
+            id: 1,
+            codec: 'wmv2',
+            codecDetail: 'WMV2',
+            width: 1280,
+            height: 534,
+            durationInSeconds: 6,
+            fps: undefined,
+          },
+        ],
+        fileProperties: {
+          playDuration: 91460000,
+          sendDuration: 60460000,
+          preroll: 3100,
+          packetSize: 3200,
+        },
+        additionalStreamInfo: expect.any(Map) as any,
+      } as AsfMediaInfo);
+      const { additionalStreamInfo: extractedStreamInfo } = info;
+      expect(extractedStreamInfo).toBeDefined();
+      expect(extractedStreamInfo?.size).toEqual(2);
+      expect(extractedStreamInfo?.get(1)).toEqual({
+        codecPrivate: expect.any(Uint8Array),
+        extendedStreamPropertiesObject: expect.any(Uint8Array),
+      });
+      expect(extractedStreamInfo?.get(2)).toEqual({
+        codecPrivate: expect.any(Uint8Array),
+        extendedStreamPropertiesObject: expect.any(Uint8Array),
+      });
     });
 
     it.each(['engine-start.h264.aac.mp4', 'engine-start.mjpeg.pcms16le.avi', 'engine-start.h264.pcms16le.avi', 'engine-start.mpeg2video.mp2.m2ts'])(

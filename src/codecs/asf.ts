@@ -31,6 +31,12 @@ export const AsfGuid = {
 
   /** ASF Audio Spread Error Correction GUID: BFC3CD50-618F-11CF-8BB2-00AA00B4E220 */
   AUDIO_SPREAD: [0xbf, 0xc3, 0xcd, 0x50, 0x61, 0x8f, 0xcf, 0x11, 0x8b, 0xb2, 0x00, 0xaa, 0x00, 0xb4, 0xe2, 0x20],
+
+  /** Header Extension Object GUID: B503BF5F-2EA9-CF11-8EE3-00C00C205365 */
+  HEADER_EXTENSION: [0xb5, 0x03, 0xbf, 0x5f, 0x2e, 0xa9, 0xcf, 0x11, 0x8e, 0xe3, 0x00, 0xc0, 0x0c, 0x20, 0x53, 0x65],
+
+  /** Extended Stream Properties Object GUID: 14E6A5CB-C672-4332-8399-A96952065B5A */
+  EXTENDED_STREAM_PROPERTIES: [0xcb, 0xa5, 0xe6, 0x14, 0x72, 0xc6, 0x32, 0x43, 0x83, 0x99, 0xa9, 0x69, 0x52, 0x06, 0x5b, 0x5a],
 } as const;
 
 /**
@@ -178,6 +184,20 @@ export function writeUInt64(buf: Uint8Array, offset: number, value: bigint | num
   writeUInt32(buf, offset, Number(low));
   writeUInt32(buf, offset + 4, Number(high));
   return 8;
+}
+
+/**
+ * Writes a GUID (16 bytes) and Object Size (8 bytes) to a buffer.
+ * @param buf Buffer to write to
+ * @param offset Offset in buffer
+ * @param guid GUID to write
+ * @param size Object size (number or bigint)
+ * @returns The size of the object header (24 bytes).
+ */
+export function writeObjectHeader(buf: Uint8Array, offset: number, guid: readonly number[], size: number | bigint): number {
+  buf.set(guid, offset);
+  writeUInt64(buf, offset + 16, size);
+  return 24;
 }
 
 /**

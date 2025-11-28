@@ -5,7 +5,7 @@ import { TransformStream } from 'node:stream/web';
 
 import { extractAudio, extractAudioFromFileToFile } from '../src/extract-audio';
 import { getMediaInfoFromFile } from '../src/get-media-info';
-import { parseAsf } from '../src/parsers/asf';
+import { AsfMediaInfo, parseAsf } from '../src/parsers/asf';
 import { createReadableStreamFromFile } from '../src/utils';
 
 // eslint-disable-next-line unicorn/prefer-module
@@ -298,9 +298,17 @@ describe('extractAudio', () => {
             channelCount: 2,
             sampleRate: 44100,
             durationInSeconds: 6,
+            bitsPerSample: 16,
           },
         ],
-      });
+        fileProperties: {
+          playDuration: 91460000,
+          sendDuration: 60460000,
+          packetSize: 1280,
+          preroll: 3100,
+        },
+        additionalStreamInfo: expect.any(Map) as any,
+      } as AsfMediaInfo);
 
       filesToCleanup.push(outputFilePath);
     });

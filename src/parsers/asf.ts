@@ -25,6 +25,10 @@ export interface PayloadMetadata {
    */
   isSubPayload: boolean;
   /**
+   * Whether this payload is a compressed payload
+   */
+  isCompressedPayload: boolean;
+  /**
    * Whether this payload belongs to a key frame
    */
   isKeyFrame: boolean;
@@ -43,12 +47,17 @@ export interface PayloadMetadata {
   /**
    * The offset into the media object, or presentation time for compressed payloads
    */
-  offsetIntoMediaObject: number;
-  /**
-   * Replicated data (e.g. presentation time delta or other metadata)
-   */
-  replicatedData: Uint8Array;
+  offsetIntoMediaObjectOrPresentationTime: number;
 }
+
+/**
+ * Callback function to receive payload and metadata for extracted streams.
+ * @param streamNumber - The stream number (1-127) of the payload
+ * @param payloadData - Payload data excluding header
+ * @param metadata - Metadata about the payload
+ * @param replicatedData - Replicated data (e.g. presentation time delta or other metadata)
+ */
+export type OnPayloadCallback = (streamNumber: number, payloadData: Uint8Array, metadata: PayloadMetadata, replicatedData: Uint8Array) => void;
 
 export interface ParseAsfOptions extends GetMediaInfoOptions {
   /**
@@ -61,9 +70,27 @@ export interface ParseAsfOptions extends GetMediaInfoOptions {
    * @param streamNumber - The stream number (1-127) of the payload
    * @param payloadData - Payload data excluding header
    * @param metadata - Metadata about the payload
+   * @param replicatedData - Replicated data (e.g. presentation time delta or other metadata)
    */
-  onPayload?: (streamNumber: number, payloadData: Uint8Array, metadata: PayloadMetadata) => void;
+  onPayload?: OnPayloadCallback;
 }
+
+export interface FileProperties {
+  playDuration: number;
+  sendDuration: number;
+  preroll: number;
+  packetSize: number;
+}
+
+export interface AdditionalStreamInfo {
+  codecPrivate: Uint8Array;
+  extendedStreamPropertiesObject: Uint8Array;
+}
+
+export type AsfMediaInfo = Omit<MediaInfo, 'parser'> & {
+  fileProperties: FileProperties;
+  additionalStreamInfo: Map<number, AdditionalStreamInfo>;
+};
 
 /**
  * Parses ASF (Advanced Systems Format) file from a stream and extracts media information.
@@ -74,8 +101,9 @@ export interface ParseAsfOptions extends GetMediaInfoOptions {
  * @returns Media information without the parser field
  * @throws UnsupportedFormatError if the stream is not a valid ASF file
  */
-export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: ParseAsfOptions): Promise<Omit<MediaInfo, 'parser'>> {
+export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: ParseAsfOptions): Promise<AsfMediaInfo> {
   const shouldExtractPayload = options?.extractStreams && options?.extractStreams.length > 0 && options?.onPayload;
+  const extractStreamSet = new Set(options?.extractStreams);
 
   // 2.2 Top-level file structure
   // +----------------------------------------------+
@@ -174,7 +202,13 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
   const audioStreams: AudioStreamInfo[] = [];
   const videoStreams: VideoStreamInfo[] = [];
   let durationInSeconds: number | undefined;
-  let packetSize: number | undefined;
+
+  // Additional info collection
+  const additionalStreamInfo = new Map<number, AdditionalStreamInfo>();
+  let filePacketSize: number | undefined;
+  let filePlayDuration: number | undefined;
+  let fileSendDuration: number | undefined;
+  let filePreroll: number | undefined;
 
   //  Scan for Stream Properties Object
   while (offset + 24 < data.length && offset < headerSize) {
@@ -204,16 +238,25 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
 
       // Stream Type GUID at offset 24 (16 bytes)
       const isAudio = matchesGuid(data, offset + 24, AsfGuid.AUDIO_STREAM);
-
       const isVideo = matchesGuid(data, offset + 24, AsfGuid.VIDEO_STREAM);
+
+      const typeSpecificDataLength = readUInt32(data, offset + 64);
 
       // Extract Stream Number from Flags field at offset 72 (2 bytes, little-endian)
       // Bits 0-6 contain the stream number (1-127)
       const flags = data[offset + 72] | (data[offset + 73] << 8);
       const streamNumber = flags & 0x7f; // Extract lower 7 bits
 
-      if (isAudio && offset + 78 < data.length) {
-        const typeSpecificDataOffset = offset + 78;
+      const typeSpecificDataOffset = offset + 78;
+      if (typeSpecificDataOffset + typeSpecificDataLength > data.length) {
+        throw new UnsupportedFormatError('Insufficient data for type-specific data');
+      }
+      const codecPrivate = data.slice(typeSpecificDataOffset, typeSpecificDataOffset + typeSpecificDataLength);
+      const info = additionalStreamInfo.get(streamNumber) || ({} as AdditionalStreamInfo);
+      info.codecPrivate = codecPrivate;
+      additionalStreamInfo.set(streamNumber, info);
+
+      if (isAudio) {
         const formatTag = data[typeSpecificDataOffset] | (data[typeSpecificDataOffset + 1] << 8);
         const channelCount = data[typeSpecificDataOffset + 2] | (data[typeSpecificDataOffset + 3] << 8);
         const sampleRate =
@@ -221,6 +264,7 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
           (data[typeSpecificDataOffset + 5] << 8) |
           (data[typeSpecificDataOffset + 6] << 16) |
           (data[typeSpecificDataOffset + 7] << 24);
+        const bitsPerSample = data[typeSpecificDataOffset + 14] | (data[typeSpecificDataOffset + 15] << 8);
 
         const { codec, codecDetail } = interpreteAudioFormatTag(formatTag);
 
@@ -230,19 +274,10 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
           codecDetail,
           channelCount,
           sampleRate,
+          bitsPerSample,
           durationInSeconds: undefined,
         });
-      } else if (isVideo && offset + 78 < data.length) {
-        // BITMAPINFOHEADER structure at offset 78 + 11 (Type-Specific Data starts at 78, but BITMAPINFOHEADER starts after some other fields?)
-        // Actually, for Video Media Type, the Type-Specific Data IS the BITMAPINFOHEADER (plus maybe more).
-        // Let's check the structure of Video Media Type:
-        // - Encoded Image Width (4 bytes)
-        // - Encoded Image Height (4 bytes)
-        // - Reserved Flags (1 byte)
-        // - Format Data Size (2 bytes)
-        // - Format Data (variable) -> This contains BITMAPINFOHEADER
-
-        const typeSpecificDataOffset = offset + 78;
+      } else if (isVideo) {
         const encodedWidth =
           data[typeSpecificDataOffset] |
           (data[typeSpecificDataOffset + 1] << 8) |
@@ -316,6 +351,12 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
       const broadcastFlag = flags & 1;
       const seekableFlag = (flags >>> 1) & 1;
 
+      // Capture global props
+      filePlayDuration = Number(readUInt64(data, offset + 64));
+      fileSendDuration = Number(readUInt64(data, offset + 72));
+      filePreroll = Number(readUInt64(data, offset + 80));
+      filePacketSize = readUInt32(data, offset + 100);
+
       if (!broadcastFlag) {
         // Specifies the time needed to play the file in 100-nanosecond units.
         const playDuration = readUInt64(data, offset + 64);
@@ -343,8 +384,29 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
           `Not an ASF file: Min Data Packet Size (${minPacketSize}) and Max Data Packet Size (${maxPacketSize}) are not equal`,
         );
       }
-      packetSize = maxPacketSize;
+      filePacketSize = maxPacketSize;
 
+      offset += objectSize;
+    } else if (matchesGuid(data, offset, AsfGuid.HEADER_EXTENSION)) {
+      // Header Extension Object
+      const extensionDataSize = readUInt32(data, offset + 42);
+      if (offset + 46 + extensionDataSize <= data.length) {
+        let extOffset = offset + 46;
+        const extEnd = extOffset + extensionDataSize;
+
+        while (extOffset + 24 <= extEnd) {
+          const extObjSize = Number(readUInt64(data, extOffset + 16));
+          if (matchesGuid(data, extOffset, AsfGuid.EXTENDED_STREAM_PROPERTIES) && extOffset + 74 <= extEnd) {
+            const streamNum = readUInt16(data, extOffset + 72);
+            const extendedStreamPropertiesObject = data.slice(extOffset, extOffset + extObjSize);
+            const info = additionalStreamInfo.get(streamNum) || ({} as AdditionalStreamInfo);
+            info.extendedStreamPropertiesObject = extendedStreamPropertiesObject;
+            additionalStreamInfo.set(streamNum, info);
+          }
+          extOffset += extObjSize;
+        }
+      }
+      const objectSize = Number(readUInt64(data, offset + 16));
       offset += objectSize;
     } else {
       // Unknown / uninterested object
@@ -370,8 +432,6 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
 
   // Extract payload data if requested - using streaming approach
   if (shouldExtractPayload && options?.onPayload && options?.extractStreams) {
-    const extractStreamSet = new Set(options.extractStreams);
-
     // Check that what follows the header is the Data Object
     let dataOffset = headerSize;
     if (dataOffset + 50 > firstValue.length) {
@@ -433,7 +493,7 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
 
       // Parse one packet from the buffer
       // Parse one packet from the buffer
-      const result = parsePacket(packetBuffer, extractStreamSet, options.onPayload, packetSize);
+      const result = parsePacket(packetBuffer, extractStreamSet, options.onPayload, filePacketSize!);
 
       if (result.bytesConsumed === 0) {
         throw new Error('The packet is too large or malformed');
@@ -453,6 +513,13 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
     durationInSeconds,
     videoStreams,
     audioStreams,
+    additionalStreamInfo,
+    fileProperties: {
+      playDuration: filePlayDuration!,
+      sendDuration: fileSendDuration!,
+      preroll: filePreroll!,
+      packetSize: filePacketSize!,
+    },
   };
 }
 
@@ -493,7 +560,7 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
 function parsePacket(
   buffer: Uint8Array,
   extractStreamSet: Set<number>,
-  onPayload: (streamNumber: number, payload: Uint8Array, metadata: PayloadMetadata) => void,
+  onPayload: OnPayloadCallback,
   fixedPacketSize?: number,
 ): { bytesConsumed: number } {
   let offset = 0;
@@ -695,9 +762,9 @@ function parsePacket(
       // Replicated Data Length
       const replicatedDataLengthResult = readVarLengthField(buffer, offset, replicatedDataLengthType);
       offset += replicatedDataLengthResult.size;
-      const isCompressed = replicatedDataLengthResult.value === 1;
+      const isCompressedPayload = replicatedDataLengthResult.value === 1;
 
-      if (isCompressed) {
+      if (isCompressedPayload) {
         // Presentation Time Delta
         const presentationTimeDelta = buffer[offset++];
         const replicatedData = new Uint8Array([presentationTimeDelta]);
@@ -718,16 +785,21 @@ function parsePacket(
 
           if (extractStreamSet.has(subPayloadStreamNumber)) {
             const subPayloadData = buffer.slice(offset, offset + subPayloadDataLength);
-            onPayload(subPayloadStreamNumber, subPayloadData, {
-              isMultiPayload: true,
-              isSubPayload: true,
-              isKeyFrame,
-              packetSendTime,
-              packetDuration,
-              mediaObjectNumber,
-              offsetIntoMediaObject,
+            onPayload(
+              subPayloadStreamNumber,
+              subPayloadData,
+              {
+                isMultiPayload: true,
+                isSubPayload: true,
+                isCompressedPayload,
+                isKeyFrame,
+                packetSendTime,
+                packetDuration,
+                mediaObjectNumber,
+                offsetIntoMediaObjectOrPresentationTime: offsetIntoMediaObject,
+              },
               replicatedData,
-            });
+            );
           }
           offset += subPayloadDataLength;
         }
@@ -745,16 +817,21 @@ function parsePacket(
         // Payload Data
         if (extractStreamSet.has(streamNumber)) {
           const payloadData = buffer.slice(offset, offset + payloadDataLength);
-          onPayload(streamNumber, payloadData, {
-            isMultiPayload: true,
-            isSubPayload: false,
-            isKeyFrame,
-            packetSendTime,
-            packetDuration,
-            mediaObjectNumber,
-            offsetIntoMediaObject,
+          onPayload(
+            streamNumber,
+            payloadData,
+            {
+              isMultiPayload: true,
+              isSubPayload: false,
+              isCompressedPayload,
+              isKeyFrame,
+              packetSendTime,
+              packetDuration,
+              mediaObjectNumber,
+              offsetIntoMediaObjectOrPresentationTime: offsetIntoMediaObject,
+            },
             replicatedData,
-          });
+          );
         }
         offset += payloadDataLength;
       }
@@ -816,9 +893,9 @@ function parsePacket(
     // Replicated Data Length
     const replicatedDataLengthResult = readVarLengthField(buffer, offset, replicatedDataLengthType);
     offset += replicatedDataLengthResult.size;
-    const isCompressed = replicatedDataLengthResult.value === 1;
+    const isCompressedPayload = replicatedDataLengthResult.value === 1;
 
-    if (isCompressed) {
+    if (isCompressedPayload) {
       // Presentation Time Delta
       const presentationTimeDelta = buffer[offset++];
       const replicatedData = new Uint8Array([presentationTimeDelta]);
@@ -830,16 +907,21 @@ function parsePacket(
         const subPayloadStreamNumber = buffer[offset];
         if (extractStreamSet.has(subPayloadStreamNumber)) {
           const subPayloadData = buffer.slice(offset, offset + subPayloadDataLength);
-          onPayload(subPayloadStreamNumber, subPayloadData, {
-            isMultiPayload: false,
-            isSubPayload: true,
-            isKeyFrame,
-            packetSendTime,
-            packetDuration,
-            mediaObjectNumber,
-            offsetIntoMediaObject,
+          onPayload(
+            subPayloadStreamNumber,
+            subPayloadData,
+            {
+              isMultiPayload: false,
+              isSubPayload: true,
+              isCompressedPayload,
+              isKeyFrame,
+              packetSendTime,
+              packetDuration,
+              mediaObjectNumber,
+              offsetIntoMediaObjectOrPresentationTime: offsetIntoMediaObject,
+            },
             replicatedData,
-          });
+          );
         }
         offset += subPayloadDataLength;
       }
@@ -863,16 +945,21 @@ function parsePacket(
       // Payload data
       if (extractStreamSet.has(streamNumber)) {
         const payloadData = buffer.slice(offset, offset + payloadDataLength);
-        onPayload(streamNumber, payloadData, {
-          isMultiPayload: false,
-          isSubPayload: false,
-          isKeyFrame,
-          packetSendTime,
-          packetDuration,
-          mediaObjectNumber,
-          offsetIntoMediaObject,
+        onPayload(
+          streamNumber,
+          payloadData,
+          {
+            isMultiPayload: false,
+            isSubPayload: false,
+            isCompressedPayload,
+            isKeyFrame,
+            packetSendTime,
+            packetDuration,
+            mediaObjectNumber,
+            offsetIntoMediaObjectOrPresentationTime: offsetIntoMediaObject,
+          },
           replicatedData,
-        });
+        );
       }
       offset += payloadDataLength;
     }

@@ -103,6 +103,7 @@ export interface AudioStreamInfo {
   codecDetail?: string;
   channelCount?: number;
   sampleRate?: number;
+  bitsPerSample?: number;
   bitrate?: number;
   durationInSeconds?: number;
   profile?: string;
