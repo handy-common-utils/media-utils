@@ -1,6 +1,6 @@
+import { OggMuxer } from '../codecs/ogg';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
 import { WebmParser, WebmSample } from '../parsers/webm';
-import { OggMuxer } from './ogg-muxer';
 import { findAudioStreamToBeExtracted } from './utils';
 
 export interface WebmExtractorOptions {
@@ -64,7 +64,7 @@ export async function extractFromWebm(
             }
 
             // Wrap frame in OGG page
-            const oggPage = oggMuxer.muxFrame(sample.data);
+            const oggPage = oggMuxer.muxFrame(sample.data, false, sample.time);
             await writer.write(oggPage);
           } else {
             // For non-OGG codecs, write raw frame data

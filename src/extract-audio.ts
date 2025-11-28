@@ -4,7 +4,7 @@ import { extractFromAsf } from './extractors/asf-extractor';
 import { extractFromMp4 } from './extractors/mp4-extractor';
 import { extractFromWebm } from './extractors/webm-extractor';
 import { getMediaInfo } from './get-media-info';
-import { createReadableStreamFromFile } from './utils';
+import { createReadableStreamFromFile, UnsupportedFormatError } from './utils';
 
 export interface ExtractAudioOptions {
   /**
@@ -61,11 +61,12 @@ export async function extractAudio(
     case 'webm': {
       return extractFromWebm(extractStream, output, mediaInfo, options);
     }
-    case 'asf': {
+    case 'wma':
+    case 'wmv': {
       return extractFromAsf(extractStream, output, mediaInfo, options);
     }
     default: {
-      throw new Error(`Unsupported container format: ${container}. Supported formats: mp4, mov, webm, asf`);
+      throw new UnsupportedFormatError(`Unsupported container format: ${container}. Supported formats: mp4, mov, webm, wmv, wma`);
     }
   }
 }

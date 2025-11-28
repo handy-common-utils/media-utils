@@ -1,6 +1,6 @@
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioStreamInfo, MediaInfo, VideoStreamInfo } from '../media-info';
-import { UnsupportedFormatError } from './adapter';
+import { UnsupportedFormatError } from '../utils';
 
 // EBML Element IDs
 const EBML_ID = 0x1a45dfa3;

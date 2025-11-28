@@ -2,22 +2,7 @@ import { withRetry } from '@handy-common-utils/promise-utils';
 
 import { GetMediaInfoOptions } from '../get-media-info';
 import { MediaInfo } from '../media-info';
-
-export interface ParsingError {
-  isUnsupportedFormatError?: boolean;
-}
-
-/**
- * Error thrown when a parser encounters an unsupported file format or invalid data.
- */
-export class UnsupportedFormatError extends Error implements ParsingError {
-  readonly isUnsupportedFormatError = true;
-
-  constructor(message: string) {
-    super(message);
-    this.name = 'UnsupportedFormatError';
-  }
-}
+import { ParsingError } from '../utils';
 
 /**
  * Interface for media parser adapters.

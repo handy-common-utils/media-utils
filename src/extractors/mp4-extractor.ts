@@ -2,7 +2,7 @@
 
 import type { ISOFile, Sample } from 'mp4box';
 
-import { createADTSFrame } from '../codec-utils';
+import { createADTSFrame } from '../codecs/aac';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
 import { makeMp4BoxQuiet } from '../parsers/mp4box-adapter';
 import { findAudioStreamToBeExtracted } from './utils';

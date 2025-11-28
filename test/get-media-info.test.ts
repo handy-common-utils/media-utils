@@ -96,7 +96,7 @@ describe('getMediaInfo with real files', () => {
             profile: 'LC',
           },
         ],
-        container: 'mp4',
+        container: 'mov',
         containerDetail: 'qt  , qt  ',
         durationInSeconds: 6.02,
         mimeType: 'video/mp4; codecs="avc1.4d401f,mp4a"; profiles="qt  "',
@@ -130,7 +130,7 @@ describe('getMediaInfo with real files', () => {
             sampleRate: undefined,
           },
         ],
-        container: 'mp4',
+        container: 'mov',
         containerDetail: 'qt  , qt  ',
         durationInSeconds: 6.042,
         mimeType: 'video/mp4; codecs="avc1.4d401f,mp3"; profiles="qt  "',
@@ -241,7 +241,7 @@ describe('getMediaInfo with real files', () => {
             sampleRate: 44100,
           },
         ],
-        container: 'mp4',
+        container: 'mov',
         containerDetail: 'qt  , qt  ',
         durationInSeconds: 6.02,
         parser: 'isoboxer',
@@ -271,7 +271,7 @@ describe('getMediaInfo with real files', () => {
             sampleRate: undefined, // can't be found in ESDS
           },
         ],
-        container: 'mp4',
+        container: 'mov',
         containerDetail: 'qt  , qt  ',
         durationInSeconds: 6.042,
         parser: 'isoboxer',
@@ -538,16 +538,47 @@ describe('getMediaInfo with real files', () => {
             id: 1,
             channelCount: 2,
             codec: 'wmav2',
-            codecDetail: 'wmav2',
-            durationInSeconds: undefined,
+            codecDetail: 'WMAv2',
+            durationInSeconds: 6,
             sampleRate: 44100,
           },
         ],
-        container: 'asf',
+        container: 'wma',
         containerDetail: 'wma',
-        durationInSeconds: undefined,
+        durationInSeconds: 6,
         parser: 'media-utils',
         videoStreams: [],
+      } as MediaInfo);
+    });
+
+    it('should parse engine-start.wmv2.wmav2.wmv file', async () => {
+      const info = await getMediaInfoFromFile(sampleFile('engine-start.wmv2.wmav2.wmv'), { useParser: 'media-utils' });
+      expect(info).toEqual({
+        audioStreams: [
+          {
+            id: 2,
+            channelCount: 2,
+            codec: 'wmav2',
+            codecDetail: 'WMAv2',
+            durationInSeconds: 6,
+            sampleRate: 44100,
+          },
+        ],
+        container: 'wmv',
+        containerDetail: 'wmv',
+        durationInSeconds: 6,
+        parser: 'media-utils',
+        videoStreams: [
+          {
+            id: 1,
+            codec: 'wmv2',
+            codecDetail: 'WMV2',
+            width: 1280,
+            height: 534,
+            durationInSeconds: 6,
+            fps: undefined,
+          },
+        ],
       } as MediaInfo);
     });
 
@@ -715,6 +746,7 @@ describe('getMediaInfo with real files', () => {
       'engine-start.h264.aac.mov': 'mp4box',
       'engine-start.h264.mp3.mov': 'mp4box',
       'engine-start.vp9.opus.webm': 'media-utils',
+      'engine-start.wmv2.wmav2.wmv': 'media-utils',
     };
 
     it.each(Object.entries(fixtures))('should successfully parse %s using %s parser', async (filename, expectedParser) => {

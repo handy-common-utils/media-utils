@@ -1,9 +1,10 @@
 import type { ES_Descriptor, ISOFile, Movie } from 'mp4box';
 
-import { getAacProfileName, toAudioCodecType, toContainerType, toVideoCodecType } from '../codec-utils';
+import { getAacProfileName } from '../codecs/aac';
 import { GetMediaInfoOptions } from '../get-media-info';
-import { AudioStreamInfo, MediaInfo, VideoStreamInfo } from '../media-info';
-import { MediaParserAdapter, ParsingError, UnsupportedFormatError } from './adapter';
+import { AudioStreamInfo, MediaInfo, toAudioCodec, toContainer, toVideoCodec, VideoStreamInfo } from '../media-info';
+import { ParsingError, UnsupportedFormatError } from '../utils';
+import { MediaParserAdapter } from './adapter';
 
 export class Mp4BoxAdapter implements MediaParserAdapter {
   private mp4box: typeof import('mp4box');
@@ -113,7 +114,7 @@ export function mp4boxInfoToMediaInfo(info: Movie, mp4file?: ISOFile): MediaInfo
   const videoStreams: VideoStreamInfo[] = info.videoTracks.map((track) => ({
     id: track.id,
     codecDetail: track.codec,
-    codec: toVideoCodecType(track.codec),
+    codec: toVideoCodec(track.codec).code,
     width: track.video?.width ?? track.track_width,
     height: track.video?.height ?? track.track_height,
     bitrate: track.bitrate,
@@ -125,7 +126,7 @@ export function mp4boxInfoToMediaInfo(info: Movie, mp4file?: ISOFile): MediaInfo
     const stream: AudioStreamInfo = {
       id: track.id,
       codecDetail: track.codec,
-      codec: toAudioCodecType(track.codec),
+      codec: toAudioCodec(track.codec).code,
       channelCount: track.audio?.channel_count,
       sampleRate: track.audio?.sample_rate,
       bitrate: track.bitrate,
@@ -162,7 +163,7 @@ export function mp4boxInfoToMediaInfo(info: Movie, mp4file?: ISOFile): MediaInfo
   return {
     parser: 'mp4box',
     containerDetail: info.brands.join(', '),
-    container: toContainerType(info.brands),
+    container: toContainer(info.brands).code,
     durationInSeconds: info.duration / info.timescale,
     videoStreams,
     audioStreams,

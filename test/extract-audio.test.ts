@@ -5,6 +5,7 @@ import { TransformStream } from 'node:stream/web';
 
 import { extractAudio, extractAudioFromFileToFile } from '../src/extract-audio';
 import { getMediaInfoFromFile } from '../src/get-media-info';
+import { parseAsf } from '../src/parsers/asf';
 import { createReadableStreamFromFile } from '../src/utils';
 
 // eslint-disable-next-line unicorn/prefer-module
@@ -275,23 +276,28 @@ describe('extractAudio', () => {
       expect(fs.existsSync(outputFilePath)).toBe(true);
 
       // Verify the extracted audio can be parsed
-      const extractedAudioInfo = await getMediaInfoFromFile(outputFilePath);
+      const webStream = await createReadableStreamFromFile(outputFilePath);
+      const extractedAudioInfo = await parseAsf(webStream, {
+        extractStreams: [0, 1, 2],
+        onPayload: (streamNumber, payloadData, metadata) => {
+          // console.error('onPayload:', streamNumber, payloadData.length, metadata);
+        },
+      });
 
-      // Verify it's recognized as WMA in ASF container
+      // Verify it's recognized as WMA (ASF container with audio only)
       expect(extractedAudioInfo).toEqual({
-        container: 'asf',
+        container: 'wma',
         containerDetail: 'wma',
-        parser: 'media-utils',
-        durationInSeconds: undefined,
+        durationInSeconds: 6,
         videoStreams: [],
         audioStreams: [
           {
-            id: 1,
+            id: 2,
             codec: 'wmav2',
-            codecDetail: 'wmav2',
+            codecDetail: 'WMAv2',
             channelCount: 2,
             sampleRate: 44100,
-            durationInSeconds: undefined,
+            durationInSeconds: 6,
           },
         ],
       });

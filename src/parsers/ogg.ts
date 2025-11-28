@@ -1,6 +1,6 @@
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
-import { UnsupportedFormatError } from './adapter';
+import { UnsupportedFormatError } from '../utils';
 
 /**
  * Parses OGG file from a stream and extracts media information.

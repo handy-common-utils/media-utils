@@ -1,7 +1,7 @@
-import { toAudioCodecType, toContainerType, toVideoCodecType } from '../codec-utils';
 import { GetMediaInfoOptions } from '../get-media-info';
-import { MediaInfo } from '../media-info';
-import { MediaParserAdapter, ParsingError } from './adapter';
+import { MediaInfo, toAudioCodec, toContainer, toVideoCodec } from '../media-info';
+import { ParsingError } from '../utils';
+import { MediaParserAdapter } from './adapter';
 
 export class RemotionAdapter implements MediaParserAdapter {
   private mediaParser: typeof import('@remotion/media-parser');
@@ -67,14 +67,14 @@ export class RemotionAdapter implements MediaParserAdapter {
     return {
       parser: 'remotion',
       containerDetail: result.container,
-      container: toContainerType(result.container),
+      container: toContainer(result.container).code,
       durationInSeconds: durationInSeconds,
       videoStreams: result.tracks
         .filter((t) => t.type === 'video')
         .map((t) => ({
           id: t.trackId,
           codecDetail: t.codec,
-          codec: toVideoCodecType(t.codec),
+          codec: toVideoCodec(t.codec).code,
           width: t.width,
           height: t.height,
           durationInSeconds,
@@ -84,7 +84,7 @@ export class RemotionAdapter implements MediaParserAdapter {
         .map((t) => ({
           id: t.trackId,
           codecDetail: t.codec,
-          codec: toAudioCodecType(t.codec),
+          codec: toAudioCodec(t.codec).code,
           channelCount: t.numberOfChannels,
           sampleRate: t.sampleRate,
           durationInSeconds,

@@ -2,6 +2,22 @@
 
 import { MediaInfo } from './media-info';
 
+export interface ParsingError {
+  isUnsupportedFormatError?: boolean;
+}
+
+/**
+ * Error thrown when a parser encounters an unsupported file format or invalid data.
+ */
+export class UnsupportedFormatError extends Error implements ParsingError {
+  readonly isUnsupportedFormatError = true;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnsupportedFormatError';
+  }
+}
+
 export interface ParserRelatedOptions {
   /**
    * Which parser library/package to use

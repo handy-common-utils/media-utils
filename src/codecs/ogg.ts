@@ -17,10 +17,12 @@ export class OggMuxer {
   private codec: 'opus' | 'vorbis';
   private codecPrivate?: Uint8Array;
   private headerWritten = false;
+  private sampleRate?: number;
 
   constructor(options: OggMuxerOptions) {
     this.codec = options.codec;
     this.codecPrivate = options.codecPrivate;
+    this.sampleRate = options.sampleRate;
     // Generate random serial number
     this.serialNumber = Math.floor(Math.random() * 0xffffffff);
   }
@@ -139,15 +141,23 @@ export class OggMuxer {
    * Wrap audio frame data in an OGG page
    * @param frameData The audio frame data to wrap
    * @param isLastFrame Whether this is the last frame (sets EOS flag)
+   * @param timestamp Optional timestamp in seconds to sync granule position
    * @returns OGG page containing the frame data
    */
-  muxFrame(frameData: Uint8Array, isLastFrame = false): Uint8Array {
+  muxFrame(frameData: Uint8Array, isLastFrame = false, timestamp?: number): Uint8Array {
     // Update granule position (sample count)
     // For Opus: granule position is in 48kHz samples
     // For Vorbis: granule position is in codec sample rate
     // We'll approximate based on typical frame sizes
     const granuleIncrement = this.codec === 'opus' ? 960 : 1024;
-    this.granulePosition += granuleIncrement;
+
+    if (timestamp !== undefined && this.sampleRate) {
+      const rate = this.codec === 'opus' ? 48000 : this.sampleRate;
+      // We add granuleIncrement because granulePosition is the end of the packet
+      this.granulePosition = Math.round(timestamp * rate) + granuleIncrement;
+    } else {
+      this.granulePosition += granuleIncrement;
+    }
 
     const flags = isLastFrame ? 0x04 : 0x00; // EOS flag if last frame
     return this.createPage(frameData, this.granulePosition, flags);

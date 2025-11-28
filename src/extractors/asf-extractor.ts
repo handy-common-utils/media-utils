@@ -1,10 +1,14 @@
 /**
  * ASF/WMV Audio Extractor
- * Extracts WMAv2 audio from ASF (Advanced Systems Format) containers
+ * Extracts audio from ASF (Advanced Systems Format) containers (WMA/WMV files)
+ * by extracting payloads from the target audio stream and re-muxing into a new ASF container.
  */
 
+import { readUInt16, readUInt32 } from '../codecs/asf';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
+import { parseAsf, PayloadMetadata } from '../parsers/asf';
 import { findAudioStreamToBeExtracted } from './utils';
+import { WmaWriter } from './wma-writer';
 
 export interface AsfExtractorOptions {
   trackId?: number;
@@ -12,48 +16,8 @@ export interface AsfExtractorOptions {
   quiet?: boolean;
 }
 
-// GUIDs
-const HEADER_OBJECT_GUID = [0x30, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11, 0xa6, 0xd9, 0x00, 0xaa, 0x00, 0x62, 0xce, 0x6c];
-const DATA_OBJECT_GUID = [0x36, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11, 0xa6, 0xd9, 0x00, 0xaa, 0x00, 0x62, 0xce, 0x6c];
-const FILE_PROPERTIES_OBJECT_GUID = [0xa1, 0xdc, 0xab, 0x8c, 0x47, 0xa9, 0xcf, 0x11, 0x8e, 0xe4, 0x00, 0xc0, 0x0c, 0x20, 0x53, 0x65];
-
-// Helper functions
-function _readVarLength(buf: Uint8Array, offset: number, type: number): { value: number; size: number } {
-  if (type === 0) return { value: 0, size: 0 };
-  if (type === 1) return { value: buf[offset], size: 1 };
-  if (type === 2) return { value: buf[offset] | (buf[offset + 1] << 8), size: 2 };
-  if (type === 3) return { value: buf[offset] | (buf[offset + 1] << 8) | (buf[offset + 2] << 16) | (buf[offset + 3] << 24), size: 4 };
-  return { value: 0, size: 0 };
-}
-
-function readGuid(buf: Uint8Array, offset: number): number[] {
-  const guid = [];
-  for (let i = 0; i < 16; i++) {
-    guid.push(buf[offset + i]);
-  }
-  return guid;
-}
-
-function compareGuid(g1: number[], g2: number[]): boolean {
-  for (let i = 0; i < 16; i++) {
-    if (g1[i] !== g2[i]) return false;
-  }
-  return true;
-}
-
-function readUInt32LE(buf: Uint8Array, offset: number): number {
-  return buf[offset] | (buf[offset + 1] << 8) | (buf[offset + 2] << 16) | (buf[offset + 3] << 24);
-}
-
-function readUInt64LE(buf: Uint8Array, offset: number): number {
-  // Approximate for JS numbers (safe up to 2^53)
-  const low = readUInt32LE(buf, offset);
-  const high = readUInt32LE(buf, offset + 4);
-  return low + high * 4294967296;
-}
-
 /**
- * Extract audio from ASF/WMV containers (WMAv2)
+ * Extract audio from ASF/WMV containers
  *
  * @param input The input stream
  * @param output The output stream
@@ -72,206 +36,349 @@ export async function extractFromAsf(
     ...optionsInput,
   };
 
-  let stream: AudioStreamInfo;
+  // Find the audio stream to extract
+  const stream: AudioStreamInfo = findAudioStreamToBeExtracted(mediaInfo, options);
+
+  // Collect payloads from the target stream
+  interface PayloadData {
+    metadata: PayloadMetadata & { payload: Uint8Array };
+    sequenceNumber: number;
+  }
+  const payloads: PayloadData[] = [];
+  let sequenceNumber = 0;
+  let codecPrivate: Uint8Array | undefined;
+  let sourceMetadata: {
+    playDuration?: number;
+    sendDuration?: number;
+    preroll?: number;
+    packetSize?: number;
+    maxBitrate?: number;
+    bitsPerSample?: number;
+    extendedStreamPropertiesObject?: Uint8Array;
+  } = {};
+
+  // Create a new stream that captures the first chunk for header parsing
+  // while also passing all data through to parseAsf
+  const reader = input.getReader();
+  const streamForParsing = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        // Read first chunk
+        const { done: firstDone, value: firstValue } = await reader.read();
+
+        if (!firstDone && firstValue) {
+          // Parse header from first chunk
+          if (firstValue.length >= 30) {
+            const result = parseAsfHeader(firstValue, stream.id);
+            codecPrivate = result.codecPrivate;
+            sourceMetadata = {
+              playDuration: result.playDuration,
+              sendDuration: result.sendDuration,
+              preroll: result.preroll,
+              packetSize: result.packetSize,
+              maxBitrate: result.maxBitrate,
+              bitsPerSample: result.bitsPerSample,
+              extendedStreamPropertiesObject: result.extendedStreamPropertiesObject,
+            };
+          }
+          // Enqueue first chunk
+          controller.enqueue(firstValue);
+        }
+
+        if (firstDone) {
+          controller.close();
+          return;
+        }
+
+        // Continue reading remaining chunks
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) controller.enqueue(value);
+        }
+        controller.close();
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+  });
+
+  // Extract payloads using parseAsf
+  await parseAsf(streamForParsing, {
+    extractStreams: [stream.id],
+    onPayload: (streamNumber: number, payloadData: Uint8Array, metadata: PayloadMetadata) => {
+      payloads.push({
+        metadata: { ...metadata, payload: payloadData },
+        sequenceNumber: sequenceNumber++,
+      });
+    },
+  });
+
+  // Create output ASF container
+  const writer = output.getWriter();
 
   try {
-    stream = findAudioStreamToBeExtracted(mediaInfo, options);
-  } catch {
-    return;
+    if (payloads.length === 0) {
+      throw new Error('No audio data found in the target stream');
+    }
+
+    if (!codecPrivate) {
+      throw new Error('Could not find codec private data');
+    }
+
+    // Parse WAVEFORMATEX from codecPrivate
+    const codecId = readUInt16(codecPrivate, 0) ?? 0;
+    const channels = readUInt16(codecPrivate, 2) ?? 0;
+    const sampleRate = readUInt32(codecPrivate, 4);
+    const avgBytesPerSec = readUInt32(codecPrivate, 8);
+    const bitrate = avgBytesPerSec * 8;
+    const blockSize = readUInt16(codecPrivate, 12) ?? 0;
+    const bitsPerSample = readUInt16(codecPrivate, 14) ?? 16; // Bits per sample from WAVEFORMATEX
+    const cbSize = readUInt16(codecPrivate, 16) ?? 0; // Size of extra format information
+    const encoderSpecificData = codecPrivate.slice(18, 18 + cbSize);
+
+    // Use duration from the first payload as object duration
+    // Convert ms to 100-nanosecond units (hns)
+    const objectDuration = (payloads[0].metadata.packetDuration ?? 0) * 10000;
+
+    // Calculate Send Duration based on extracted payloads
+    // Find the last payload's send time and duration
+    const lastPayloadIndex = payloads.length - 1;
+    const lastPayload = payloads[lastPayloadIndex];
+    const firstPayload = payloads[0];
+
+    const minSendTime = firstPayload.metadata.packetSendTime;
+    const maxSendTime = lastPayload.metadata.packetSendTime;
+    const lastDuration = lastPayload.metadata.packetDuration ?? 0;
+
+    // Keep preroll from source (in milliseconds)
+    const preroll = sourceMetadata.preroll!;
+
+    // Send Duration = actual media duration without preroll offset
+    // Since packet send times include the preroll offset, we subtract the first packet's send time
+    // Convert from milliseconds to 100-nanosecond units (hns)
+    const sendDuration = (maxSendTime + lastDuration - minSendTime) * 10000;
+
+    // Play Duration = Send Duration + Preroll (both in 100-nanosecond units)
+    // Preroll is in milliseconds, so multiply by 10000 to convert to hns
+    const playDuration = sendDuration + preroll * 10000;
+
+    // Calculate max bitrate for the extracted stream
+    // Use bitrate from WAVEFORMATEX as the max bitrate (avgBytesPerSec * 8)
+    const calculatedMaxBitrate = bitrate;
+
+    // Calculate optimal packet size based on actual payload sizes
+    // Find the maximum payload content size and maximum payload data size across all payloads
+    let maxContentSize = 0;
+    let maxPayloadSize = 0;
+    for (const p of payloads) {
+      // Packet structure:
+      // - Fixed header: 13 bytes (Length Type Flags, Property Flags, Packet Length, Padding Length, Send Time, Duration)
+      // - Payload metadata: 10 bytes + replicated data size
+      // - Payload data: variable
+      const replicatedDataSize = p.metadata.replicatedData.length;
+      const contentSize = 13 + 10 + replicatedDataSize + p.metadata.payload.length;
+      if (contentSize > maxContentSize) {
+        maxContentSize = contentSize;
+      }
+      // Track maximum payload data size (for error correction)
+      if (p.metadata.payload.length > maxPayloadSize) {
+        maxPayloadSize = p.metadata.payload.length;
+      }
+    }
+
+    // Add some room (20% or at least 256 bytes) for safety
+    const roomSize = Math.max(256, Math.ceil(maxContentSize * 0.2));
+    const optimalSize = maxContentSize + roomSize;
+
+    // Round up to nearest multiple of 256 for alignment (common ASF practice)
+    const calculatedPacketSize = Math.ceil(optimalSize / 256) * 256;
+
+    if (!options.quiet) {
+      console.log(`Calculated optimal packet size: ${calculatedPacketSize} bytes (max content: ${maxContentSize} bytes)`);
+    }
+
+    // Initialize WmaWriter
+    // We need to release the writer lock first because WmaWriter takes the stream
+    writer.releaseLock();
+
+    const wmaWriter = new WmaWriter(output, {
+      codecId,
+      channels,
+      sampleRate,
+      bitrate,
+      blockSize,
+      encoderSpecificData,
+      objectDuration,
+      bitsPerSample: sourceMetadata.bitsPerSample ?? bitsPerSample,
+      avgBytesPerSec,
+      playDuration,
+      sendDuration,
+      preroll,
+      packetSize: calculatedPacketSize,
+      maxBitrate: calculatedMaxBitrate,
+      extendedStreamPropertiesObject: sourceMetadata.extendedStreamPropertiesObject!,
+      streamNumber: stream.id,
+      maxPayloadSize,
+    });
+
+    // Feed payloads
+    for (const p of payloads) {
+      wmaWriter.onPayload(stream.id, p.metadata.payload, p.metadata);
+    }
+
+    // Finish writing
+    await wmaWriter.finish();
+  } catch (error) {
+    // If we still hold the lock (error before WmaWriter), abort
+    if (output.locked) {
+      // Stream is locked, probably by WmaWriter or our initial writer.
+      // If we released lock, we can't abort directly unless we get a new writer,
+      // but we can't get a new writer if it's locked.
+      // If WmaWriter has it, we rely on it or the stream state.
+      // For now, just rethrow.
+    } else {
+      // If WmaWriter was created, it handles the stream.
+      // But if we are here, we might need to handle it?
+      // WmaWriter.finish() closes the stream.
+      // If error occurred, we might want to abort.
+      // But we can't easily access the writer if WmaWriter has it.
+      // Assuming WmaWriter doesn't expose abort.
+      // If we haven't created WmaWriter yet:
+      const w = output.getWriter();
+      await w.abort(error as Error);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Parse ASF header to extract codec private data and metadata
+ * @param data The ASF header data to parse
+ * @param streamId The stream ID to extract codec private data for
+ * @returns Object containing codec private data and metadata
+ */
+function parseAsfHeader(
+  data: Uint8Array,
+  streamId: number,
+): {
+  codecPrivate?: Uint8Array;
+  packetSize: number;
+  playDuration?: number;
+  sendDuration?: number;
+  preroll?: number;
+  maxBitrate?: number;
+  bitsPerSample?: number;
+  extendedStreamPropertiesObject?: Uint8Array;
+} {
+  const HEADER_OBJECT_GUID = [0x30, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11, 0xa6, 0xd9, 0x00, 0xaa, 0x00, 0x62, 0xce, 0x6c];
+  const FILE_PROPERTIES_OBJECT_GUID = [0xa1, 0xdc, 0xab, 0x8c, 0x47, 0xa9, 0xcf, 0x11, 0x8e, 0xe4, 0x00, 0xc0, 0x0c, 0x20, 0x53, 0x65];
+  const STREAM_PROPERTIES_OBJECT_GUID = [0x91, 0x07, 0xdc, 0xb7, 0xb7, 0xa9, 0xcf, 0x11, 0x8e, 0xe6, 0x00, 0xc0, 0x0c, 0x20, 0x53, 0x65];
+  const AUDIO_STREAM_GUID = [0x40, 0x9e, 0x69, 0xf8, 0x4d, 0x5b, 0xcf, 0x11, 0xa8, 0xfd, 0x00, 0x80, 0x5f, 0x5c, 0x44, 0x2b];
+  const HEADER_EXTENSION_OBJECT_GUID = [0xb5, 0x03, 0xbf, 0x5f, 0x2e, 0xa9, 0xcf, 0x11, 0x8e, 0xe3, 0x00, 0xc0, 0x0c, 0x20, 0x53, 0x65];
+  const EXTENDED_STREAM_PROPERTIES_OBJECT_GUID = [0xcb, 0xa5, 0xe6, 0x14, 0x72, 0xc6, 0x32, 0x43, 0x83, 0x99, 0xa9, 0x69, 0x52, 0x06, 0x5b, 0x5a];
+
+  function compareGuid(offset: number, guid: number[]): boolean {
+    if (offset + 16 > data.length) return false;
+    for (let i = 0; i < 16; i++) {
+      if (data[offset + i] !== guid[i]) return false;
+    }
+    return true;
   }
 
-  return new Promise((resolve, reject) => {
-    const writer = output.getWriter();
-    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  function readUInt16LE(offset: number): number {
+    return data[offset] | (data[offset + 1] << 8);
+  }
 
-    function abort(error: Error) {
-      if (reader) {
-        reader.cancel().catch(() => {});
+  function readUInt32LE(offset: number): number {
+    return data[offset] | (data[offset + 1] << 8) | (data[offset + 2] << 16) | (data[offset + 3] << 24);
+  }
+
+  function readUInt64LE(offset: number): number {
+    const low = readUInt32LE(offset);
+    const high = readUInt32LE(offset + 4);
+    return low + high * 4294967296;
+  }
+
+  let codecPrivate: Uint8Array | undefined;
+  let packetSize = 3200;
+  let playDuration: number | undefined;
+  let sendDuration: number | undefined;
+  let preroll: number | undefined;
+  let maxBitrate: number | undefined;
+  let bitsPerSample: number | undefined;
+  let extendedStreamPropertiesObject: Uint8Array | undefined;
+
+  if (!compareGuid(0, HEADER_OBJECT_GUID)) {
+    return { codecPrivate, packetSize, playDuration, sendDuration, preroll, maxBitrate, bitsPerSample, extendedStreamPropertiesObject };
+  }
+
+  const headerSize = readUInt64LE(16);
+  if (data.length < headerSize) {
+    return { codecPrivate, packetSize, playDuration, sendDuration, preroll, maxBitrate, bitsPerSample, extendedStreamPropertiesObject };
+  }
+
+  const numObjects = readUInt32LE(24);
+  let offset = 30;
+
+  for (let i = 0; i < numObjects && offset + 24 <= data.length && offset < headerSize; i++) {
+    const objSize = readUInt64LE(offset + 16);
+
+    if (compareGuid(offset, FILE_PROPERTIES_OBJECT_GUID) && offset + 100 <= data.length) {
+      // Extract File Properties metadata
+      playDuration = readUInt64LE(offset + 64); // Play Duration in 100-nanosecond units
+      sendDuration = readUInt64LE(offset + 72); // Send Duration in 100-nanosecond units
+      preroll = readUInt64LE(offset + 80); // Preroll in milliseconds
+      const minPacketSize = readUInt32LE(offset + 92);
+      const maxPacketSize = readUInt32LE(offset + 96);
+      // Verify min and max packet sizes are equal (ASF spec requirement)
+      if (minPacketSize !== maxPacketSize) {
+        throw new Error(`ASF min packet size (${minPacketSize}) and max packet size (${maxPacketSize}) must be equal`);
       }
-      writer.abort(error).catch(() => {});
-      reject(error);
-    }
+      if (minPacketSize > 0) packetSize = minPacketSize;
+      maxBitrate = readUInt32LE(offset + 100);
+    } else if (compareGuid(offset, STREAM_PROPERTIES_OBJECT_GUID) && offset + 78 <= data.length) {
+      const streamTypeGuid = compareGuid(offset + 24, AUDIO_STREAM_GUID);
+      if (streamTypeGuid) {
+        const typeSpecificDataLength = readUInt32LE(offset + 64); // Correct offset after Time Offset field
+        const flags = readUInt32LE(offset + 72);
+        const streamNum = flags & 0x7f;
 
-    let buffer = new Uint8Array(0);
-    let headerWritten = false;
-    let headerSize = 0;
-    let packetSize = 3200; // Default fallback
-    let dataObjectStart = 0;
-
-    async function processBuffer() {
-      try {
-        // 1. Write ASF Header if not yet written
-        if (!headerWritten && buffer.length >= 30) {
-          const guid = readGuid(buffer, 0);
-          if (compareGuid(guid, HEADER_OBJECT_GUID)) {
-            headerSize = readUInt64LE(buffer, 16);
-
-            if (buffer.length >= headerSize) {
-              // Parse header to get packet size
-              const numObjects = readUInt32LE(buffer, 24);
-              let currentOffset = 30;
-
-              for (let i = 0; i < numObjects; i++) {
-                if (currentOffset + 24 > headerSize) break;
-
-                const objGuid = readGuid(buffer, currentOffset);
-                const objSize = readUInt64LE(buffer, currentOffset + 16);
-
-                if (compareGuid(objGuid, FILE_PROPERTIES_OBJECT_GUID) && currentOffset + 96 <= headerSize) {
-                  const minPacketSize = readUInt32LE(buffer, currentOffset + 92);
-                  if (minPacketSize > 0) packetSize = minPacketSize;
-                }
-
-                currentOffset += Number(objSize);
-              }
-
-              // Write the entire header
-              await writer.write(buffer.slice(0, headerSize));
-              headerWritten = true;
-              buffer = buffer.slice(headerSize);
-            } else {
-              return; // Wait for more data
-            }
-          } else {
-            abort(new Error('Invalid ASF file: missing header'));
-            return;
+        if (streamNum === streamId && offset + 78 + typeSpecificDataLength <= data.length) {
+          codecPrivate = data.slice(offset + 78, offset + 78 + typeSpecificDataLength);
+          // Extract bits per sample from WAVEFORMATEX (offset 14 within Type-Specific Data)
+          if (typeSpecificDataLength >= 16) {
+            bitsPerSample = data[offset + 78 + 14] | (data[offset + 78 + 15] << 8);
           }
         }
+      }
+    } else if (compareGuid(offset, HEADER_EXTENSION_OBJECT_GUID) && offset + 46 <= data.length) {
+      // Header Extension Object
+      // GUID (16) + Size (8) + Reserved1 (16) + Reserved2 (2) + Data Size (4)
+      const extensionDataSize = readUInt32LE(offset + 42);
+      if (offset + 46 + extensionDataSize <= data.length) {
+        let extOffset = offset + 46;
+        const extEnd = extOffset + extensionDataSize;
 
-        if (!headerWritten) return;
-
-        // 2. Find and write Data Object header
-        if (dataObjectStart === 0) {
-          for (let i = 0; i < buffer.length - 16; i++) {
-            if (compareGuid(readGuid(buffer, i), DATA_OBJECT_GUID)) {
-              dataObjectStart = i;
-
-              // Write Data Object header (50 bytes)
-              if (buffer.length >= i + 50) {
-                await writer.write(buffer.slice(i, i + 50));
-                buffer = buffer.slice(i + 50);
-                dataObjectStart = 50; // Mark as written
-              }
-              break;
+        while (extOffset + 24 <= extEnd) {
+          const extObjSize = readUInt64LE(extOffset + 16);
+          if (compareGuid(extOffset, EXTENDED_STREAM_PROPERTIES_OBJECT_GUID) && extOffset + 74 <= extEnd) {
+            // Found Extended Stream Properties Object
+            // Verify it belongs to the target stream
+            // Stream Number is at offset 72
+            const streamNum = readUInt16LE(extOffset + 72);
+            if (streamNum === streamId) {
+              extendedStreamPropertiesObject = data.slice(extOffset, extOffset + Number(extObjSize));
             }
           }
-
-          if (dataObjectStart === 0) return; // Need more data
+          extOffset += Number(extObjSize);
         }
-
-        // 3. Process and write complete data packets for the target stream
-        let offset = 0;
-
-        while (offset + packetSize <= buffer.length) {
-          const packetStart = offset;
-          let packetOffset = offset;
-
-          // Parse packet to check if it contains our stream
-          let containsTargetStream = false;
-
-          // Skip error correction if present
-          const ecFlags = buffer[packetOffset];
-          packetOffset++;
-
-          if ((ecFlags & 0x80) !== 0) {
-            const ecDataLengthType = ecFlags & 0x0f;
-            if (ecDataLengthType === 1 && packetOffset < buffer.length) {
-              const ecDataLength = buffer[packetOffset];
-              packetOffset++;
-              packetOffset += ecDataLength;
-            }
-          }
-
-          if (packetOffset >= buffer.length) break;
-
-          // Parse payload parsing information
-          const propertyFlags = buffer[packetOffset];
-          packetOffset++;
-
-          const multiplePayloads = (propertyFlags & 0x01) !== 0;
-
-          // Skip variable-length fields (simplified parsing)
-          packetOffset += 6; // Skip packet length, sequence, padding length fields (max)
-          packetOffset += 6; // Skip send time and duration
-
-          if (packetOffset >= buffer.length) break;
-
-          // Check payloads
-          if (multiplePayloads) {
-            const payloadFlags = buffer[packetOffset];
-            packetOffset++;
-            const numPayloads = payloadFlags & 0x3f;
-
-            for (let p = 0; p < numPayloads && packetOffset < buffer.length; p++) {
-              const streamNum = buffer[packetOffset] & 0x7f;
-              if (streamNum === stream.id) {
-                containsTargetStream = true;
-                break;
-              }
-              packetOffset++;
-              // Skip rest of payload header (simplified)
-              packetOffset += 10;
-            }
-          } else {
-            if (packetOffset < buffer.length) {
-              const streamNum = buffer[packetOffset] & 0x7f;
-              if (streamNum === stream.id) {
-                containsTargetStream = true;
-              }
-            }
-          }
-
-          // Write the entire packet if it contains our stream
-          if (containsTargetStream) {
-            await writer.write(buffer.slice(packetStart, packetStart + packetSize));
-          }
-
-          offset += packetSize;
-        }
-
-        // Remove processed data
-        if (offset > 0) {
-          buffer = buffer.slice(offset);
-        }
-      } catch (error) {
-        abort(error as Error);
       }
     }
 
-    reader = input.getReader();
+    offset += Number(objSize);
+  }
 
-    function readChunk() {
-      if (!reader) return;
-
-      reader
-        .read()
-        .then(async ({ done, value }) => {
-          if (done) {
-            await processBuffer();
-            await writer.close();
-            resolve();
-            return;
-          }
-
-          if (value) {
-            const newBuffer = new Uint8Array(buffer.length + value.length);
-            newBuffer.set(buffer);
-            newBuffer.set(value, buffer.length);
-            buffer = newBuffer;
-
-            await processBuffer();
-            readChunk();
-          }
-        })
-        .catch((error) => {
-          if (reader) {
-            reader.cancel();
-          }
-          writer.abort(error).catch(() => {});
-          reject(error);
-        });
-    }
-
-    readChunk();
-  });
+  return { codecPrivate, packetSize, playDuration, sendDuration, preroll, maxBitrate, bitsPerSample, extendedStreamPropertiesObject };
 }
