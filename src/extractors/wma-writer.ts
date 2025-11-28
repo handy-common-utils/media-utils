@@ -1,5 +1,5 @@
 import { AsfGuid, writeObjectHeader, writeUInt16, writeUInt32, writeUInt64 } from '../codecs/asf';
-import { OnPayloadCallback, PayloadMetadata } from '../parsers/asf';
+import { PayloadMetadata } from '../parsers/asf';
 
 export interface AudioContent {
   /** E.g., 0x0161 for WMA Standard, 0x0162 for WMA Pro */
@@ -57,7 +57,7 @@ export interface PayloadDetails {
  * @param content Audio content to write
  */
 export async function writeWma(output: WritableStream<Uint8Array>, content: AudioContent): Promise<void> {
-  const { allPayloads, ...metadata } = content;
+  const { allPayloads: _, ...metadata } = content;
 
   const { dataObjectBuffer, totalDataPackets } = buildDataObject(content);
   const headerObjectBuffer = buildHeaderObject({ ...metadata, dataObjectSize: dataObjectBuffer.length, totalDataPackets });
@@ -321,7 +321,7 @@ function buildHeaderExtensionObject(metadata: AudioMetadata): Uint8Array {
 
 /**
  * Creates and buffers the ASF Data Object and all interleaved Data Packets.
- * @param metadata The metadata for the audio file.
+ * @param content The content for the audio file.
  * @returns The Data Object as a Uint8Array.
  */
 function buildDataObject(content: AudioContent & { packetSize: number }): { dataObjectBuffer: Uint8Array; totalDataPackets: number } {

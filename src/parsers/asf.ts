@@ -349,7 +349,7 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
 
       const flags = readUInt32(data, offset + 88);
       const broadcastFlag = flags & 1;
-      const seekableFlag = (flags >>> 1) & 1;
+      const _seekableFlag = (flags >>> 1) & 1;
 
       // Capture global props
       filePlayDuration = Number(readUInt64(data, offset + 64));

@@ -50,7 +50,7 @@ export async function extractFromAsf(
   const avgBytesPerSec = readUInt32(codecPrivate, 8);
   const bitrate = avgBytesPerSec * 8;
   const blockSize = readUInt16(codecPrivate, 12) ?? 0;
-  const bitsPerSample = readUInt16(codecPrivate, 14) ?? 16; // Bits per sample from WAVEFORMATEX
+  const _bitsPerSample = readUInt16(codecPrivate, 14) ?? 16; // Bits per sample from WAVEFORMATEX
   const cbSize = readUInt16(codecPrivate, 16) ?? 0; // Size of extra format information
   const encoderSpecificData = codecPrivate.slice(18, 18 + cbSize);
 

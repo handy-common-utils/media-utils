@@ -279,7 +279,7 @@ describe('extractAudio', () => {
       const webStream = await createReadableStreamFromFile(outputFilePath);
       const extractedAudioInfo = await parseAsf(webStream, {
         extractStreams: [0, 1, 2],
-        onPayload: (streamNumber, payloadData, metadata) => {
+        onPayload: (_streamNumber, _payloadData, _metadata) => {
           // console.error('onPayload:', streamNumber, payloadData.length, metadata);
         },
       });

@@ -15,22 +15,26 @@ This library provides a unified interface to extract media information (duration
 - **Unified API**: Get consistent `MediaInfo` object regardless of the parser used.
 - **Browser & Node.js**: Works in both environments (file system helpers are Node.js only).
 - **Smart Fallback**: The `auto` mode tries parsers in this order:
-  1. `media-utils` (this library): Fast, lightweight, for raw AAC/MP3 files.
+  1. `media-utils` (this library): Fast, lightweight, for raw AAC/MP3/WAV/OGG files and WebM/ASF containers.
   2. `mp4box`: [mp4box](https://www.npmjs.com/package/mp4box)
   3. `isoboxer`: [codem-isoboxer](https://www.npmjs.com/package/codem-isoboxer)
   4. `remotion`: [@remotion/media-parser](https://www.npmjs.com/package/@remotion/media-parser)
 
 ### Verified Combinations
 
-| Format   | Codecs      | `auto` | `media-utils` | `mp4box` | `isoboxer` | `remotion` |
-| :------- | :---------- | :----: | :-----------: | :------: | :--------: | :--------: |
-| **MP4**  | H.264 / AAC |   ✅   |               |    ✅    |     ✅     |     ✅     |
-| **MP4**  | H.264 / MP3 |   ✅   |               |    ✅    |     ✅     |     ✅     |
-| **MOV**  | H.264 / AAC |   ✅   |               |    ✅    |     ✅     |     ✅     |
-| **MOV**  | H.264 / MP3 |   ✅   |               |    ✅    |     ✅     |            |
-| **WebM** | VP9 / Opus  |   ✅   |               |          |            |     ✅     |
-| **AAC**  | AAC         |   ✅   |      ✅       |          |            |     ✅     |
-| **MP3**  | MP3         |   ✅   |      ✅       |          |            |     ✅     |
+| Format      | Codecs         | `auto` | `media-utils` | `mp4box` | `isoboxer` | `remotion` |
+| :---------- | :------------- | :----: | :-----------: | :------: | :--------: | :--------: |
+| **MP4**     | H.264 / AAC    |   ✅   |               |    ✅    |     ✅     |     ✅     |
+| **MP4**     | H.264 / MP3    |   ✅   |               |    ✅    |     ✅     |     ✅     |
+| **MOV**     | H.264 / AAC    |   ✅   |               |    ✅    |     ✅     |     ✅     |
+| **MOV**     | H.264 / MP3    |   ✅   |               |    ✅    |     ✅     |            |
+| **WebM**    | VP8/9 / Opus   |   ✅   |      ✅       |          |            |     ✅     |
+| **WebM**    | VP8/9 / Vorbis |   ✅   |      ✅       |          |            |     ✅     |
+| **ASF/WMV** | WMV / WMA      |   ✅   |      ✅       |          |            |            |
+| **AAC**     | AAC            |   ✅   |      ✅       |          |            |     ✅     |
+| **MP3**     | MP3            |   ✅   |      ✅       |          |            |     ✅     |
+| **OGG**     | Opus/Vorbis    |   ✅   |      ✅       |          |            |            |
+| **WAV**     | PCM            |   ✅   |      ✅       |          |            |            |
 
 ### Optional Dependencies
 
@@ -60,14 +64,17 @@ const infoMp4Box = await getMediaInfoFromFile('path/to/video.mp4', { useParser: 
 
 ## Extracting Audio Stream
 
-You can extract raw audio streams from video files (MP4, MOV) without re-encoding. This is fast and preserves original quality.
+You can extract audio streams from video files (MP4, MOV, WebM, ASF/WMV) without re-encoding. This is fast and preserves original quality.
 
 ### Supported Scenarios
 
-- **Containers**: MP4, MOV (ISO BMFF based).
+- **Containers**: MP4, MOV, WebM, ASF/WMV.
 - **Audio Codecs**:
   - **AAC**: Can be saved as .aac
   - **MP3**: Can be saved as .mp3
+  - **Opus**: Can be saved as .ogg
+  - **Vorbis**: Can be saved as .ogg
+  - **WMA**: Can be saved as .wma
 
 ### Dependencies
 
