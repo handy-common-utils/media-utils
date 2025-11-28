@@ -61,6 +61,9 @@ export class WmaWriter {
 
   /**
    * Callback function to receive raw payload data and metadata.
+   * @param streamNumber The stream number of the payload.
+   * @param payloadData The raw payload data.
+   * @param metadata The metadata associated with the payload.
    */
   public onPayload(streamNumber: number, payloadData: Uint8Array, metadata: PayloadMetadata): void {
     // Only support the single designated WMA stream

@@ -1,4 +1,4 @@
-import { AudioCodecType, AudioStreamInfo, VideoCodecType } from '../media-info';
+import { AudioCodecType } from '../media-info';
 import { UnsupportedFormatError } from '../utils';
 
 // ASF GUID Constants
