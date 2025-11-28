@@ -67,7 +67,7 @@ export async function parseWav(stream: ReadableStream<Uint8Array>, _options?: Ge
   const bitsPerSample = fmtData[14] | (fmtData[15] << 8);
 
   // Determine codec
-  let codec = 'pcm-s16';
+  let codec = 'pcm_s16le';
   let codecDetail = `pcm_s${bitsPerSample}le`;
 
   if (audioFormat !== 1) {

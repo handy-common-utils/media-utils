@@ -62,11 +62,11 @@ export async function extractAudio(
       return extractFromWebm(extractStream, output, mediaInfo, options);
     }
     case 'wma':
-    case 'wmv': {
+    case 'asf': {
       return extractFromAsf(extractStream, output, mediaInfo, options);
     }
     default: {
-      throw new UnsupportedFormatError(`Unsupported container format: ${container}. Supported formats: mp4, mov, webm, wmv, wma`);
+      throw new UnsupportedFormatError(`Unsupported container format: ${container}. Supported formats: mp4, mov, webm, asf, wma`);
     }
   }
 }

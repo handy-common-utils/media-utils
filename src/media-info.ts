@@ -13,9 +13,16 @@ const containers = {
   mp4: new ContainerDetails('mp4', 'mp4', ['m4v', 'm4a', 'isom', 'iso2', 'mp41', 'mp42']),
   webm: new ContainerDetails('webm', 'webm', []),
   avi: new ContainerDetails('avi', 'avi', []),
-  m2ts: new ContainerDetails('m2ts', 'ts', ['ts', 'transport-stream']),
-  wmv: new ContainerDetails('wmv', 'wmv', []),
+  mpegts: new ContainerDetails('mpegts', 'ts', ['ts', 'transport-stream', 'm2ts']),
+
+  /**
+   * "wma" is only used as the default container format of audio codec "wmav1" and "wmav2"
+   * for getting the correct file extension "wma".
+   * When parsing a .wma file, the container name is "asf".
+   */
   wma: new ContainerDetails('wma', 'wma', []),
+  asf: new ContainerDetails('asf', 'wmv', []),
+
   ogg: new ContainerDetails('ogg', 'ogg', []),
   aac: new ContainerDetails('aac', 'aac', ['mp4a.40.2']),
   mp3: new ContainerDetails('mp3', 'mp3', ['mp4a.6b', '.mp3']),
@@ -45,11 +52,11 @@ const audioCodecs = {
   vorbis: new AudioCodecDetails('vorbis', 'ogg', []),
   ac3: new AudioCodecDetails('ac3', 'ac3', ['ac-3']),
   flac: new AudioCodecDetails('flac', 'flac', []),
-  'pcm-u8': new AudioCodecDetails('pcm-u8', 'wav', []),
-  'pcm-s16': new AudioCodecDetails('pcm-s16', 'wav', ['pcm-s16le']),
-  'pcm-s24': new AudioCodecDetails('pcm-s24', 'wav', ['pcm-s24le']),
-  'pcm-s32': new AudioCodecDetails('pcm-s32', 'wav', ['pcm-s32le']),
-  'pcm-f32': new AudioCodecDetails('pcm-f32', 'wav', ['pcm-f32le']),
+  pcm_u8: new AudioCodecDetails('pcm_u8', 'wav', ['pcm-u8']),
+  pcm_s16le: new AudioCodecDetails('pcm_s16le', 'wav', ['pcm-s16le', 'pcm-s16']),
+  pcm_s24le: new AudioCodecDetails('pcm_s24le', 'wav', ['pcm-s24le', 'pcm-s24']),
+  pcm_s32le: new AudioCodecDetails('pcm_s32le', 'wav', ['pcm-s32le', 'pcm-s32']),
+  pcm_f32le: new AudioCodecDetails('pcm_f32le', 'wav', ['pcm-f32le', 'pcm-f32']),
 };
 
 export type AudioCodecType = keyof typeof audioCodecs;
@@ -63,10 +70,10 @@ class VideoCodecDetails<T extends string> {
 
 const videoCodecs = {
   h264: new VideoCodecDetails('h264', ['avc', 'avc1', /^avc1\./]),
-  h265: new VideoCodecDetails('h265', ['hevc', 'hvc', 'hev']),
-  vp8: new VideoCodecDetails('vp8', ['vp08']),
+  hevc: new VideoCodecDetails('hevc', ['h265', 'hvc', 'hev', /^hevc_.*/]),
+  vp8: new VideoCodecDetails('vp8', ['vp08', /^vp08\./]),
   vp9: new VideoCodecDetails('vp9', ['vp09', /^vp09\./]),
-  wmv2: new AudioCodecDetails('wmv2', 'wmv', ['WMV2']),
+  wmv2: new AudioCodecDetails('wmv2', 'asf', ['WMV2']),
   av1: new VideoCodecDetails('av1', ['av01']),
   prores: new VideoCodecDetails('prores', ['ap']),
 };

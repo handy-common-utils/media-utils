@@ -447,10 +447,9 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
 
   reader.cancel();
 
-  const container = videoStreams.length > 0 ? 'wmv' : 'wma';
   return {
-    container,
-    containerDetail: container,
+    container: 'asf',
+    containerDetail: videoStreams.length > 0 ? 'wmv' : 'wma',
     durationInSeconds,
     videoStreams,
     audioStreams,

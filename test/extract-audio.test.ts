@@ -286,7 +286,7 @@ describe('extractAudio', () => {
 
       // Verify it's recognized as WMA (ASF container with audio only)
       expect(extractedAudioInfo).toEqual({
-        container: 'wma',
+        container: 'asf',
         containerDetail: 'wma',
         durationInSeconds: 6,
         videoStreams: [],
