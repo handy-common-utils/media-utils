@@ -3,15 +3,10 @@
 import type { ISOFile, Sample } from 'mp4box';
 
 import { createADTSFrame } from '../codecs/aac';
+import { ExtractAudioOptions } from '../extract-audio';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
 import { makeMp4BoxQuiet } from '../parsers/mp4box-adapter';
 import { findAudioStreamToBeExtracted } from './utils';
-
-export interface Mp4ExtractorOptions {
-  trackId?: number;
-  streamIndex?: number;
-  quiet?: boolean;
-}
 
 /**
  * Extract audio from MP4/MOV containers using mp4box
@@ -25,12 +20,16 @@ export async function extractFromMp4(
   input: ReadableStream<Uint8Array>,
   output: WritableStream<Uint8Array>,
   mediaInfo: MediaInfo,
-  optionsInput?: Mp4ExtractorOptions,
+  optionsInput?: ExtractAudioOptions,
 ): Promise<void> {
   const options = {
     quiet: true,
     ...optionsInput,
   };
+
+  if (options.onProgress) {
+    options.onProgress(0);
+  }
 
   const mp4box: typeof import('mp4box') = require('mp4box');
   makeMp4BoxQuiet(mp4box, options?.quiet);
@@ -61,6 +60,12 @@ export async function extractFromMp4(
           if (!sample?.data) continue;
 
           const sampleData = new Uint8Array(sample.data);
+
+          if (options.onProgress && mediaInfo.durationInSeconds) {
+            const currentSeconds = sample.cts / sample.timescale;
+            const progress = Math.min(100, Math.round((currentSeconds / mediaInfo.durationInSeconds) * 100));
+            options.onProgress(progress);
+          }
 
           try {
             if (stream.codec === 'aac') {
@@ -125,6 +130,9 @@ export async function extractFromMp4(
             processSampleQueue()
               .then(async () => {
                 await writer.close();
+                if (options.onProgress) {
+                  options.onProgress(100);
+                }
                 resolve();
               })
               .catch((error) => {

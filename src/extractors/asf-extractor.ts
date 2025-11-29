@@ -5,17 +5,12 @@
  */
 
 import { readUInt16, readUInt32 } from '../codecs/asf';
+import { ExtractAudioOptions } from '../extract-audio';
 import { AudioStreamInfo } from '../media-info';
 import { AsfMediaInfo, parseAsf } from '../parsers/asf';
 import { UnsupportedFormatError } from '../utils';
 import { findAudioStreamToBeExtracted } from './utils';
 import { PayloadDetails, writeWma } from './wma-writer';
-
-export interface AsfExtractorOptions {
-  trackId?: number;
-  streamIndex?: number;
-  quiet?: boolean;
-}
 
 /**
  * Extract audio from ASF/WMV containers
@@ -30,12 +25,16 @@ export async function extractFromAsf(
   input: ReadableStream<Uint8Array>,
   output: WritableStream<Uint8Array>,
   mediaInfo: AsfMediaInfo,
-  optionsInput?: AsfExtractorOptions,
+  optionsInput?: ExtractAudioOptions,
 ): Promise<void> {
   const options = {
     quiet: true,
     ...optionsInput,
   };
+
+  if (options.onProgress) {
+    options.onProgress(0);
+  }
   // Find the audio stream to extract
   const stream: AudioStreamInfo = findAudioStreamToBeExtracted(mediaInfo, options);
 
@@ -60,13 +59,19 @@ export async function extractFromAsf(
   // Extract payloads using parseAsf
   await parseAsf(input, {
     extractStreams: [stream.id],
-    onPayload: (streamNumber, payloadData, metadata, replicatedData) =>
+    onPayload: (streamNumber, payloadData, metadata, replicatedData) => {
+      if (options.onProgress && mediaInfo.durationInSeconds && metadata.packetSendTime !== undefined) {
+        // Scale extraction progress to 0-50%
+        const extractionProgress = Math.min(100, Math.round((metadata.packetSendTime / 1000 / mediaInfo.durationInSeconds) * 100));
+        options.onProgress(Math.round(extractionProgress * 0.5));
+      }
       allPayloads.push({
         streamNumber,
         payloadData,
         metadata,
         replicatedData,
-      }),
+      });
+    },
   });
 
   if (allPayloads.length === 0) {
@@ -112,24 +117,38 @@ export async function extractFromAsf(
     console.log(`Calculated optimal packet size: ${calculatedPacketSize} bytes (max content: ${maxContentSize} bytes)`);
   }
 
-  await writeWma(output, {
-    codecId,
-    channels,
-    sampleRate,
-    bitrate,
-    blockSize,
-    encoderSpecificData,
-    objectDuration,
-    bitsPerSample: stream.bitsPerSample!,
-    avgBytesPerSec,
-    playDuration: fileProperties.playDuration,
-    sendDuration: fileProperties.sendDuration,
-    preroll: fileProperties.preroll,
-    packetSize: calculatedPacketSize,
-    maxBitrate: calculatedMaxBitrate,
-    extendedStreamPropertiesObject: additionalStreamInfo.extendedStreamPropertiesObject!,
-    streamNumber: stream.id,
-    maxPayloadSize,
-    allPayloads,
-  });
+  await writeWma(
+    output,
+    {
+      codecId,
+      channels,
+      sampleRate,
+      bitrate,
+      blockSize,
+      encoderSpecificData,
+      objectDuration,
+      bitsPerSample: stream.bitsPerSample!,
+      avgBytesPerSec,
+      playDuration: fileProperties.playDuration,
+      sendDuration: fileProperties.sendDuration,
+      preroll: fileProperties.preroll,
+      packetSize: calculatedPacketSize,
+      maxBitrate: calculatedMaxBitrate,
+      extendedStreamPropertiesObject: additionalStreamInfo.extendedStreamPropertiesObject!,
+      streamNumber: stream.id,
+      maxPayloadSize,
+      allPayloads,
+    },
+    options.onProgress
+      ? (progress: number) => {
+          // Scale writing progress (0-100) to 50-100%
+          const overallProgress = 50 + Math.round(progress * 0.5);
+          options.onProgress!(overallProgress);
+        }
+      : undefined,
+  );
+
+  if (options.onProgress) {
+    options.onProgress(100);
+  }
 }

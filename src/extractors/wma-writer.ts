@@ -55,17 +55,39 @@ export interface PayloadDetails {
  * Write WMA audio content to a writable stream
  * @param output Writable stream to write the WMA audio content to. The stream will be closed after the content is written.
  * @param content Audio content to write
+ * @param onProgress Optional callback for progress reporting (0-100).
  */
-export async function writeWma(output: WritableStream<Uint8Array>, content: AudioContent): Promise<void> {
+export async function writeWma(output: WritableStream<Uint8Array>, content: AudioContent, onProgress?: (progress: number) => void): Promise<void> {
   const { allPayloads: _, ...metadata } = content;
 
-  const { dataObjectBuffer, totalDataPackets } = buildDataObject(content);
+  // Progress range: 0% - 100%
+  // Allocation:
+  // - buildDataObject: 40% (0 -> 40)
+  // - buildHeaderObject: 10% (40 -> 50)
+  // - write headerObjectBuffer: 10% (50 -> 60)
+  // - write dataObjectBuffer: 40% (60 -> 100)
+
+  const { dataObjectBuffer, totalDataPackets } = buildDataObject(
+    content,
+    onProgress
+      ? (progress) => {
+          // Map 0-100 to 0-40
+          onProgress(Math.round(progress * 0.4));
+        }
+      : undefined,
+  );
+
   const headerObjectBuffer = buildHeaderObject({ ...metadata, dataObjectSize: dataObjectBuffer.length, totalDataPackets });
+
+  if (onProgress) onProgress(50);
 
   const writer = output.getWriter();
   try {
     await writer.write(headerObjectBuffer);
+    if (onProgress) onProgress(60);
+
     await writer.write(dataObjectBuffer);
+    if (onProgress) onProgress(100);
   } finally {
     writer.close();
   }
@@ -322,9 +344,13 @@ function buildHeaderExtensionObject(metadata: AudioMetadata): Uint8Array {
 /**
  * Creates and buffers the ASF Data Object and all interleaved Data Packets.
  * @param content The content for the audio file.
+ * @param onProgress Optional callback for progress reporting (0-100).
  * @returns The Data Object as a Uint8Array.
  */
-function buildDataObject(content: AudioContent & { packetSize: number }): { dataObjectBuffer: Uint8Array; totalDataPackets: number } {
+function buildDataObject(
+  content: AudioContent & { packetSize: number },
+  onProgress?: (progress: number) => void,
+): { dataObjectBuffer: Uint8Array; totalDataPackets: number } {
   // Data Object is a top level structure that contains the data packets.
   // +--------------------------+-----------------+-------------+-------------------------------------------------+
   // | Field Name               | Field Type      | Size (bits) | Description                                     |
@@ -354,7 +380,16 @@ function buildDataObject(content: AudioContent & { packetSize: number }): { data
   let totalDataPackets = 0;
 
   // --- Create all Data Packets ---
-  for (const { payloadData, metadata, replicatedData } of allPayloads) {
+  for (let i = 0; i < allPayloads.length; i++) {
+    if (onProgress) {
+      const progress = Math.round((i / (allPayloads.length - 1)) * 100);
+      if (i === 0 || i === allPayloads.length - 1 || progress >= 5 + ((i - 1) / (allPayloads.length - 1)) * 100) {
+        onProgress(progress);
+      }
+    }
+
+    const { payloadData, metadata, replicatedData } = allPayloads[i];
+
     // Below is the data structure of an ASF Data Packet:
     //    +--------------------------+
     //    | Error Correction Data    |  > Optional

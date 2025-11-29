@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from '@jest/globals';
+import { afterAll, describe, expect, it, jest } from '@jest/globals';
 import fs from 'node:fs';
 import path from 'node:path';
 import { TransformStream } from 'node:stream/web';
@@ -322,6 +322,58 @@ describe('extractAudio', () => {
       // Try to extract a non-existent audio track (index 5)
       const { writable } = new TransformStream();
       await expect(extractAudio(inputStream, writable, { streamIndex: 5 })).rejects.toThrow(/Audio stream\/track index 5 not found/);
+    });
+  });
+  describe('Progress Reporting', () => {
+    it('should report progress when extracting from MP4', async () => {
+      const inputFile = sampleFile('engine-start.h264.aac.mp4');
+      const outputFilePath = outputFile('progress-test.aac');
+      const onProgress = jest.fn();
+
+      await extractAudioFromFileToFile(inputFile, outputFilePath, { onProgress });
+
+      expect(onProgress).toHaveBeenCalled();
+      expect(onProgress).toHaveBeenCalledWith(expect.any(Number));
+      const fistProgress = onProgress.mock.calls.at(0)?.[0];
+      expect(fistProgress).toEqual(0);
+      const lastProgress = onProgress.mock.calls.at(-1)?.[0];
+      expect(lastProgress).toEqual(100);
+
+      filesToCleanup.push(outputFilePath);
+    });
+
+    it('should report progress when extracting from WebM', async () => {
+      const inputFile = sampleFile('engine-start.vp9.opus.webm');
+      const outputFilePath = outputFile('progress-test.ogg');
+      const onProgress = jest.fn();
+
+      await extractAudioFromFileToFile(inputFile, outputFilePath, { onProgress });
+
+      expect(onProgress).toHaveBeenCalled();
+      expect(onProgress).toHaveBeenCalledWith(expect.any(Number));
+      const fistProgress = onProgress.mock.calls.at(0)?.[0];
+      expect(fistProgress).toEqual(0);
+      const lastProgress = onProgress.mock.calls.at(-1)?.[0];
+      expect(lastProgress).toEqual(100);
+
+      filesToCleanup.push(outputFilePath);
+    });
+
+    it('should report progress when extracting from ASF', async () => {
+      const inputFile = sampleFile('engine-start.wmv2.wmav2.wmv');
+      const outputFilePath = outputFile('progress-test.wma');
+      const onProgress = jest.fn();
+
+      await extractAudioFromFileToFile(inputFile, outputFilePath, { onProgress });
+
+      expect(onProgress).toHaveBeenCalled();
+      expect(onProgress).toHaveBeenCalledWith(expect.any(Number));
+      const fistProgress = onProgress.mock.calls.at(0)?.[0];
+      expect(fistProgress).toEqual(0);
+      const lastProgress = onProgress.mock.calls.at(-1)?.[0];
+      expect(lastProgress).toEqual(100);
+
+      filesToCleanup.push(outputFilePath);
     });
   });
 });

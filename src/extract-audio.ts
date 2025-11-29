@@ -27,6 +27,10 @@ export interface ExtractAudioOptions extends ParserRelatedOptions {
    * Default value is true.
    */
   quiet?: boolean;
+  /**
+   * Optional callback to receive progress updates (0-100).
+   */
+  onProgress?: (progress: number) => void;
 }
 
 /**

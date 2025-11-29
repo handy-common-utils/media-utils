@@ -1,13 +1,8 @@
 import { OggMuxer } from '../codecs/ogg';
+import { ExtractAudioOptions } from '../extract-audio';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
 import { WebmParser, WebmSample } from '../parsers/webm';
 import { findAudioStreamToBeExtracted } from './utils';
-
-export interface WebmExtractorOptions {
-  trackId?: number;
-  streamIndex?: number;
-  quiet?: boolean;
-}
 
 /**
  * Extract audio from WebM containers (Opus, Vorbis)
@@ -21,12 +16,16 @@ export async function extractFromWebm(
   input: ReadableStream<Uint8Array>,
   output: WritableStream<Uint8Array>,
   mediaInfo: MediaInfo,
-  optionsInput?: WebmExtractorOptions,
+  optionsInput?: ExtractAudioOptions,
 ): Promise<void> {
   const options = {
     quiet: true,
     ...optionsInput,
   };
+
+  if (options.onProgress) {
+    options.onProgress(0);
+  }
 
   return new Promise((resolve, reject) => {
     const parser = new WebmParser();
@@ -51,6 +50,11 @@ export async function extractFromWebm(
       while (sampleQueue.length > 0) {
         const sample = sampleQueue.shift();
         if (!sample?.data) continue;
+
+        if (options.onProgress && mediaInfo.durationInSeconds) {
+          const progress = Math.min(100, Math.round((sample.time / mediaInfo.durationInSeconds) * 100));
+          options.onProgress(progress);
+        }
 
         try {
           if (oggMuxer) {
@@ -134,6 +138,9 @@ export async function extractFromWebm(
             processSampleQueue()
               .then(async () => {
                 await writer.close();
+                if (options.onProgress) {
+                  options.onProgress(100);
+                }
                 resolve();
               })
               .catch((error) => {
