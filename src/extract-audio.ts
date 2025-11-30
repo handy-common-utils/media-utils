@@ -50,11 +50,26 @@ export async function extractAudio(
     ...optionsInput,
   };
 
+  if (options.onProgress) {
+    options.onProgress(0);
+  }
+
   // Tee the stream: one for detection, one for extraction
   const [detectStream, extractStream] = input.tee();
+  if (options.onProgress) {
+    options.onProgress(2);
+  }
 
   // Detect container type
   const mediaInfo = await getMediaInfo(detectStream, options);
+  if (options.onProgress) {
+    options.onProgress(8);
+    const originalOnProgress = options.onProgress;
+    options.onProgress = (progress) => {
+      originalOnProgress(8 + Math.round(progress * 0.92));
+    };
+  }
+
   const container = mediaInfo.container;
 
   // Route to appropriate extractor
