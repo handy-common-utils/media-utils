@@ -73,11 +73,6 @@ export async function getMediaInfo(
         // Ignore
       }
       try {
-        adapters.push(new IsoBoxerAdapter());
-      } catch {
-        // Ignore
-      }
-      try {
         adapters.push(new RemotionAdapter());
       } catch {
         // Ignore
