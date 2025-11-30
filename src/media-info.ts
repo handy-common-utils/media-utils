@@ -1,6 +1,6 @@
 import { UnsupportedFormatError } from './utils';
 
-class ContainerDetails<T extends string> {
+export class ContainerDetails<T extends string> {
   constructor(
     public readonly code: T,
     public readonly fileExtension: string,
@@ -33,7 +33,7 @@ const containers = {
 
 export type ContainerType = keyof typeof containers;
 
-class AudioCodecDetails<T extends string> {
+export class AudioCodecDetails<T extends string> {
   constructor(
     public readonly code: T,
     public readonly defaultContainer: ContainerType,
@@ -61,7 +61,7 @@ const audioCodecs = {
 
 export type AudioCodecType = keyof typeof audioCodecs;
 
-class VideoCodecDetails<T extends string> {
+export class VideoCodecDetails<T extends string> {
   constructor(
     public readonly code: T,
     public readonly aliases: Array<string | RegExp>,
