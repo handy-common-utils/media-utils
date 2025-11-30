@@ -7,13 +7,11 @@ import { ParsingError, UnsupportedFormatError } from '../utils';
 import { MediaParserAdapter } from './adapter';
 
 export class Mp4BoxAdapter implements MediaParserAdapter {
-  private mp4box: typeof import('mp4box');
-  private originalMp4BoxLogError: (typeof import('mp4box'))['Log']['error'];
+  private constructor(private mp4box: typeof import('mp4box')) {}
 
-  constructor() {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports, unicorn/prefer-module
-    this.mp4box = require('mp4box');
-    this.originalMp4BoxLogError = this.mp4box.Log.error;
+  static async newInstance(): Promise<Mp4BoxAdapter> {
+    const mp4box = await import('mp4box');
+    return new Mp4BoxAdapter(mp4box as any);
   }
 
   async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {

@@ -4,7 +4,7 @@
   "description": "A pure-JS, no-FFmpeg media info parser and audio stream extractor which works with popular formats and codecs",
   "scripts": {
     "pretest": "eslint . --ext .ts",
-    "test": "jest",
+    "test": "NODE_OPTIONS='--experimental-vm-modules' jest",
     "compile": "shx rm -rf dist && tsc",
     "prepare": "husky",
     "prepack": "npm run compile",

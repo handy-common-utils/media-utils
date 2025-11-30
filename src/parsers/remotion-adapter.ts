@@ -4,11 +4,11 @@ import { ParsingError } from '../utils';
 import { MediaParserAdapter } from './adapter';
 
 export class RemotionAdapter implements MediaParserAdapter {
-  private mediaParser: typeof import('@remotion/media-parser');
+  private constructor(private mediaParser: typeof import('@remotion/media-parser')) {}
 
-  constructor() {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports, unicorn/prefer-module
-    this.mediaParser = require('@remotion/media-parser');
+  static async newInstance(): Promise<RemotionAdapter> {
+    const mediaParser = await import('@remotion/media-parser');
+    return new RemotionAdapter(mediaParser);
   }
 
   async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {

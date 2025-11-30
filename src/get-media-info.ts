@@ -38,7 +38,7 @@ export async function getMediaInfo(
   switch (useParser) {
     case 'mp4box': {
       try {
-        parser = new Mp4BoxAdapter();
+        parser = await Mp4BoxAdapter.newInstance();
       } catch (error) {
         throw new Error(`Very likely NPM package mp4box is not installed: ${error}`);
       }
@@ -46,7 +46,7 @@ export async function getMediaInfo(
     }
     case 'remotion': {
       try {
-        parser = new RemotionAdapter();
+        parser = await RemotionAdapter.newInstance();
       } catch (error) {
         throw new Error(`Very likely NPM package @remotion/media-parser is not installed: ${error}`);
       }
@@ -54,7 +54,7 @@ export async function getMediaInfo(
     }
     case 'isoboxer': {
       try {
-        parser = new IsoBoxerAdapter();
+        parser = await IsoBoxerAdapter.newInstance();
       } catch (error) {
         throw new Error(`Very likely NPM package codem-isoboxer is not installed: ${error}`);
       }
@@ -68,12 +68,12 @@ export async function getMediaInfo(
       const adapters = new Array<MediaParserAdapter>();
       adapters.push(new InhouseParserAdapter());
       try {
-        adapters.push(new Mp4BoxAdapter());
+        adapters.push(await Mp4BoxAdapter.newInstance());
       } catch {
         // Ignore
       }
       try {
-        adapters.push(new RemotionAdapter());
+        adapters.push(await RemotionAdapter.newInstance());
       } catch {
         // Ignore
       }

@@ -5,11 +5,12 @@ import { ParsingError, UnsupportedFormatError } from '../utils';
 import { MediaParserAdapter } from './adapter';
 
 export class IsoBoxerAdapter implements MediaParserAdapter {
-  private ISOBoxer: any;
+  private constructor(private ISOBoxer: any) {}
 
-  constructor() {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports, unicorn/prefer-module
-    this.ISOBoxer = require('codem-isoboxer');
+  static async newInstance(): Promise<IsoBoxerAdapter> {
+    // @ts-expect-error codem-isoboxer does not have type definition
+    const ISOBoxer = await import('codem-isoboxer');
+    return new IsoBoxerAdapter(ISOBoxer);
   }
 
   async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
