@@ -12,6 +12,7 @@ const containers = {
   mov: new ContainerDetails('mov', 'mov', ['mov', 'qt', 'qt ', 'qt  ']),
   mp4: new ContainerDetails('mp4', 'mp4', ['m4v', 'm4a', 'isom', 'iso2', 'mp41', 'mp42']),
   webm: new ContainerDetails('webm', 'webm', []),
+  mkv: new ContainerDetails('mkv', 'mkv', ['matroska']),
   avi: new ContainerDetails('avi', 'avi', []),
   mpegts: new ContainerDetails('mpegts', 'ts', ['ts', 'transport-stream', 'm2ts']),
 

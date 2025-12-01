@@ -4,6 +4,7 @@ import { UnsupportedFormatError } from '../utils';
 
 // EBML Element IDs
 const EBML_ID = 0x1a45dfa3;
+const DOCTYPE_ID = 0x4282;
 const SEGMENT_ID = 0x18538067;
 const INFO_ID = 0x1549a966;
 const TIMECODE_SCALE_ID = 0x2ad7b1;
@@ -61,12 +62,12 @@ export class WebmParser {
   private duration = 0;
   private tracks: Map<number, TrackInfo> = new Map();
   private currentClusterTime = 0;
+  private docType: string | undefined;
 
   private isReady = false;
 
   public onReady?: (info: MediaInfo) => void;
   public onSamples?: (trackId: number, user: any, samples: WebmSample[]) => void;
-  public onError?: (error: string) => void;
 
   appendBuffer(data: ArrayBuffer) {
     const newBuffer = new Uint8Array(this.buffer.length + data.byteLength);
@@ -74,20 +75,13 @@ export class WebmParser {
     newBuffer.set(new Uint8Array(data), this.buffer.length);
     this.buffer = newBuffer;
 
-    try {
-      this.parse();
-    } catch (error: any) {
-      if (this.onError) {
-        this.onError(error.message);
-      }
-    }
-  }
-
-  flush() {
-    // No-op for now, maybe handle incomplete data
+    this.parse();
   }
 
   private parse() {
+    if (this.offset === 0 && (this.buffer.length < 4 || this.readUInt(this.buffer.slice(0, 4)) !== EBML_ID)) {
+      throw new UnsupportedFormatError('Not Matroska/WebM: The first four bytes does not look like EBML identifier');
+    }
     while (this.offset < this.buffer.length) {
       // Check if we reached the end of current container element
       if (this.elementStack.length > 0) {
@@ -211,8 +205,12 @@ export class WebmParser {
 
   private processElement(id: number, data: Uint8Array) {
     switch (id) {
-      case EBML_ID: {
-        // Check if it's a valid EBML header?
+      case DOCTYPE_ID: {
+        const docType = this.readString(data);
+        if (docType !== 'webm' && docType !== 'matroska') {
+          throw new UnsupportedFormatError(`Not Matroska/WebM: DocType is '${docType}'`);
+        }
+        this.docType = docType;
         break;
       }
       case TIMECODE_SCALE_ID: {
@@ -442,9 +440,12 @@ export class WebmParser {
         }
       });
 
+      if (!this.docType) {
+        throw new UnsupportedFormatError('Not Matroska/WebM: DocType not found');
+      }
       this.onReady({
-        container: 'webm',
-        containerDetail: 'webm',
+        container: this.docType === 'matroska' ? 'mkv' : this.docType,
+        containerDetail: this.docType,
         durationInSeconds: (this.duration * this.timecodeScale) / 1000000000,
         audioStreams,
         videoStreams,
@@ -499,10 +500,6 @@ export async function parseWebm(stream: ReadableStream<Uint8Array>, _options?: G
       infoFound = true;
       resolve(info);
       // We can stop reading here if we only want metadata
-    };
-
-    parser.onError = (error) => {
-      reject(new UnsupportedFormatError(error));
     };
 
     const reader = stream.getReader();
