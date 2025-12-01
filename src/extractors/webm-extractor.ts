@@ -133,8 +133,6 @@ export async function extractFromWebm(
         .read()
         .then(({ done, value }) => {
           if (done) {
-            parser.flush();
-
             processSampleQueue()
               .then(async () => {
                 await writer.close();
