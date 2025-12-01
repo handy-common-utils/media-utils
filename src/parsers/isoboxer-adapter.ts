@@ -9,7 +9,7 @@ export class IsoBoxerAdapter implements MediaParserAdapter {
 
   static async newInstance(): Promise<IsoBoxerAdapter> {
     // @ts-expect-error codem-isoboxer does not have type definition
-    const ISOBoxer = await import('codem-isoboxer');
+    const ISOBoxer = await import(/* @vite-ignore */ 'codem-isoboxer');
     return new IsoBoxerAdapter(ISOBoxer);
   }
 
