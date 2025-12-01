@@ -15,11 +15,11 @@
     "@handy-common-utils/promise-utils": "^1.7.1"
   },
   "devDependencies": {
-    "@handy-common-utils/dev-dependencies-jest": "^1.8.0",
-    "codem-isoboxer": "^0.3.10"
+    "@handy-common-utils/dev-dependencies-jest": "^1.8.0"
   },
   "optionalDependencies": {
     "@remotion/media-parser": "^4.0.377",
+    "codem-isoboxer": "^0.3.10",
     "mp4box": "^2.2.0"
   },
   "main": "dist/index.js",
