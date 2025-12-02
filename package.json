@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "A pure-JS, no-FFmpeg media info parser and audio stream extractor which works with popular formats and codecs",
   "scripts": {
-    "pretest": "eslint . --ext .ts",
+    "download-sample-media-files": "bash test/download-sample-media-files.sh",
+    "pretest": "eslint . --ext .ts && npm run download-sample-media-files",
     "test": "NODE_OPTIONS='--experimental-vm-modules' jest",
     "compile": "shx rm -rf dist && tsc",
     "prepare": "husky",

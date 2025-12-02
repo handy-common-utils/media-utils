@@ -142,3 +142,4 @@ vite.config.ts.timestamp-*
 dist/
 api-docs/
 test/output/
+test/sample-media-files/large_*.*
