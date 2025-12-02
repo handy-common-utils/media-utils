@@ -120,10 +120,6 @@ export async function extractFromWebm(
       });
     };
 
-    parser.onError = (error) => {
-      abort(new Error(`WebM parser error: ${error}`));
-    };
-
     reader = input.getReader();
 
     function readChunk() {
