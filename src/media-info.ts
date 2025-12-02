@@ -89,7 +89,7 @@ const videoCodecs = {
   wmv2: new AudioCodecDetails('wmv2', 'asf', ['WMV2']),
   av1: new VideoCodecDetails('av1', ['av01', 'V_AV1']),
   prores: new VideoCodecDetails('prores', ['ap']),
-  mpeg4: new VideoCodecDetails('mpeg4', ['V_MPEG4/ISO/SP', 'V_MPEG4/ISO/ASP', 'V_MPEG4/ISO/AP']),
+  mpeg4: new VideoCodecDetails('mpeg4', ['FMP4', 'V_MPEG4/ISO/SP', 'V_MPEG4/ISO/ASP', 'V_MPEG4/ISO/AP']),
   mpeg2: new VideoCodecDetails('mpeg2', ['V_MPEG2']),
   theora: new VideoCodecDetails('theora', ['V_THEORA']),
 };
