@@ -1,18 +1,18 @@
 import { OggMuxer } from '../codecs/ogg';
 import { ExtractAudioOptions } from '../extract-audio';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
-import { WebmParser, WebmSample } from '../parsers/webm';
+import { MkvParser, MkvSample } from '../parsers/mkv';
 import { findAudioStreamToBeExtracted } from './utils';
 
 /**
- * Extract audio from WebM containers (Opus, Vorbis)
+ * Extract audio from MKV/WebM containers (Opus, Vorbis, etc.)
  * @param input The input stream
  * @param output The output stream
  * @param mediaInfo Media information about the file
  * @param optionsInput Extraction options
  * @returns Promise that resolves when extraction is complete
  */
-export async function extractFromWebm(
+export async function extractFromMkv(
   input: ReadableStream<Uint8Array>,
   output: WritableStream<Uint8Array>,
   mediaInfo: MediaInfo,
@@ -28,7 +28,7 @@ export async function extractFromWebm(
   }
 
   return new Promise((resolve, reject) => {
-    const parser = new WebmParser();
+    const parser = new MkvParser();
     const writer = output.getWriter();
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
 
@@ -40,7 +40,7 @@ export async function extractFromWebm(
       reject(error);
     }
 
-    const sampleQueue: Array<WebmSample> = [];
+    const sampleQueue: Array<MkvSample> = [];
     let stream: AudioStreamInfo | undefined;
     let processingChain = Promise.resolve();
     let oggMuxer: OggMuxer | undefined;

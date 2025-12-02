@@ -42,7 +42,7 @@ interface TrackInfo {
   };
 }
 
-export interface WebmSample {
+export interface MkvSample {
   trackId: number;
   data: Uint8Array;
   isKeyframe: boolean;
@@ -50,7 +50,7 @@ export interface WebmSample {
   duration?: number; // in seconds
 }
 
-export class WebmParser {
+export class MkvParser {
   private buffer: Uint8Array = new Uint8Array(0);
   private offset = 0;
   private state: 'ID' | 'SIZE' | 'CONTENT' = 'ID';
@@ -67,7 +67,7 @@ export class WebmParser {
   private isReady = false;
 
   public onReady?: (info: MediaInfo) => void;
-  public onSamples?: (trackId: number, user: any, samples: WebmSample[]) => void;
+  public onSamples?: (trackId: number, user: any, samples: MkvSample[]) => void;
 
   appendBuffer(data: ArrayBuffer) {
     const newBuffer = new Uint8Array(this.buffer.length + data.byteLength);
@@ -485,13 +485,13 @@ export class WebmParser {
 }
 
 /**
- * Parses WebM file from a stream and extracts media information.
+ * Parses MKV/WebM file from a stream and extracts media information.
  * @param stream The input media stream
  * @param _options Optional options for the parser
  * @returns Media information without the parser field
  */
-export async function parseWebm(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
-  const parser = new WebmParser();
+export async function parseMkv(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
+  const parser = new MkvParser();
 
   return new Promise((resolve, reject) => {
     let infoFound = false;
@@ -510,7 +510,7 @@ export async function parseWebm(stream: ReadableStream<Uint8Array>, _options?: G
         .then(({ done, value }) => {
           if (done) {
             if (!infoFound) {
-              reject(new UnsupportedFormatError('Stream ended before WebM info was found'));
+              reject(new UnsupportedFormatError('Stream ended before MKV/WebM info was found'));
             }
             return;
           }

@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports, unicorn/prefer-module */
 
 import { extractFromAsf } from './extractors/asf-extractor';
+import { extractFromMkv } from './extractors/mkv-extractor';
 import { extractFromMp4 } from './extractors/mp4-extractor';
-import { extractFromWebm } from './extractors/webm-extractor';
 import { getMediaInfo } from './get-media-info';
 import { AsfMediaInfo } from './parsers/asf';
 import { createReadableStreamFromFile, ParserRelatedOptions, UnsupportedFormatError } from './utils';
@@ -78,15 +78,16 @@ export async function extractAudio(
     case 'mov': {
       return extractFromMp4(extractStream, output, mediaInfo, options);
     }
+    case 'mkv':
     case 'webm': {
-      return extractFromWebm(extractStream, output, mediaInfo, options);
+      return extractFromMkv(extractStream, output, mediaInfo, options);
     }
     case 'wma':
     case 'asf': {
       return extractFromAsf(extractStream, output, mediaInfo as unknown as AsfMediaInfo, options);
     }
     default: {
-      throw new UnsupportedFormatError(`Unsupported container format: ${container}. Supported formats: mp4, mov, webm, asf, wma`);
+      throw new UnsupportedFormatError(`Unsupported container format: ${container}. Supported formats: mp4, mov, mkv/webm, asf, wma`);
     }
   }
 }

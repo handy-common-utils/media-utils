@@ -6,23 +6,23 @@ import { ParsingError } from '../utils';
 import { parseAac } from './aac';
 import { MediaParserAdapter } from './adapter';
 import { parseAsf } from './asf';
+import { parseMkv } from './mkv';
 import { parseMp3 } from './mp3';
 import { parseOgg } from './ogg';
 import { parseWav } from './wav';
-import { parseWebm } from './webm';
 
 /**
  * In-house parser adapter for audio files with simple headers.
  * Currently supports:
  * - AAC files with ADTS headers
  * - MP3 files with frame headers
- * - WebM files with EBML headers
+ * - MKV/WebM files with EBML headers
  * - WAV files with RIFF headers
  * - OGG files with page headers (Vorbis, Opus)
  * - WMA/WMV files with ASF headers
  */
 export class InhouseParserAdapter implements MediaParserAdapter {
-  private readonly parsers = [parseMp3, parseAac, parseWebm, parseWav, parseOgg, parseAsf];
+  private readonly parsers = [parseMp3, parseAac, parseMkv, parseWav, parseOgg, parseAsf];
 
   async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
     let i = 0;
