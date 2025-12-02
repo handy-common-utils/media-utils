@@ -1,5 +1,5 @@
 import { GetMediaInfoOptions } from '../get-media-info';
-import { AudioStreamInfo, findAudioCodec, findVideoCodec, MediaInfo, VideoStreamInfo } from '../media-info';
+import { AudioCodecType, AudioStreamInfo, findAudioCodec, findVideoCodec, MediaInfo, VideoCodecType, VideoStreamInfo } from '../media-info';
 import { UnsupportedFormatError } from '../utils';
 
 // EBML Element IDs
@@ -18,6 +18,7 @@ const CODEC_PRIVATE_ID = 0x63a2;
 const AUDIO_ID = 0xe1;
 const SAMPLING_FREQUENCY_ID = 0xb5;
 const CHANNELS_ID = 0x9f;
+const BIT_DEPTH_ID = 0x6264;
 const VIDEO_ID = 0xe0;
 const PIXEL_WIDTH_ID = 0xb0;
 const PIXEL_HEIGHT_ID = 0xba;
@@ -35,6 +36,7 @@ interface TrackInfo {
   audio?: {
     samplingFrequency: number;
     channels: number;
+    bitDepth?: number;
   };
   video?: {
     width: number;
@@ -245,6 +247,10 @@ export class MkvParser {
         this.getAudioTrack().channels = this.readUInt(data);
         break;
       }
+      case BIT_DEPTH_ID: {
+        this.getAudioTrack().bitDepth = this.readUInt(data);
+        break;
+      }
       case PIXEL_WIDTH_ID: {
         this.getVideoTrack().width = this.readUInt(data);
         break;
@@ -422,10 +428,11 @@ export class MkvParser {
         if (track.type === 2 && track.audio) {
           audioStreams.push({
             id: track.number,
-            codec: this.mapCodec(track.codecId) as any,
+            codec: this.mapCodec(track.codecId, track.audio.bitDepth) as any,
             codecDetail: track.codecId,
             sampleRate: track.audio.samplingFrequency,
             channelCount: track.audio.channels,
+            bitsPerSample: track.audio.bitDepth,
             durationInSeconds: (this.duration * this.timecodeScale) / 1000000000,
           });
         } else if (track.type === 1 && track.video) {
@@ -454,16 +461,58 @@ export class MkvParser {
     }
   }
 
-  private mapCodec(codecId: string): string {
+  private mapCodec(codecId: string, bitDepth?: number): AudioCodecType | VideoCodecType {
     const videoCodec = findVideoCodec(codecId);
     if (videoCodec) return videoCodec.code;
     const audioCodec = findAudioCodec(codecId);
     if (audioCodec) return audioCodec.code;
 
-    return codecId;
+    switch (codecId) {
+      case 'A_PCM/INT/LIT': {
+        switch (bitDepth) {
+          case 8: {
+            return 'pcm_u8';
+          }
+          case 16: {
+            return 'pcm_s16le';
+          }
+          case 24: {
+            return 'pcm_s24le';
+          }
+          case 32: {
+            return 'pcm_s32le';
+          }
+          default: {
+            throw new UnsupportedFormatError(`Unknown bit depth in Mkv/Webm: ${bitDepth}`);
+          }
+        }
+      }
+      case 'A_PCM/INT/BIG': {
+        switch (bitDepth) {
+          case 8: {
+            return 'pcm_u8';
+          }
+          case 16: {
+            return 'pcm_s16be';
+          }
+          case 24: {
+            return 'pcm_s24be';
+          }
+          case 32: {
+            return 'pcm_s32be';
+          }
+          default: {
+            throw new UnsupportedFormatError(`Unknown bit depth in Mkv/Webm: ${bitDepth}`);
+          }
+        }
+      }
+      default: {
+        throw new UnsupportedFormatError(`Unsupported codec in Mkv/Webm: ${codecId}`);
+      }
+    }
   }
 
-  private getAudioTrack(): { samplingFrequency: number; channels: number } {
+  private getAudioTrack(): { samplingFrequency: number; channels: number; bitDepth?: number } {
     if (!this.currentTrack.audio) this.currentTrack.audio = { samplingFrequency: 0, channels: 0 };
     return this.currentTrack.audio;
   }
