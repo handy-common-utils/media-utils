@@ -51,19 +51,15 @@ if [ ${#files_to_download[@]} -gt 0 ]; then
       else
         # No error from curl but the file is not there
         echo "Error: Failed to download $filename"
-        (( missing_files++ ))
+        exit 1
       fi
     ) &
     pids="$pids $!"
-    if (( $! > 0 )); then
-      # Error from curl
-      (( missing_files++ ))
-    fi
   done
 
   # Wait for all background jobs
   for pid in $pids; do
-    wait $pid
+    wait $pid || (( missing_files++ ))
   done
 
   if (( missing_files > 0 )); then
