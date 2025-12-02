@@ -5,10 +5,18 @@ mkdir -p "$DEST_DIR"
 
 # List of "filename|url"
 FILES=(
-  "large_TearsOfSteel.mov|http://blender-mirror.kino3d.org/mango/download.blender.org/demo/movies/ToS/tears_of_steel_1080p.mov"
-  "large_TearsOfSteel.mkv|http://blender-mirror.kino3d.org/mango/download.blender.org/demo/movies/ToS/tears_of_steel_1080p.mkv"
+  "large_TearsOfSteel.mov|https://mirrors.dotsrc.org/blender/blender-demo/movies/ToS/tears_of_steel_1080p.mov"
   "large_TearsOfSteel.webm|http://media.xiph.org/mango/tears_of_steel_1080p.webm"
   "large_TearsOfSteel.mp4|http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
+  "large_BigBuckBunny_surround.avi|https://download.blender.org/peach/bigbuckbunny_movies/big_buck_bunny_720p_surround.avi"
+  "large_matroska-test-files1.mkv|https://github.com/ietf-wg-cellar/matroska-test-files/raw/refs/heads/master/test_files/test1.mkv"
+  "large_matroska-test-files2.mkv|https://github.com/ietf-wg-cellar/matroska-test-files/raw/refs/heads/master/test_files/test2.mkv"
+  "large_matroska-test-files3.mkv|https://github.com/ietf-wg-cellar/matroska-test-files/raw/refs/heads/master/test_files/test3.mkv"
+  "large_matroska-test-files4.mkv|https://github.com/ietf-wg-cellar/matroska-test-files/raw/refs/heads/master/test_files/test4.mkv"
+  "large_matroska-test-files5.mkv|https://github.com/ietf-wg-cellar/matroska-test-files/raw/refs/heads/master/test_files/test5.mkv"
+  "large_matroska-test-files6.mkv|https://github.com/ietf-wg-cellar/matroska-test-files/raw/refs/heads/master/test_files/test6.mkv"
+  "large_matroska-test-files7.mkv|https://github.com/ietf-wg-cellar/matroska-test-files/raw/refs/heads/master/test_files/test7.mkv"
+  "large_matroska-test-files8.mkv|https://github.com/ietf-wg-cellar/matroska-test-files/raw/refs/heads/master/test_files/test8.mkv"
 )
 
 files_to_download=()
