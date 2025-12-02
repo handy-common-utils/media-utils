@@ -1,5 +1,5 @@
 import { GetMediaInfoOptions } from '../get-media-info';
-import { AudioStreamInfo, MediaInfo, VideoStreamInfo } from '../media-info';
+import { AudioStreamInfo, findAudioCodec, findVideoCodec, MediaInfo, VideoStreamInfo } from '../media-info';
 import { UnsupportedFormatError } from '../utils';
 
 // EBML Element IDs
@@ -455,12 +455,11 @@ export class MkvParser {
   }
 
   private mapCodec(codecId: string): string {
-    if (codecId === 'A_OPUS') return 'opus';
-    if (codecId === 'A_VORBIS') return 'vorbis';
-    if (codecId === 'A_AAC') return 'aac';
-    if (codecId === 'V_VP8') return 'vp8';
-    if (codecId === 'V_VP9') return 'vp9';
-    if (codecId === 'V_AV1') return 'av1';
+    const videoCodec = findVideoCodec(codecId);
+    if (videoCodec) return videoCodec.code;
+    const audioCodec = findAudioCodec(codecId);
+    if (audioCodec) return audioCodec.code;
+
     return codecId;
   }
 

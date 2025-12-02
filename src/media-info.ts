@@ -25,11 +25,16 @@ const containers = {
   asf: new ContainerDetails('asf', 'wmv', []),
 
   ogg: new ContainerDetails('ogg', 'ogg', []),
-  aac: new ContainerDetails('aac', 'aac', ['mp4a.40.2']),
-  mp3: new ContainerDetails('mp3', 'mp3', ['mp4a.6b', '.mp3']),
+  aac: new ContainerDetails('aac', 'aac', []),
+  mp3: new ContainerDetails('mp3', 'mp3', []),
   flac: new ContainerDetails('flac', 'flac', []),
   wav: new ContainerDetails('wav', 'wav', []),
   ac3: new ContainerDetails('ac3', 'ac3', []),
+
+  mp2: new ContainerDetails('mp2', 'mp2', []),
+  mp1: new ContainerDetails('mp1', 'mp1', []),
+  dts: new ContainerDetails('dts', 'dts', []),
+  m4a: new ContainerDetails('m4a', 'm4a', []),
 };
 
 export type ContainerType = keyof typeof containers;
@@ -43,21 +48,25 @@ export class AudioCodecDetails<T extends string> {
 }
 
 const audioCodecs = {
-  mp3: new AudioCodecDetails('mp3', 'mp3', ['mp4a.6b', '.mp3']),
-  opus: new AudioCodecDetails('opus', 'ogg', ['opus', 'mp4a.ad']),
-  aac: new AudioCodecDetails('aac', 'aac', [/^mp4a\.40/, 'mp4a']),
+  mp3: new AudioCodecDetails('mp3', 'mp3', ['mp4a.6b', '.mp3', 'A_MPEG/L3']),
+  opus: new AudioCodecDetails('opus', 'ogg', ['opus', 'mp4a.ad', 'A_OPUS']),
+  aac: new AudioCodecDetails('aac', 'aac', [/^mp4a\.40/, 'mp4a', 'A_AAC', /^A_AAC\/MPEG2\//, /^A_AAC\/MPEG4\//]),
   wmav1: new AudioCodecDetails('wmav1', 'wma', ['WMAv1']),
   wmav2: new AudioCodecDetails('wmav2', 'wma', ['WMAv2']),
   wmapro: new AudioCodecDetails('wmapro', 'wma', ['WMAPro', 'WMA Pro']),
   wmalossless: new AudioCodecDetails('wmalossless', 'wma', ['WMALossless', 'WMA Lossless']),
-  vorbis: new AudioCodecDetails('vorbis', 'ogg', []),
-  ac3: new AudioCodecDetails('ac3', 'ac3', ['ac-3']),
-  flac: new AudioCodecDetails('flac', 'flac', []),
+  vorbis: new AudioCodecDetails('vorbis', 'ogg', ['A_VORBIS']),
+  ac3: new AudioCodecDetails('ac3', 'ac3', ['ac-3', 'A_AC3', 'A_EAC3', 'A_TRUEHD']),
+  flac: new AudioCodecDetails('flac', 'flac', ['A_FLAC']),
   pcm_u8: new AudioCodecDetails('pcm_u8', 'wav', ['pcm-u8']),
   pcm_s16le: new AudioCodecDetails('pcm_s16le', 'wav', ['pcm-s16le', 'pcm-s16']),
   pcm_s24le: new AudioCodecDetails('pcm_s24le', 'wav', ['pcm-s24le', 'pcm-s24']),
   pcm_s32le: new AudioCodecDetails('pcm_s32le', 'wav', ['pcm-s32le', 'pcm-s32']),
-  pcm_f32le: new AudioCodecDetails('pcm_f32le', 'wav', ['pcm-f32le', 'pcm-f32']),
+  pcm_f32le: new AudioCodecDetails('pcm_f32le', 'wav', ['pcm-f32le', 'pcm-f32', 'A_PCM/FLOAT/IEEE']),
+  mp2: new AudioCodecDetails('mp2', 'mp2', ['A_MPEG/L2', 'A_MPEG/L1']),
+  mp1: new AudioCodecDetails('mp1', 'mp1', ['A_MPEG/L1']),
+  dts: new AudioCodecDetails('dts', 'dts', ['A_DTS']),
+  alac: new AudioCodecDetails('alac', 'm4a', ['A_ALAC']),
 };
 
 export type AudioCodecType = keyof typeof audioCodecs;
@@ -70,13 +79,16 @@ export class VideoCodecDetails<T extends string> {
 }
 
 const videoCodecs = {
-  h264: new VideoCodecDetails('h264', ['avc', 'avc1', /^avc1\./]),
-  hevc: new VideoCodecDetails('hevc', ['h265', 'hvc', 'hev', /^hevc_.*/]),
-  vp8: new VideoCodecDetails('vp8', ['vp08', /^vp08\./]),
-  vp9: new VideoCodecDetails('vp9', ['vp09', /^vp09\./]),
+  h264: new VideoCodecDetails('h264', ['avc', 'avc1', /^avc1\./, 'V_MPEG4/ISO/AVC']),
+  hevc: new VideoCodecDetails('hevc', ['h265', 'hvc', 'hev', /^hevc_.*/, 'V_MPEGH/ISO/HEVC']),
+  vp8: new VideoCodecDetails('vp8', ['vp08', /^vp08\./, 'V_VP8']),
+  vp9: new VideoCodecDetails('vp9', ['vp09', /^vp09\./, 'V_VP9']),
   wmv2: new AudioCodecDetails('wmv2', 'asf', ['WMV2']),
-  av1: new VideoCodecDetails('av1', ['av01']),
+  av1: new VideoCodecDetails('av1', ['av01', 'V_AV1']),
   prores: new VideoCodecDetails('prores', ['ap']),
+  mpeg4: new VideoCodecDetails('mpeg4', ['V_MPEG4/ISO/SP', 'V_MPEG4/ISO/ASP', 'V_MPEG4/ISO/AP']),
+  mpeg2: new VideoCodecDetails('mpeg2', ['V_MPEG2']),
+  theora: new VideoCodecDetails('theora', ['V_THEORA']),
 };
 
 export type VideoCodecType = keyof typeof videoCodecs;
