@@ -94,6 +94,7 @@ const videoCodecs = {
   mpeg2: new VideoCodecDetails('mpeg2', ['V_MPEG2']),
   theora: new VideoCodecDetails('theora', ['V_THEORA']),
   mjpeg: new VideoCodecDetails('mjpeg', ['mjpg', 'MJPG', 'V_MJPEG']),
+  msmpeg4v2: new VideoCodecDetails('msmpeg4v2', ['MP42']),
 };
 
 export type VideoCodecType = keyof typeof videoCodecs;

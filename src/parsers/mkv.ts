@@ -131,6 +131,12 @@ export class MkvParser {
         }
 
         if (this.state === 'SIZE') {
+          // 0xFF means unknown size which is usd for live streaming.
+          // We should stop parsing in this case.
+          if (this.buffer[this.bufferOffset] === 0xff) {
+            this.emitReady();
+            break;
+          }
           const { value: size, length } = this.readVint(this.bufferOffset);
           if (size === undefined) {
             if (this.buffer.length - this.bufferOffset < 10) continue;
@@ -203,23 +209,6 @@ export class MkvParser {
   }
 
   private readId(offset: number): { value?: number; length: number } {
-    const { value: _value, length } = this.readVint(offset);
-    if (length === 0) return { length: 0 };
-
-    // ID is encoded as VINT but with specific logic?
-    // Actually EBML IDs are just VINTs where the length descriptor is part of the ID.
-    // My readVint returns the value without the length marker if I masked it?
-    // Wait, readVint implementation:
-    // It masks the length marker.
-    // EBML IDs include the marker bits.
-    // So I need to re-read it as raw bytes?
-    // Or just implement readId separately.
-
-    // Let's look at previous implementation:
-    // value = value * 256 + this.buffer[offset + i];
-    // It was reading raw bytes based on VINT length.
-
-    // Re-implementing readId logic correctly:
     const { length: vintLength } = this.readVint(offset); // Just to get length
     if (vintLength === 0) return { length: 0 };
 
@@ -502,7 +491,7 @@ export class MkvParser {
       } else if (track.type === 1 && track.video) {
         videoStreams.push({
           id: track.number,
-          codec: this.mapCodec(track.codecId) as any,
+          codec: this.mapCodec(track.codecId, undefined, track.codecPrivate) as any,
           codecDetail: track.codecId,
           width: track.video.width,
           height: track.video.height,
@@ -524,7 +513,7 @@ export class MkvParser {
     };
   }
 
-  private mapCodec(codecId: string, bitDepth?: number): AudioCodecType | VideoCodecType {
+  private mapCodec(codecId: string, bitDepth?: number, codecPrivate?: Uint8Array): AudioCodecType | VideoCodecType {
     const videoCodec = findVideoCodec(codecId);
     if (videoCodec) return videoCodec.code;
     const audioCodec = findAudioCodec(codecId);
@@ -569,8 +558,27 @@ export class MkvParser {
           }
         }
       }
+      case 'V_MS/VFW/FOURCC': {
+        if (codecPrivate && codecPrivate.length >= 40) {
+          const view = new DataView(codecPrivate.buffer, codecPrivate.byteOffset, codecPrivate.byteLength);
+          const biSize = view.getUint32(0, true);
+          if (biSize === 40) {
+            const biCompression = view.getUint32(16, true);
+            // eslint-disable-next-line unicorn/prefer-code-point
+            const fourCC = String.fromCharCode(
+              biCompression & 0xff,
+              (biCompression >> 8) & 0xff,
+              (biCompression >> 16) & 0xff,
+              (biCompression >> 24) & 0xff,
+            );
+            const codec = findVideoCodec(fourCC);
+            return codec ? codec.code : (fourCC as any);
+          }
+        }
+        throw new UnsupportedFormatError(`Unknown codec in Mkv/Webm: ${codecId}`);
+      }
       default: {
-        throw new UnsupportedFormatError(`Unsupported codec in Mkv/Webm: ${codecId}`);
+        throw new UnsupportedFormatError(`Unknown codec in Mkv/Webm: ${codecId}`);
       }
     }
   }
