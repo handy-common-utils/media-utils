@@ -1,7 +1,7 @@
 import { parseMP3Header, parseXingHeader } from '../codecs/mp3';
 import { GetMediaInfoOptions } from '../get-media-info';
 import { MediaInfo } from '../media-info';
-import { UnsupportedFormatError } from '../utils';
+import { readBeginning, UnsupportedFormatError } from '../utils';
 
 /**
  * Parses MP3 file from a stream and extracts media information.
@@ -15,33 +15,33 @@ import { UnsupportedFormatError } from '../utils';
  */
 export async function parseMp3(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
   // Read the first chunk to parse the MP3 frame header
+  // Read the first chunk to parse the MP3 frame header
   const reader = stream.getReader();
-  const { done, value } = await reader.read();
-  reader.cancel();
+  const buffer = await readBeginning(reader);
 
-  if (done || !value) {
+  if (!buffer || buffer.length === 0) {
     throw new UnsupportedFormatError('Not an MP3 file: insufficient data');
   }
 
   // Skip ID3v2 tag if present
   let offset = 0;
-  if (value.length >= 10 && value[0] === 0x49 && value[1] === 0x44 && value[2] === 0x33) {
+  if (buffer.length >= 10 && buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33) {
     // ID3v2 tag found, calculate size and skip it
     // Size is stored in bytes 6-9 as synchsafe integer (7 bits per byte)
-    const size = ((value[6] & 0x7f) << 21) | ((value[7] & 0x7f) << 14) | ((value[8] & 0x7f) << 7) | (value[9] & 0x7f);
+    const size = ((buffer[6] & 0x7f) << 21) | ((buffer[7] & 0x7f) << 14) | ((buffer[8] & 0x7f) << 7) | (buffer[9] & 0x7f);
     offset = 10 + size; // 10 byte header + tag size
   }
 
-  if (offset >= value.length) {
+  if (offset >= buffer.length) {
     throw new UnsupportedFormatError('Not an MP3 file: no frame header found after ID3 tag');
   }
 
   // Parse MP3 frame header
-  const audioStream = parseMP3Header(value.slice(offset));
+  const audioStream = parseMP3Header(buffer.slice(offset));
 
   // Try to extract duration from Xing/Info/LAME header
   let durationInSeconds: number | undefined = undefined;
-  const xing = parseXingHeader(value.slice(offset));
+  const xing = parseXingHeader(buffer.slice(offset));
   if (xing.totalFrames && audioStream.sampleRate) {
     // Samples per frame depends on MPEG version and Layer
     // For Layer III:
@@ -49,7 +49,7 @@ export async function parseMp3(stream: ReadableStream<Uint8Array>, _options?: Ge
     let samplesPerFrame = 1152;
     // version: 3 = MPEG1, 2 = MPEG2, 0 = MPEG2.5
     // Layer: 1 = Layer III
-    const header = value.slice(offset, offset + 4);
+    const header = buffer.slice(offset, offset + 4);
     const version = (header[1] >> 3) & 0x03;
     const layer = (header[1] >> 1) & 0x03;
     switch (layer) {

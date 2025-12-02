@@ -87,3 +87,59 @@ export async function readFromStreamToFile(stream: ReadableStream<Uint8Array>, f
     await writePromise;
   }
 }
+
+/**
+ * Ensures that the buffer has enough data by reading from the stream if necessary.
+ * This function manages buffer compaction and appending new data.
+ *
+ * @param reader The ReadableStreamDefaultReader to read from
+ * @param buffer The current data buffer (optional, defaults to empty buffer)
+ * @param bufferOffset The current offset in the buffer (optional, defaults to 0)
+ * @param size The minimum required size of data available in the buffer (buffer.length - bufferOffset)
+ * @returns An object containing the updated buffer, bufferOffset, and a boolean indicating if the stream has ended
+ */
+export async function ensureBufferData(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  buffer?: Uint8Array,
+  bufferOffset?: number,
+  size: number = 64 * 1024,
+): Promise<{ buffer: Uint8Array; bufferOffset: number; done: boolean }> {
+  let currentBuffer = buffer ?? new Uint8Array(0);
+  let currentOffset = bufferOffset ?? 0;
+
+  if (currentBuffer.length - currentOffset < size) {
+    const { done, value } = await reader.read();
+    if (done) {
+      return { buffer: currentBuffer, bufferOffset: currentOffset, done: true };
+    } else if (value) {
+      if (currentOffset > 0) {
+        // Compact buffer
+        currentBuffer = currentBuffer.subarray(currentOffset);
+        currentOffset = 0;
+      }
+      const newBuffer = new Uint8Array(currentBuffer.length + value.length);
+      newBuffer.set(currentBuffer);
+      newBuffer.set(value, currentBuffer.length);
+      currentBuffer = newBuffer;
+      return { buffer: currentBuffer, bufferOffset: currentOffset, done: false };
+    }
+  }
+  return { buffer: currentBuffer, bufferOffset: currentOffset, done: false };
+}
+
+/**
+ * Reads the beginning of a stream up to a specified size.
+ * This function handles reading, buffering, and closing the reader.
+ *
+ * @param reader The ReadableStreamDefaultReader to read from
+ * @param size The amount of data to read (optional, defaults to 64KB)
+ * @returns The read data as a Uint8Array
+ */
+export async function readBeginning(reader: ReadableStreamDefaultReader<Uint8Array>, size: number = 64 * 1024): Promise<Uint8Array> {
+  try {
+    const { buffer } = await ensureBufferData(reader, undefined, undefined, size);
+    return buffer;
+  } finally {
+    reader.cancel().catch(() => {});
+  }
+}

@@ -1,6 +1,6 @@
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioCodecType, AudioStreamInfo, findAudioCodec, findVideoCodec, MediaInfo, VideoCodecType, VideoStreamInfo } from '../media-info';
-import { UnsupportedFormatError } from '../utils';
+import { ensureBufferData, UnsupportedFormatError } from '../utils';
 
 // EBML Element IDs
 const EBML_ID = 0x1a45dfa3;
@@ -28,7 +28,7 @@ const SIMPLE_BLOCK_ID = 0xa3;
 const BLOCK_GROUP_ID = 0xa0;
 const BLOCK_ID = 0xa1;
 
-interface TrackInfo {
+export interface TrackInfo {
   number: number;
   type: number; // 1=video, 2=audio
   codecId: string;
@@ -54,7 +54,9 @@ export interface MkvSample {
 
 export class MkvParser {
   private buffer: Uint8Array = new Uint8Array(0);
+  private bufferOffset = 0;
   private offset = 0;
+  private reader: ReadableStreamDefaultReader<Uint8Array>;
   private state: 'ID' | 'SIZE' | 'CONTENT' = 'ID';
   private currentElementId = 0;
   private currentElementSize = 0;
@@ -67,95 +69,165 @@ export class MkvParser {
   private docType: string | undefined;
 
   private isReady = false;
+  private generatedMediaInfo?: Omit<MediaInfo, 'parser'>;
 
-  public onReady?: (info: MediaInfo) => void;
-  public onSamples?: (trackId: number, user: any, samples: MkvSample[]) => void;
+  private currentTrack: Partial<TrackInfo> = {};
 
-  appendBuffer(data: ArrayBuffer) {
-    const newBuffer = new Uint8Array(this.buffer.length + data.byteLength);
-    newBuffer.set(this.buffer);
-    newBuffer.set(new Uint8Array(data), this.buffer.length);
-    this.buffer = newBuffer;
-
-    this.parse();
+  constructor(
+    stream: ReadableStream<Uint8Array>,
+    private options?: GetMediaInfoOptions,
+    private onSamples?: (trackId: number, samples: MkvSample[]) => void,
+  ) {
+    this.reader = stream.getReader();
   }
 
-  private parse() {
-    if (this.offset === 0 && (this.buffer.length < 4 || this.readUInt(this.buffer.slice(0, 4)) !== EBML_ID)) {
-      throw new UnsupportedFormatError('Not Matroska/WebM: The first four bytes does not look like EBML identifier');
-    }
-    while (this.offset < this.buffer.length) {
-      // Check if we reached the end of current container element
-      if (this.elementStack.length > 0) {
-        // eslint-disable-next-line unicorn/prefer-at
-        const currentContainer = this.elementStack[this.elementStack.length - 1];
-        if (this.offset >= currentContainer.end) {
-          this.elementStack.pop();
+  async parse(): Promise<Omit<MediaInfo, 'parser'>> {
+    try {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        // Memory management: keep buffer size reasonable
+        const { buffer, bufferOffset, done } = await ensureBufferData(this.reader, this.buffer, this.bufferOffset);
+        this.buffer = buffer;
+        this.bufferOffset = bufferOffset;
 
-          if (currentContainer.id === TRACK_ENTRY_ID && this.currentTrack.number !== undefined) {
-            this.tracks.set(this.currentTrack.number, this.currentTrack as TrackInfo);
-          }
-
-          continue;
+        if (done && this.bufferOffset >= this.buffer.length) {
+          break; // End of stream and no more data to process
         }
-      }
 
-      if (this.state === 'ID') {
-        const { value: id, length } = this.readId(this.offset);
-        if (!id) return; // Need more data
-        this.currentElementId = id;
-        this.offset += length;
-        this.state = 'SIZE';
-      }
-
-      if (this.state === 'SIZE') {
-        const { value: size, length } = this.readVint(this.offset);
-        if (size === undefined) return; // Need more data
-        this.currentElementSize = size;
-        this.offset += length;
-        this.state = 'CONTENT';
-      }
-
-      if (this.state === 'CONTENT') {
-        // Handle Master Elements (containers)
-        if (this.isMasterElement(this.currentElementId)) {
-          this.elementStack.push({
-            id: this.currentElementId,
-            end: this.offset + this.currentElementSize,
-          });
-
-          // Initialize track info when entering TrackEntry
-          if (this.currentElementId === TRACK_ENTRY_ID) {
-            this.currentTrack = {};
+        // Check if we have enough data for the first 4 bytes (EBML ID)
+        if (this.offset === 0) {
+          if (this.buffer.length - this.bufferOffset < 4) continue; // Need more data
+          if (this.readUInt(this.buffer.subarray(this.bufferOffset, this.bufferOffset + 4)) !== EBML_ID) {
+            throw new UnsupportedFormatError('Not Matroska/WebM: The first four bytes does not look like EBML identifier');
           }
+        }
+
+        // Check if we reached the end of current container element
+        if (this.elementStack.length > 0) {
+          // eslint-disable-next-line unicorn/prefer-at
+          const currentContainer = this.elementStack[this.elementStack.length - 1];
+          if (this.offset >= currentContainer.end) {
+            this.elementStack.pop();
+
+            if (currentContainer.id === TRACK_ENTRY_ID && this.currentTrack.number !== undefined) {
+              this.tracks.set(this.currentTrack.number, this.currentTrack as TrackInfo);
+            }
+
+            continue;
+          }
+        }
+
+        if (this.state === 'ID') {
+          const { value: id, length } = this.readId(this.bufferOffset);
+          if (!id) {
+            if (this.buffer.length - this.bufferOffset < 10) continue; // Heuristic: wait for more data if we can't read ID
+            // If we really can't read ID even with enough data (unlikely unless EOF), break
+            break;
+          }
+          this.currentElementId = id;
+          this.bufferOffset += length;
+          this.offset += length;
+          this.state = 'SIZE';
+        }
+
+        if (this.state === 'SIZE') {
+          const { value: size, length } = this.readVint(this.bufferOffset);
+          if (size === undefined) {
+            if (this.buffer.length - this.bufferOffset < 10) continue;
+            break;
+          }
+          this.currentElementSize = size;
+          this.bufferOffset += length;
+          this.offset += length;
+          this.state = 'CONTENT';
+        }
+
+        if (this.state === 'CONTENT') {
+          // Handle Master Elements (containers)
+          if (this.isMasterElement(this.currentElementId)) {
+            this.elementStack.push({
+              id: this.currentElementId,
+              end: this.offset + this.currentElementSize,
+            });
+
+            // Initialize track info when entering TrackEntry
+            if (this.currentElementId === TRACK_ENTRY_ID) {
+              this.currentTrack = {};
+            }
+
+            this.state = 'ID';
+            continue;
+          }
+
+          // Check if we have enough data for the content
+          if (this.buffer.length - this.bufferOffset < this.currentElementSize) {
+            // We need more data.
+            // The outer loop will read more data because of the 64K check,
+            // but if the element is huge (>64K), we need to ensure we read enough.
+            // However, the 64K check is just a threshold to trigger reading.
+            // If we are here, it means we consumed data and might be below 64K, so we will read again.
+            // But if the element is larger than what we read, we loop again.
+            // To prevent infinite loop if we are at EOF, we should check that.
+            // But the 'done' check handles EOF.
+
+            // Special case: if element is huge, we might need to read multiple chunks.
+            // The current logic appends to buffer.
+            continue;
+          }
+
+          const data = this.buffer.subarray(this.bufferOffset, this.bufferOffset + this.currentElementSize);
+          this.processElement(this.currentElementId, data);
+          this.bufferOffset += this.currentElementSize;
+          this.offset += this.currentElementSize;
 
           this.state = 'ID';
-          continue;
         }
 
-        // Check if we have enough data for the content
-        if (this.offset + this.currentElementSize > this.buffer.length) {
-          return; // Need more data
+        // Check if we are done parsing metadata
+        if (this.isReady && !this.onSamples && this.generatedMediaInfo) {
+          return this.generatedMediaInfo;
         }
-
-        const data = this.buffer.subarray(this.offset, this.offset + this.currentElementSize);
-        this.processElement(this.currentElementId, data);
-        this.offset += this.currentElementSize;
-
-        this.state = 'ID';
+      }
+    } finally {
+      // Ensure reader is cancelled if we exit early
+      if (!this.onSamples && this.isReady) {
+        this.reader.cancel().catch(() => {});
       }
     }
+
+    if (this.generatedMediaInfo) {
+      return this.generatedMediaInfo;
+    }
+
+    throw new UnsupportedFormatError('Stream ended before MKV/WebM info was found');
   }
 
   private readId(offset: number): { value?: number; length: number } {
-    const { length } = this.readVint(offset);
+    const { value: _value, length } = this.readVint(offset);
     if (length === 0) return { length: 0 };
 
-    let value = 0;
-    for (let i = 0; i < length; i++) {
-      value = value * 256 + this.buffer[offset + i];
+    // ID is encoded as VINT but with specific logic?
+    // Actually EBML IDs are just VINTs where the length descriptor is part of the ID.
+    // My readVint returns the value without the length marker if I masked it?
+    // Wait, readVint implementation:
+    // It masks the length marker.
+    // EBML IDs include the marker bits.
+    // So I need to re-read it as raw bytes?
+    // Or just implement readId separately.
+
+    // Let's look at previous implementation:
+    // value = value * 256 + this.buffer[offset + i];
+    // It was reading raw bytes based on VINT length.
+
+    // Re-implementing readId logic correctly:
+    const { length: vintLength } = this.readVint(offset); // Just to get length
+    if (vintLength === 0) return { length: 0 };
+
+    let idValue = 0;
+    for (let i = 0; i < vintLength; i++) {
+      idValue = idValue * 256 + this.buffer[offset + i];
     }
-    return { value, length };
+    return { value: idValue, length: vintLength };
   }
 
   private readVint(offset: number): { value?: number; length: number } {
@@ -273,18 +345,10 @@ export class MkvParser {
       }
     }
 
-    // Check if we have enough info to trigger onReady
-    if (!this.isReady && this.tracks.size > 0 && this.duration > 0) {
-      // We trigger onReady when we encounter the first Cluster or SimpleBlock,
-      // assuming all tracks have been parsed by then (Tracks element comes before Clusters).
-    }
-
     if ((id === CLUSTER_ID || id === SIMPLE_BLOCK_ID) && !this.isReady) {
       this.emitReady();
     }
   }
-
-  private currentTrack: Partial<TrackInfo> = {};
 
   private getCurrentTrack(): Partial<TrackInfo> {
     return this.currentTrack;
@@ -335,7 +399,7 @@ export class MkvParser {
     const absTime = ((this.currentClusterTime + relTime) * this.timecodeScale) / 1000000000; // seconds
 
     if (this.onSamples && trackId !== undefined) {
-      this.onSamples(trackId, null, [
+      this.onSamples(trackId, [
         {
           trackId,
           data: sampleData,
@@ -368,7 +432,7 @@ export class MkvParser {
     const absTime = ((this.currentClusterTime + relTime) * this.timecodeScale) / 1000000000;
 
     if (this.onSamples && trackId !== undefined) {
-      this.onSamples(trackId, null, [
+      this.onSamples(trackId, [
         {
           trackId,
           data: sampleData,
@@ -420,45 +484,44 @@ export class MkvParser {
 
   private emitReady() {
     this.isReady = true;
-    if (this.onReady) {
-      const audioStreams: AudioStreamInfo[] = [];
-      const videoStreams: VideoStreamInfo[] = [];
 
-      this.tracks.forEach((track) => {
-        if (track.type === 2 && track.audio) {
-          audioStreams.push({
-            id: track.number,
-            codec: this.mapCodec(track.codecId, track.audio.bitDepth) as any,
-            codecDetail: track.codecId,
-            sampleRate: track.audio.samplingFrequency,
-            channelCount: track.audio.channels,
-            bitsPerSample: track.audio.bitDepth,
-            durationInSeconds: (this.duration * this.timecodeScale) / 1000000000,
-          });
-        } else if (track.type === 1 && track.video) {
-          videoStreams.push({
-            id: track.number,
-            codec: this.mapCodec(track.codecId) as any,
-            codecDetail: track.codecId,
-            width: track.video.width,
-            height: track.video.height,
-            durationInSeconds: (this.duration * this.timecodeScale) / 1000000000,
-          });
-        }
-      });
+    const audioStreams: AudioStreamInfo[] = [];
+    const videoStreams: VideoStreamInfo[] = [];
 
-      if (!this.docType) {
-        throw new UnsupportedFormatError('Not Matroska/WebM: DocType not found');
+    this.tracks.forEach((track) => {
+      if (track.type === 2 && track.audio) {
+        audioStreams.push({
+          id: track.number,
+          codec: this.mapCodec(track.codecId, track.audio.bitDepth) as any,
+          codecDetail: track.codecId,
+          sampleRate: track.audio.samplingFrequency,
+          channelCount: track.audio.channels,
+          bitsPerSample: track.audio.bitDepth,
+          durationInSeconds: (this.duration * this.timecodeScale) / 1000000000,
+        });
+      } else if (track.type === 1 && track.video) {
+        videoStreams.push({
+          id: track.number,
+          codec: this.mapCodec(track.codecId) as any,
+          codecDetail: track.codecId,
+          width: track.video.width,
+          height: track.video.height,
+          durationInSeconds: (this.duration * this.timecodeScale) / 1000000000,
+        });
       }
-      this.onReady({
-        container: this.docType === 'matroska' ? 'mkv' : this.docType,
-        containerDetail: this.docType,
-        durationInSeconds: (this.duration * this.timecodeScale) / 1000000000,
-        audioStreams,
-        videoStreams,
-        parser: 'media-utils',
-      } as MediaInfo);
+    });
+
+    if (!this.docType) {
+      throw new UnsupportedFormatError('Not Matroska/WebM: DocType not found');
     }
+
+    this.generatedMediaInfo = {
+      container: this.docType === 'matroska' ? 'mkv' : (this.docType as any),
+      containerDetail: this.docType,
+      durationInSeconds: (this.duration * this.timecodeScale) / 1000000000,
+      audioStreams,
+      videoStreams,
+    };
   }
 
   private mapCodec(codecId: string, bitDepth?: number): AudioCodecType | VideoCodecType {
@@ -535,46 +598,10 @@ export class MkvParser {
 /**
  * Parses MKV/WebM file from a stream and extracts media information.
  * @param stream The input media stream
- * @param _options Optional options for the parser
+ * @param options Optional options for the parser
  * @returns Media information without the parser field
  */
-export async function parseMkv(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
-  const parser = new MkvParser();
-
-  return new Promise((resolve, reject) => {
-    let infoFound = false;
-
-    parser.onReady = (info) => {
-      infoFound = true;
-      resolve(info);
-      // We can stop reading here if we only want metadata
-    };
-
-    const reader = stream.getReader();
-
-    function readChunk() {
-      reader
-        .read()
-        .then(({ done, value }) => {
-          if (done) {
-            if (!infoFound) {
-              reject(new UnsupportedFormatError('Stream ended before MKV/WebM info was found'));
-            }
-            return;
-          }
-
-          if (value) {
-            parser.appendBuffer(value.buffer as ArrayBuffer);
-            if (infoFound) {
-              reader.cancel();
-            } else {
-              readChunk();
-            }
-          }
-        })
-        .catch(reject);
-    }
-
-    readChunk();
-  });
+export async function parseMkv(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
+  const parser = new MkvParser(stream, options);
+  return parser.parse();
 }

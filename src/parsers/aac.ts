@@ -1,7 +1,7 @@
 import { parseADTSHeader } from '../codecs/aac';
 import { GetMediaInfoOptions } from '../get-media-info';
 import { MediaInfo } from '../media-info';
-import { UnsupportedFormatError } from '../utils';
+import { readBeginning, UnsupportedFormatError } from '../utils';
 
 /**
  * Parses AAC file from a stream and extracts media information.
@@ -15,16 +15,16 @@ import { UnsupportedFormatError } from '../utils';
  */
 export async function parseAac(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
   // Read the first chunk to parse the ADTS header
+  // Read the first chunk to parse the ADTS header
   const reader = stream.getReader();
-  const { value } = await reader.read();
-  reader.cancel();
+  const buffer = await readBeginning(reader);
 
-  if (!value) {
+  if (!buffer) {
     throw new UnsupportedFormatError('Not an AAC file: insufficient data');
   }
 
   // Parse ADTS header using the AAC-specific parser
-  const audioStream = parseADTSHeader(value);
+  const audioStream = parseADTSHeader(buffer);
 
   return {
     container: 'aac',

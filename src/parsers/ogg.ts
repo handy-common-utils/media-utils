@@ -1,6 +1,6 @@
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
-import { UnsupportedFormatError } from '../utils';
+import { readBeginning, UnsupportedFormatError } from '../utils';
 
 /**
  * Parses OGG file from a stream and extracts media information.
@@ -13,26 +13,25 @@ import { UnsupportedFormatError } from '../utils';
  */
 export async function parseOgg(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
   const reader = stream.getReader();
-  const { done, value } = await reader.read();
-  reader.cancel();
+  const buffer = await readBeginning(reader);
 
-  if (done || !value || value.length < 27) {
+  if (!buffer || buffer.length < 27) {
     throw new UnsupportedFormatError('Not an OGG file: insufficient data');
   }
 
   // Check OGG page header ("OggS")
-  if (value[0] !== 0x4f || value[1] !== 0x67 || value[2] !== 0x67 || value[3] !== 0x53) {
+  if (buffer[0] !== 0x4f || buffer[1] !== 0x67 || buffer[2] !== 0x67 || buffer[3] !== 0x53) {
     throw new UnsupportedFormatError('Not an OGG file: missing OggS signature');
   }
 
   // Version (should be 0)
-  if (value[4] !== 0) {
+  if (buffer[4] !== 0) {
     throw new UnsupportedFormatError('Not an OGG file: unsupported version');
   }
 
   // Skip to segment table
-  const numSegments = value[26];
-  if (value.length < 27 + numSegments) {
+  const numSegments = buffer[26];
+  if (buffer.length < 27 + numSegments) {
     throw new UnsupportedFormatError('Not an OGG file: incomplete segment table');
   }
 
@@ -46,16 +45,16 @@ export async function parseOgg(stream: ReadableStream<Uint8Array>, _options?: Ge
   let channelCount = 0;
 
   // Check for Vorbis
-  if (value.length >= payloadOffset + 7) {
-    const packetType = value[payloadOffset];
+  if (buffer.length >= payloadOffset + 7) {
+    const packetType = buffer[payloadOffset];
     // eslint-disable-next-line unicorn/prefer-code-point
     const codecStr = String.fromCharCode(
-      value[payloadOffset + 1],
-      value[payloadOffset + 2],
-      value[payloadOffset + 3],
-      value[payloadOffset + 4],
-      value[payloadOffset + 5],
-      value[payloadOffset + 6],
+      buffer[payloadOffset + 1],
+      buffer[payloadOffset + 2],
+      buffer[payloadOffset + 3],
+      buffer[payloadOffset + 4],
+      buffer[payloadOffset + 5],
+      buffer[payloadOffset + 6],
     );
 
     if (packetType === 1 && codecStr === 'vorbis') {
@@ -63,26 +62,26 @@ export async function parseOgg(stream: ReadableStream<Uint8Array>, _options?: Ge
       codecDetail = 'vorbis';
 
       // Parse Vorbis identification header
-      if (value.length >= payloadOffset + 30) {
+      if (buffer.length >= payloadOffset + 30) {
         // Version (4 bytes, little-endian) at offset 7
         // Channels (1 byte) at offset 11
-        channelCount = value[payloadOffset + 11];
+        channelCount = buffer[payloadOffset + 11];
         // Sample rate (4 bytes, little-endian) at offset 12
         sampleRate =
-          value[payloadOffset + 12] | (value[payloadOffset + 13] << 8) | (value[payloadOffset + 14] << 16) | (value[payloadOffset + 15] << 24);
+          buffer[payloadOffset + 12] | (buffer[payloadOffset + 13] << 8) | (buffer[payloadOffset + 14] << 16) | (buffer[payloadOffset + 15] << 24);
       }
-    } else if (value.length >= payloadOffset + 8) {
+    } else if (buffer.length >= payloadOffset + 8) {
       // Check for "OpusHead"  (8 bytes)
       // eslint-disable-next-line unicorn/prefer-code-point
       const opusHeader = String.fromCharCode(
-        value[payloadOffset],
-        value[payloadOffset + 1],
-        value[payloadOffset + 2],
-        value[payloadOffset + 3],
-        value[payloadOffset + 4],
-        value[payloadOffset + 5],
-        value[payloadOffset + 6],
-        value[payloadOffset + 7],
+        buffer[payloadOffset],
+        buffer[payloadOffset + 1],
+        buffer[payloadOffset + 2],
+        buffer[payloadOffset + 3],
+        buffer[payloadOffset + 4],
+        buffer[payloadOffset + 5],
+        buffer[payloadOffset + 6],
+        buffer[payloadOffset + 7],
       );
 
       if (opusHeader === 'OpusHead') {
@@ -90,10 +89,10 @@ export async function parseOgg(stream: ReadableStream<Uint8Array>, _options?: Ge
         codecDetail = 'opus';
 
         // Parse Opus identification header
-        if (value.length >= payloadOffset + 19) {
+        if (buffer.length >= payloadOffset + 19) {
           // Version (1 byte) at offset 8
           // Channel count (1 byte) at offset 9
-          channelCount = value[payloadOffset + 9];
+          channelCount = buffer[payloadOffset + 9];
           // Opus always uses 48000 Hz internally
           sampleRate = 48000;
         }

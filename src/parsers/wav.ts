@@ -1,6 +1,6 @@
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
-import { UnsupportedFormatError } from '../utils';
+import { readBeginning, UnsupportedFormatError } from '../utils';
 
 /**
  * Parses WAV file from a stream and extracts media information.
@@ -13,31 +13,30 @@ import { UnsupportedFormatError } from '../utils';
  */
 export async function parseWav(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
   const reader = stream.getReader();
-  const { done, value } = await reader.read();
-  reader.cancel();
+  const buffer = await readBeginning(reader);
 
-  if (done || !value || value.length < 44) {
+  if (!buffer || buffer.length < 44) {
     throw new UnsupportedFormatError('Not a WAV file: insufficient data');
   }
 
   // Check RIFF header
-  if (value[0] !== 0x52 || value[1] !== 0x49 || value[2] !== 0x46 || value[3] !== 0x46) {
+  if (buffer[0] !== 0x52 || buffer[1] !== 0x49 || buffer[2] !== 0x46 || buffer[3] !== 0x46) {
     // "RIFF"
     throw new UnsupportedFormatError('Not a WAV file: missing RIFF header');
   }
 
   // Check WAVE format
-  if (value[8] !== 0x57 || value[9] !== 0x41 || value[10] !== 0x56 || value[11] !== 0x45) {
+  if (buffer[8] !== 0x57 || buffer[9] !== 0x41 || buffer[10] !== 0x56 || buffer[11] !== 0x45) {
     // "WAVE"
     throw new UnsupportedFormatError('Not a WAV file: missing WAVE format');
   }
 
   // Find fmt chunk
   let fmtOffset = 12;
-  while (fmtOffset < value.length - 8) {
+  while (fmtOffset < buffer.length - 8) {
     // eslint-disable-next-line unicorn/prefer-code-point
-    const chunkId = String.fromCharCode(value[fmtOffset], value[fmtOffset + 1], value[fmtOffset + 2], value[fmtOffset + 3]);
-    const chunkSize = value[fmtOffset + 4] | (value[fmtOffset + 5] << 8) | (value[fmtOffset + 6] << 16) | (value[fmtOffset + 7] << 24);
+    const chunkId = String.fromCharCode(buffer[fmtOffset], buffer[fmtOffset + 1], buffer[fmtOffset + 2], buffer[fmtOffset + 3]);
+    const chunkSize = buffer[fmtOffset + 4] | (buffer[fmtOffset + 5] << 8) | (buffer[fmtOffset + 6] << 16) | (buffer[fmtOffset + 7] << 24);
 
     if (chunkId === 'fmt ') {
       break;
@@ -46,17 +45,17 @@ export async function parseWav(stream: ReadableStream<Uint8Array>, _options?: Ge
     fmtOffset += 8 + chunkSize;
   }
 
-  if (fmtOffset >= value.length - 8) {
+  if (fmtOffset >= buffer.length - 8) {
     throw new UnsupportedFormatError('Not a WAV file: missing fmt chunk');
   }
 
   // Parse fmt chunk (must be at least 16 bytes)
-  const fmtChunkSize = value[fmtOffset + 4] | (value[fmtOffset + 5] << 8) | (value[fmtOffset + 6] << 16) | (value[fmtOffset + 7] << 24);
-  if (fmtChunkSize < 16 || fmtOffset + 8 + 16 > value.length) {
+  const fmtChunkSize = buffer[fmtOffset + 4] | (buffer[fmtOffset + 5] << 8) | (buffer[fmtOffset + 6] << 16) | (buffer[fmtOffset + 7] << 24);
+  if (fmtChunkSize < 16 || fmtOffset + 8 + 16 > buffer.length) {
     throw new UnsupportedFormatError('Not a WAV file: invalid fmt chunk');
   }
 
-  const fmtData = value.subarray(fmtOffset + 8, fmtOffset + 8 + fmtChunkSize);
+  const fmtData = buffer.subarray(fmtOffset + 8, fmtOffset + 8 + fmtChunkSize);
 
   // Parse fmt chunk fields (little-endian)
   const audioFormat = fmtData[0] | (fmtData[1] << 8);
@@ -79,10 +78,10 @@ export async function parseWav(stream: ReadableStream<Uint8Array>, _options?: Ge
   let dataOffset = fmtOffset + 8 + fmtChunkSize;
   let dataSize = 0;
 
-  while (dataOffset < value.length - 8) {
+  while (dataOffset < buffer.length - 8) {
     // eslint-disable-next-line unicorn/prefer-code-point
-    const chunkId = String.fromCharCode(value[dataOffset], value[dataOffset + 1], value[dataOffset + 2], value[dataOffset + 3]);
-    const chunkSize = value[dataOffset + 4] | (value[dataOffset + 5] << 8) | (value[dataOffset + 6] << 16) | (value[dataOffset + 7] << 24);
+    const chunkId = String.fromCharCode(buffer[dataOffset], buffer[dataOffset + 1], buffer[dataOffset + 2], buffer[dataOffset + 3]);
+    const chunkSize = buffer[dataOffset + 4] | (buffer[dataOffset + 5] << 8) | (buffer[dataOffset + 6] << 16) | (buffer[dataOffset + 7] << 24);
 
     if (chunkId === 'data') {
       dataSize = chunkSize;
