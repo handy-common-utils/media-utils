@@ -356,16 +356,79 @@ describe('getMediaInfo with media-utils parser', () => {
     });
   });
 
-  it.each(['engine-start.h264.aac.mp4', 'engine-start.mjpeg.pcms16le.avi', 'engine-start.h264.pcms16le.avi', 'engine-start.mpeg2video.mp2.m2ts'])(
-    'should fail to parse %s',
-    async (filename) => {
-      try {
-        await getMediaInfoFromFile(sampleFile(filename), { useParser: 'media-utils' });
-        expect('').toBe('should fail to parse');
-      } catch (error) {
-        expect(error).toBeInstanceOf(Error);
-        expect(error).toHaveProperty('isUnsupportedFormatError', true);
-      }
-    },
-  );
+  it('should parse engine-start.mjpeg.pcms16le.avi file', async () => {
+    const info = await getMediaInfoFromFile(sampleFile('engine-start.mjpeg.pcms16le.avi'), { useParser: 'media-utils' });
+    expect(info).toEqual({
+      audioStreams: [
+        {
+          id: 2,
+          channelCount: 2,
+          codec: 'pcm_s16le',
+          codecDetail: 'PCM (0x0001)',
+          durationInSeconds: 6,
+          sampleRate: 44100,
+          bitsPerSample: 16,
+          bitrate: expect.closeTo(1411200, -3) as any,
+        },
+      ],
+      container: 'avi',
+      containerDetail: 'avi',
+      durationInSeconds: expect.closeTo(6, 0) as any,
+      parser: 'media-utils',
+      videoStreams: [
+        {
+          id: 1,
+          codec: 'mjpeg',
+          codecDetail: 'MJPG',
+          width: 1280,
+          height: 534,
+          durationInSeconds: 6,
+          fps: 24,
+        },
+      ],
+    } as MediaInfo);
+  });
+
+  it('should parse engine-start.h264.pcms16le.avi file', async () => {
+    const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.pcms16le.avi'), { useParser: 'media-utils' });
+    expect(info).toEqual({
+      audioStreams: [
+        {
+          id: 2,
+          channelCount: 2,
+          codec: 'pcm_s16le',
+          codecDetail: 'PCM (0x0001)',
+          durationInSeconds: 6,
+          sampleRate: 44100,
+          bitsPerSample: 16,
+          bitrate: expect.closeTo(1411200, -3) as any,
+        },
+      ],
+      container: 'avi',
+      containerDetail: 'avi',
+      durationInSeconds: expect.closeTo(6, 0) as any,
+      parser: 'media-utils',
+      videoStreams: [
+        {
+          id: 1,
+          codec: 'h264',
+          codecDetail: 'H264',
+          width: 1280,
+          height: 534,
+          durationInSeconds: 6,
+          fps: 24,
+        },
+      ],
+    } as MediaInfo);
+  });
+
+  it.each(['engine-start.h264.aac.mp4', 'engine-start.mpeg2video.mp2.m2ts'])('should fail to parse %s', async (filename) => {
+    try {
+      await getMediaInfoFromFile(sampleFile(filename), { useParser: 'media-utils' });
+      expect('').toBe('should fail to parse');
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect(error).toHaveProperty('isUnsupportedFormatError', true);
+    }
+  });
 });

@@ -70,6 +70,7 @@ const audioCodecs = {
   mp1: new AudioCodecDetails('mp1', 'mp1', ['A_MPEG/L1']),
   dts: new AudioCodecDetails('dts', 'dts', ['A_DTS']),
   alac: new AudioCodecDetails('alac', 'm4a', ['A_ALAC']),
+  adpcm: new AudioCodecDetails('adpcm', 'wav', ['A_ADPCM']),
 };
 
 export type AudioCodecType = keyof typeof audioCodecs;
@@ -82,8 +83,8 @@ export class VideoCodecDetails<T extends string> {
 }
 
 const videoCodecs = {
-  h264: new VideoCodecDetails('h264', ['avc', 'avc1', /^avc1\./, 'V_MPEG4/ISO/AVC']),
-  hevc: new VideoCodecDetails('hevc', ['h265', 'hvc', 'hev', /^hevc_.*/, 'V_MPEGH/ISO/HEVC']),
+  h264: new VideoCodecDetails('h264', ['H264', 'avc', 'avc1', 'X264', 'AVC1', /^avc1\./, 'V_MPEG4/ISO/AVC']),
+  hevc: new VideoCodecDetails('hevc', ['h265', 'H265', 'hvc', 'hev', /^hevc_.*/, 'V_MPEGH/ISO/HEVC']),
   vp8: new VideoCodecDetails('vp8', ['vp08', /^vp08\./, 'V_VP8']),
   vp9: new VideoCodecDetails('vp9', ['vp09', /^vp09\./, 'V_VP9']),
   wmv2: new AudioCodecDetails('wmv2', 'asf', ['WMV2']),
@@ -92,6 +93,7 @@ const videoCodecs = {
   mpeg4: new VideoCodecDetails('mpeg4', ['FMP4', 'V_MPEG4/ISO/SP', 'V_MPEG4/ISO/ASP', 'V_MPEG4/ISO/AP']),
   mpeg2: new VideoCodecDetails('mpeg2', ['V_MPEG2']),
   theora: new VideoCodecDetails('theora', ['V_THEORA']),
+  mjpeg: new VideoCodecDetails('mjpeg', ['mjpg', 'MJPG', 'V_MJPEG']),
 };
 
 export type VideoCodecType = keyof typeof videoCodecs;

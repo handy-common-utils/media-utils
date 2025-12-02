@@ -22,19 +22,21 @@ This library provides a unified interface to extract media information (duration
 
 ### Verified Combinations
 
-| Format      | Codecs         | `auto` | `media-utils` | `mp4box` | `isoboxer` | `remotion` |
-| :---------- | :------------- | :----: | :-----------: | :------: | :--------: | :--------: |
-| **MP4**     | H.264 / AAC    |   ✅   |               |    ✅    |     ✅     |     ✅     |
-| **MP4**     | H.264 / MP3    |   ✅   |               |    ✅    |     ✅     |     ✅     |
-| **MOV**     | H.264 / AAC    |   ✅   |               |    ✅    |     ✅     |     ✅     |
-| **MOV**     | H.264 / MP3    |   ✅   |               |    ✅    |     ✅     |            |
-| **WebM**    | VP8/9 / Opus   |   ✅   |      ✅       |          |            |     ✅     |
-| **WebM**    | VP8/9 / Vorbis |   ✅   |      ✅       |          |            |     ✅     |
-| **ASF/WMV** | WMV / WMA      |   ✅   |      ✅       |          |            |            |
-| **AAC**     | AAC            |   ✅   |      ✅       |          |            |     ✅     |
-| **MP3**     | MP3            |   ✅   |      ✅       |          |            |     ✅     |
-| **OGG**     | Opus/Vorbis    |   ✅   |      ✅       |          |            |            |
-| **WAV**     | PCM            |   ✅   |      ✅       |          |            |            |
+| Format      | Codecs                                  | `auto` | `media-utils` | `mp4box` | `isoboxer` | `remotion` |
+| :---------- | :-------------------------------------- | :----: | :-----------: | :------: | :--------: | :--------: |
+| **MP4**     | H.264 / AAC                             |   ✅   |               |    ✅    |     ✅     |     ✅     |
+| **MP4**     | H.264 / MP3                             |   ✅   |               |    ✅    |     ✅     |     ✅     |
+| **MOV**     | H.264 / AAC                             |   ✅   |               |    ✅    |     ✅     |     ✅     |
+| **MOV**     | H.264 / MP3                             |   ✅   |               |    ✅    |     ✅     |            |
+| **WebM**    | VP8/9 / Opus                            |   ✅   |      ✅       |          |            |     ✅     |
+| **WebM**    | VP8/9 / Vorbis                          |   ✅   |      ✅       |          |            |     ✅     |
+| **MKV**     | THEORA/H264/VP8/9 / Opus/MP3/AAC/Vorbis |   ✅   |      ✅       |          |            |     ✅     |
+| **ASF/WMV** | WMV / WMA                               |   ✅   |      ✅       |          |            |            |
+| **AVI**     | H.264/MJPEG / AAC/MP3                   |   ✅   |      ✅       |          |            |     ✅     |
+| **AAC**     | AAC                                     |   ✅   |      ✅       |          |            |     ✅     |
+| **MP3**     | MP3                                     |   ✅   |      ✅       |          |            |     ✅     |
+| **OGG**     | Opus/Vorbis                             |   ✅   |      ✅       |          |            |            |
+| **WAV**     | PCM                                     |   ✅   |      ✅       |          |            |            |
 
 ### Optional Dependencies
 
