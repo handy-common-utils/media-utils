@@ -75,6 +75,24 @@ const audioCodecs = {
 
 export type AudioCodecType = keyof typeof audioCodecs;
 
+/**
+ * Check if the audio codec is a PCM (including ADPCM) codec
+ * @param audioCodec The audio codec to check
+ * @returns True if the audio codec is a PCM codec, false otherwise
+ */
+export function isPCM(audioCodec: AudioCodecType | string | undefined | null): boolean {
+  return audioCodec === audioCodecs.adpcm.code || (audioCodec?.startsWith('pcm') ?? false);
+}
+
+/**
+ * Check if the audio codec is a WMA codec
+ * @param audioCodec The audio codec to check
+ * @returns True if the audio codec is a WMA codec, false otherwise
+ */
+export function isWMA(audioCodec: AudioCodecType | string | undefined | null): boolean {
+  return audioCodec?.startsWith('wma') ?? false;
+}
+
 export class VideoCodecDetails<T extends string> {
   constructor(
     public readonly code: T,
