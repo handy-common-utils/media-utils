@@ -18,7 +18,7 @@ export class RemotionAdapter implements MediaParserAdapter {
       const msg = (error as Error)?.message;
       if (
         msg &&
-        /(^Unknown [a-zA-Z0-9]+ format:)|(^Only [a-zA-Z0-9]+ is supported)|(^No tracks yet)|(^IsAnUnsupportedFileTypeError:)|(Unknown file format)|(expected [a-zA-Z0-9 ]+, got)/.test(
+        /(^Unknown [a-zA-Z0-9]+ format:)|(^Unknown codec:)|Infinite loop detected.|(^Only [a-zA-Z0-9]+ is supported)|(^No tracks yet)|(^IsAnUnsupportedFileTypeError:)|(Unknown file format)|(expected [a-zA-Z0-9 ]+, got)/.test(
           msg,
         )
       ) {

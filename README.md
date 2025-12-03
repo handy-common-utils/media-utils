@@ -20,23 +20,44 @@ This library provides a unified interface to extract media information (duration
   3. `isoboxer`: [codem-isoboxer](https://www.npmjs.com/package/codem-isoboxer)
   4. `remotion`: [@remotion/media-parser](https://www.npmjs.com/package/@remotion/media-parser)
 
-### Verified Combinations
+### Verified Combinations for getMediaInfo by parser
 
-| Format      | Codecs                                  | `auto` | `media-utils` | `mp4box` | `isoboxer` | `remotion` |
-| :---------- | :-------------------------------------- | :----: | :-----------: | :------: | :--------: | :--------: |
-| **MP4**     | H.264 / AAC                             |   ✅   |               |    ✅    |     ✅     |     ✅     |
-| **MP4**     | H.264 / MP3                             |   ✅   |               |    ✅    |     ✅     |     ✅     |
-| **MOV**     | H.264 / AAC                             |   ✅   |               |    ✅    |     ✅     |     ✅     |
-| **MOV**     | H.264 / MP3                             |   ✅   |               |    ✅    |     ✅     |            |
-| **WebM**    | VP8/9 / Opus                            |   ✅   |      ✅       |          |            |     ✅     |
-| **WebM**    | VP8/9 / Vorbis                          |   ✅   |      ✅       |          |            |     ✅     |
-| **MKV**     | THEORA/H264/VP8/9 / Opus/MP3/AAC/Vorbis |   ✅   |      ✅       |          |            |     ✅     |
-| **ASF/WMV** | WMV / WMA                               |   ✅   |      ✅       |          |            |            |
-| **AVI**     | H.264/MJPEG / AAC/MP3                   |   ✅   |      ✅       |          |            |     ✅     |
-| **AAC**     | AAC                                     |   ✅   |      ✅       |          |            |     ✅     |
-| **MP3**     | MP3                                     |   ✅   |      ✅       |          |            |     ✅     |
-| **OGG**     | Opus/Vorbis                             |   ✅   |      ✅       |          |            |            |
-| **WAV**     | PCM                                     |   ✅   |      ✅       |          |            |            |
+| Format              | Codecs (Video/Audio) | `auto` | `media-utils` | `mp4box` | `isoboxer` | `remotion` |
+| :------------------ | :------------------- | :----: | :-----------: | :------: | :--------: | :--------: |
+| **MP4**             | H.264 / AAC          |   ✅   |      ❌       |    ✅    |     ✅     |     ✅     |
+| **MP4**             | H.264 / MP3          |   ✅   |      ❌       |    ✅    |     ✅     |     ✅     |
+| **MOV**             | H.264 / AAC          |   ✅   |      ❌       |    ✅    |     ✅     |     ✅     |
+| **MOV**             | H.264 / MP3          |   ✅   |      ❌       |    ✅    |     ✅     |     ❌     |
+| **WebM**            | VP8 / Vorbis         |   ✅   |      ✅       |    ❌    |     ❌     |     ✅     |
+| **WebM**            | VP9 / Opus           |   ✅   |      ✅       |    ❌    |     ❌     |     ✅     |
+| **WebM**            | VP9 / Vorbis         |   ✅   |      ✅       |    ❌    |     ❌     |     ✅     |
+| **WebM**            | AV1 / Opus           |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
+| **MKV**             | MSMPEG4v2 / MP3      |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
+| **MKV**             | H.264 / AAC          |   ✅   |      ✅       |    ❌    |     ❌     |     ✅     |
+| **MKV**             | H.264 / MP3          |   ✅   |      ✅       |    ❌    |     ❌     |     ✅     |
+| **MKV** (streaming) | THEORA / Vorbis      |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
+| **WMV**             | WMV2 / WMAv2         |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
+| **AVI**             | MJPEG / PCM          |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
+| **AVI**             | H.264 / PCM          |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
+| **M2TS**            | MPEG2 / MP2          |   ❌   |      ❌       |    ❌    |     ❌     |     ❌     |
+| **AAC**             | AAC                  |   ✅   |      ✅       |    ❌    |     ❌     |     ✅     |
+| **MP3**             | MP3                  |   ✅   |      ✅       |    ❌    |     ❌     |     ✅     |
+| **OGG**             | Opus                 |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
+| **OGG**             | Vorbis               |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
+| **WAV**             | PCM                  |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
+| **WMA**             | WMAv2                |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
+
+### Verified Combinations for extractAudio
+
+| Source Format | Source Codecs (Video/Audio) | Extracted Format | Supported |
+| :------------ | :-------------------------- | :--------------- | :-------: |
+| **MP4**       | H.264 / AAC                 | AAC              |    ✅     |
+| **MP4**       | H.264 / MP3                 | MP3              |    ✅     |
+| **MOV**       | H.264 / AAC                 | AAC              |    ✅     |
+| **MOV**       | H.264 / MP3                 | MP3              |    ✅     |
+| **WebM**      | VP9 / Opus                  | OGG (Opus)       |    ✅     |
+| **WebM**      | VP9 / Vorbis                | OGG (Vorbis)     |    ✅     |
+| **WMV**       | WMV2 / WMAv2                | WMA              |    ✅     |
 
 ### Optional Dependencies
 

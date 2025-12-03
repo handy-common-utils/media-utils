@@ -422,13 +422,16 @@ describe('getMediaInfo with media-utils parser', () => {
     } as MediaInfo);
   });
 
-  it.each(['engine-start.h264.aac.mp4', 'engine-start.mpeg2video.mp2.m2ts'])('should fail to parse %s', async (filename) => {
-    try {
-      await getMediaInfoFromFile(sampleFile(filename), { useParser: 'media-utils' });
-      expect('').toBe('should fail to parse');
-    } catch (error) {
-      expect(error).toBeInstanceOf(Error);
-      expect(error).toHaveProperty('isUnsupportedFormatError', true);
-    }
-  });
+  it.each(['engine-start.h264.aac.mp4', 'engine-start.mpeg2video.mp2.m2ts', 'engine-start.h264.aac.mov', 'engine-start.h264.mp3.mov'])(
+    'should fail to parse %s',
+    async (filename) => {
+      try {
+        await getMediaInfoFromFile(sampleFile(filename), { useParser: 'media-utils' });
+        expect('').toBe('should fail to parse');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect(error).toHaveProperty('isUnsupportedFormatError', true);
+      }
+    },
+  );
 });
