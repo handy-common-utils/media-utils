@@ -70,7 +70,7 @@ const audioCodecs = {
   mp1: new AudioCodecDetails('mp1', 'mp1', ['A_MPEG/L1']),
   dts: new AudioCodecDetails('dts', 'dts', ['A_DTS']),
   alac: new AudioCodecDetails('alac', 'm4a', ['A_ALAC']),
-  adpcm: new AudioCodecDetails('adpcm', 'wav', ['A_ADPCM']),
+  adpcm_ms: new AudioCodecDetails('adpcm_ms', 'wav', ['A_ADPCM']),
 };
 
 export type AudioCodecType = keyof typeof audioCodecs;
@@ -81,7 +81,7 @@ export type AudioCodecType = keyof typeof audioCodecs;
  * @returns True if the audio codec is a PCM codec, false otherwise
  */
 export function isPCM(audioCodec: AudioCodecType | string | undefined | null): boolean {
-  return audioCodec === audioCodecs.adpcm.code || (audioCodec?.startsWith('pcm') ?? false);
+  return (audioCodec?.startsWith('adpcm') ?? false) || (audioCodec?.startsWith('pcm') ?? false);
 }
 
 /**
@@ -144,6 +144,67 @@ export interface AudioStreamInfo {
   bitrate?: number;
   durationInSeconds?: number;
   profile?: string;
+  /**
+   * Codec-specific details (stream-level properties)
+   *
+   * For ADPCM codecs (MS ADPCM, IMA ADPCM, etc.), these properties are constant
+   * for the entire audio stream and stored once in the container's format header:
+   * - WAV: in the fmt chunk
+   * - AVI: in the stream format chunk (strf)
+   * - MKV (A_MS/ACM): inside the CodecPrivate WAVEFORMATEX
+   *
+   * These values do NOT change per block/frame.
+   */
+  codecDetails?: {
+    /**
+     * Format tag (wFormatTag) — STREAM LEVEL
+     *
+     * Identifies the codec type:
+     * - 0x0001 = PCM
+     * - 0x0002 = MS ADPCM
+     * - 0x0011 = IMA ADPCM
+     * - etc.
+     *
+     * Stored once in the container's format header, not in each block.
+     */
+    formatTag?: number;
+
+    /**
+     * Block align (nBlockAlign) — STREAM LEVEL
+     *
+     * The size (in bytes) of each encoded ADPCM block.
+     * Must remain constant for the whole stream.
+     *
+     * - Containers expect every read operation to start on a block boundary
+     * - ADPCM decoding requires knowing block size ahead of time
+     * - Every ADPCM block in the stream must be exactly blockAlign bytes
+     *
+     * Not stored per block — the block itself does not announce its own length.
+     */
+    blockAlign?: number;
+
+    /**
+     * Samples per block — STREAM LEVEL
+     *
+     * Tells the decoder how many PCM samples will come out of each compressed block.
+     * Derived from the codec and blockAlign.
+     *
+     * Needed because ADPCM uses:
+     * - Warm-up samples
+     * - 4-bit deltas
+     *
+     * Also constant for the entire stream. Not stored per block.
+     *
+     * The block itself contains:
+     * - Predictor index
+     * - Delta (step size)
+     * - Warm-up samples
+     * - 4-bit deltas
+     *
+     * ...but NOT samples-per-block (that's known from the stream header).
+     */
+    samplesPerBlock?: number;
+  };
 }
 
 export interface MediaInfo {

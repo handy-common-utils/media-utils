@@ -1,7 +1,7 @@
 {
   "name": "@handy-common-utils/media-utils",
   "version": "1.0.0",
-  "description": "A pure-JS, no-FFmpeg media info parser and audio stream extractor which works with popular formats and codecs",
+  "description": "A pure-JS, no-FFmpeg media info parser and audio stream extractor which works with popular formats and codecs and runs well in both browser and Node.js environments.",
   "scripts": {
     "download-sample-media-files": "bash test/download-sample-media-files.sh",
     "pretest": "eslint . --ext .ts && npm run download-sample-media-files",

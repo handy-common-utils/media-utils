@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports, unicorn/prefer-module */
 
 import { extractFromAsf } from './extractors/asf-extractor';
+import { extractFromAvi } from './extractors/avi-extractor';
 import { extractFromMkv } from './extractors/mkv-extractor';
 import { extractFromMp4 } from './extractors/mp4-extractor';
 import { getMediaInfo } from './get-media-info';
@@ -86,8 +87,11 @@ export async function extractAudio(
     case 'asf': {
       return extractFromAsf(extractStream, output, mediaInfo as unknown as AsfMediaInfo, options);
     }
+    case 'avi': {
+      return extractFromAvi(extractStream, output, mediaInfo, options);
+    }
     default: {
-      throw new UnsupportedFormatError(`Unsupported container format: ${container}. Supported formats: mp4, mov, mkv/webm, asf, wma`);
+      throw new UnsupportedFormatError(`Unsupported container format: ${container}. Supported formats: mp4, mov, mkv/webm, asf, wma, avi`);
     }
   }
 }

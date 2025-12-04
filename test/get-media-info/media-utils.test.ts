@@ -181,16 +181,23 @@ describe('getMediaInfo with media-utils parser', () => {
       audioStreams: [
         {
           id: 1,
+          bitrate: 1411200,
+          bitsPerSample: 16,
           channelCount: 2,
           codec: 'pcm_s16le',
           codecDetail: 'pcm_s16le',
-          durationInSeconds: expect.closeTo(6, 0.1),
+          durationInSeconds: expect.closeTo(6, 1),
           sampleRate: 44100,
+          codecDetails: {
+            formatTag: 1,
+            blockAlign: 4,
+            samplesPerBlock: undefined,
+          },
         },
       ],
       container: 'wav',
       containerDetail: 'wav',
-      durationInSeconds: expect.closeTo(6, 0.1),
+      durationInSeconds: expect.closeTo(6, 1),
       parser: 'media-utils',
       videoStreams: [],
     });
@@ -369,6 +376,10 @@ describe('getMediaInfo with media-utils parser', () => {
           sampleRate: 44100,
           bitsPerSample: 16,
           bitrate: expect.closeTo(1411200, -3) as any,
+          codecDetails: {
+            formatTag: 1,
+            blockAlign: 4,
+          },
         },
       ],
       container: 'avi',
@@ -402,6 +413,10 @@ describe('getMediaInfo with media-utils parser', () => {
           sampleRate: 44100,
           bitsPerSample: 16,
           bitrate: expect.closeTo(1411200, -3) as any,
+          codecDetails: {
+            formatTag: 1,
+            blockAlign: 4,
+          },
         },
       ],
       container: 'avi',

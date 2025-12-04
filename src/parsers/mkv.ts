@@ -82,11 +82,12 @@ export class MkvParser {
   }
 
   async parse(): Promise<Omit<MediaInfo, 'parser'>> {
+    let requiredSize = 64 * 1024;
     try {
       // eslint-disable-next-line no-constant-condition
       while (true) {
         // Memory management: keep buffer size reasonable
-        const { buffer, bufferOffset, done } = await ensureBufferData(this.reader, this.buffer, this.bufferOffset);
+        const { buffer, bufferOffset, done } = await ensureBufferData(this.reader, this.buffer, this.bufferOffset, requiredSize);
         this.buffer = buffer;
         this.bufferOffset = bufferOffset;
 
@@ -162,22 +163,16 @@ export class MkvParser {
             }
 
             this.state = 'ID';
+            requiredSize = 64 * 1024;
             continue;
           }
 
           // Check if we have enough data for the content
           if (this.buffer.length - this.bufferOffset < this.currentElementSize) {
-            // We need more data.
-            // The outer loop will read more data because of the 64K check,
-            // but if the element is huge (>64K), we need to ensure we read enough.
-            // However, the 64K check is just a threshold to trigger reading.
-            // If we are here, it means we consumed data and might be below 64K, so we will read again.
-            // But if the element is larger than what we read, we loop again.
-            // To prevent infinite loop if we are at EOF, we should check that.
-            // But the 'done' check handles EOF.
-
-            // Special case: if element is huge, we might need to read multiple chunks.
-            // The current logic appends to buffer.
+            if (done) {
+              throw new UnsupportedFormatError('Unexpected EOF: Element size larger than remaining data');
+            }
+            requiredSize = this.currentElementSize;
             continue;
           }
 
@@ -187,6 +182,7 @@ export class MkvParser {
           this.offset += this.currentElementSize;
 
           this.state = 'ID';
+          requiredSize = 64 * 1024;
         }
 
         // Check if we are done parsing metadata
@@ -376,26 +372,95 @@ export class MkvParser {
     const timecode = (data[offset] << 8) | data[offset + 1];
     offset += 2;
 
-    // const flags = data[offset];
+    // Flags byte:
+    // Bit 7: Keyframe (1 = keyframe, 0 = not keyframe)
+    // Bit 6-4: Reserved (0)
+    // Bit 3: Invisible (1 = invisible, 0 = visible)
+    // Bit 2-1: Lacing (00 = no lacing, 01 = Xiph, 11 = EBML, 10 = fixed-size)
+    // Bit 0: Discardable
+    const flags = data[offset];
     offset += 1;
 
-    const isKeyframe = (data[offset - 1] & 0x80) !== 0;
-
-    const sampleData = data.subarray(offset);
+    const isKeyframe = (flags & 0x80) !== 0;
+    const lacing = (flags >> 1) & 0x03;
 
     // timecode is int16 (signed) relative to cluster time
     const relTime = (timecode << 16) >> 16;
     const absTime = ((this.currentClusterTime + relTime) * this.timecodeScale) / 1000000000; // seconds
 
     if (this.onSamples && trackId !== undefined) {
-      this.onSamples(trackId, [
-        {
+      const frames: Uint8Array[] = [];
+
+      if (lacing === 0) {
+        // No lacing
+        frames.push(data.subarray(offset));
+      } else {
+        const numFrames = data[offset] + 1;
+        offset++;
+        const sizes: number[] = [];
+
+        switch (lacing) {
+          case 1: {
+            // Xiph lacing
+            for (let i = 0; i < numFrames - 1; i++) {
+              let size = 0;
+              while (data[offset] === 255) {
+                size += 255;
+                offset++;
+              }
+              size += data[offset];
+              offset++;
+              sizes.push(size);
+            }
+            break;
+          }
+          case 3: {
+            // EBML lacing
+            const firstSize = this.readVintFromBuffer(data, offset);
+            offset += firstSize.length;
+            sizes.push(firstSize.value);
+            let lastSize = firstSize.value;
+
+            for (let i = 1; i < numFrames - 1; i++) {
+              const diff = this.readVintFromBuffer(data, offset);
+              offset += diff.length;
+
+              // Decode signed VINT for difference
+              const range = 2 ** (diff.length * 7 - 1) - 1;
+              const difference = diff.value - range;
+
+              lastSize += difference;
+              sizes.push(lastSize);
+            }
+            break;
+          }
+          case 2: {
+            // Fixed-size lacing
+            const remaining = data.length - offset;
+            const size = remaining / numFrames;
+            for (let i = 0; i < numFrames - 1; i++) {
+              sizes.push(size);
+            }
+            break;
+          }
+        }
+
+        for (const size of sizes) {
+          frames.push(data.subarray(offset, offset + size));
+          offset += size;
+        }
+        frames.push(data.subarray(offset));
+      }
+
+      this.onSamples(
+        trackId,
+        frames.map((frameData) => ({
           trackId,
-          data: sampleData,
+          data: frameData,
           isKeyframe,
           time: absTime,
-        },
-      ]);
+        })),
+      );
     }
   }
 

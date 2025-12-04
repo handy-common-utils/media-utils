@@ -6,6 +6,7 @@ import { createADTSFrame } from '../codecs/aac';
 import { ExtractAudioOptions } from '../extract-audio';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
 import { makeMp4BoxQuiet } from '../parsers/mp4box-adapter';
+import { UnsupportedFormatError } from '../utils';
 import { findAudioStreamToBeExtracted } from './utils';
 
 /**
@@ -74,7 +75,7 @@ export async function extractFromMp4(
             } else if (stream.codec === 'mp3') {
               await writer.write(sampleData);
             } else {
-              await writer.write(sampleData);
+              throw new UnsupportedFormatError(`Unsupported codec for extracting from MP4/MOV: ${stream?.codec}`);
             }
           } catch (error) {
             writer.abort(error);

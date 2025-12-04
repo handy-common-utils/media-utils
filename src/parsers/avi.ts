@@ -1,4 +1,5 @@
 /* eslint-disable max-depth */
+import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioCodecType, findVideoCodec, MediaInfo } from '../media-info';
 import { ensureBufferData, UnsupportedFormatError } from '../utils';
 
@@ -34,15 +35,33 @@ interface AudioFormat {
   avgBytesPerSec: number;
   blockAlign: number;
   bitsPerSample: number;
+  adpcmDetails?: {
+    samplesPerBlock: number;
+  };
+}
+
+/**
+ * Callback function to receive audio samples from AVI movi LIST
+ * @param streamNumber - The AVI stream number (0-based)
+ * @param samples - Array of sample buffers
+ */
+export type OnAviSamplesCallback = (streamNumber: number, samples: Uint8Array[]) => void | Promise<void>;
+
+export interface ParseAviOptions extends GetMediaInfoOptions {
+  /**
+   * Callback function to receive samples from the movi LIST.
+   */
+  onSamples?: OnAviSamplesCallback;
 }
 
 /**
  * Parse AVI (Audio Video Interleaved) files
  * AVI is built on RIFF (Resource Interchange File Format) structure
  * @param stream - The readable stream of the AVI file
+ * @param options - Optional options for the parser
  * @returns Promise resolving to MediaInfo
  */
-export async function parseAvi(stream: ReadableStream<Uint8Array>): Promise<MediaInfo> {
+export async function parseAvi(stream: ReadableStream<Uint8Array>, options?: ParseAviOptions): Promise<MediaInfo> {
   const reader = stream.getReader();
   let buffer: Uint8Array = new Uint8Array(0);
   let offset = 0;
@@ -81,7 +100,6 @@ export async function parseAvi(stream: ReadableStream<Uint8Array>): Promise<Medi
     offset += 2;
     return value;
   }
-
   // Helper to skip bytes
   function skip(bytes: number): void {
     offset += bytes;
@@ -211,10 +229,43 @@ export async function parseAvi(stream: ReadableStream<Uint8Array>): Promise<Medi
                       const bitsPerSample = readUInt16LE();
 
                       audioFormat = { formatTag, channels, samplesPerSec, avgBytesPerSec, blockAlign, bitsPerSample };
+
+                      // Check for extra data (cbSize + extra bytes)
+                      // For ADPCM formats, the WAVEFORMATEX structure is extended with codec-specific data
+                      const bytesRead = 16; // The standard WAVEFORMATEX fields read so far
+                      if (strlChunkSize > bytesRead) {
+                        const cbSize = readUInt16LE();
+
+                        // Parse MS ADPCM specific data (formatTag 0x0002)
+                        // MS ADPCM extra data structure:
+                        // - samplesPerBlock (2 bytes) — STREAM LEVEL: constant for entire stream
+                        // - numCoef (2 bytes) — always 7 for MS ADPCM
+                        // - coefficients (numCoef * 4 bytes) — the 7 standard predictor coefficient pairs
+                        //
+                        // Note: The coefficient values are standardized and don't need to be stored.
+                        // Each ADPCM block header contains a predictor index (0-6) that selects
+                        // which coefficient pair to use for that block.
+                        if (formatTag === 0x0002 && cbSize >= 4) {
+                          // samplesPerBlock: How many PCM samples each ADPCM block will decode to
+                          // This is STREAM LEVEL — constant for the entire audio stream
+                          const samplesPerBlock = readUInt16LE();
+                          audioFormat.adpcmDetails = {
+                            samplesPerBlock,
+                          };
+                          // Skip the rest (numCoef + coefficients)
+                          // MS ADPCM coefficients are standardized (always the same 7 pairs)
+                          // and don't need to be stored per-stream
+                          skip(cbSize - 2);
+                        } else {
+                          // Skip other extra data
+                          skip(cbSize);
+                        }
+                      }
                     }
                   }
 
                   // Move to next chunk in strl
+                  // offset is already updated if we read extra data, but we need to ensure we align to chunk end
                   offset = strlChunkStart + strlChunkSize;
                   if (strlChunkSize % 2) offset++; // Word alignment
                 }
@@ -233,7 +284,34 @@ export async function parseAvi(stream: ReadableStream<Uint8Array>): Promise<Medi
             if (subChunkSize % 2) offset++; // Word alignment
           }
         } else if (listType === 'movi') {
-          // Media data - we don't need to parse this for metadata
+          // Media data - process chunks if onSamples callback is provided
+          if (options?.onSamples) {
+            // Process all chunks in the movi LIST
+            while (offset - chunkStart < chunkSize - 4) {
+              if (!(await ensureBytes(8))) break;
+
+              const dataChunkId = read4CC();
+              const dataChunkSize = readUInt32LE();
+
+              if (!(await ensureBytes(dataChunkSize))) break;
+
+              // Extract stream number from chunk ID (first 2 characters)
+              // Examples: "00dc" -> stream 0, "01wb" -> stream 1
+              const streamNumberStr = dataChunkId.slice(0, 2);
+              const streamNumber = Number.parseInt(streamNumberStr, 10);
+
+              // Extract chunk data
+              const chunkData = buffer.slice(offset, offset + dataChunkSize);
+
+              // Call the callback with stream number and samples
+              // We wrap the chunk data in an array as requested
+              await options.onSamples(streamNumber, [chunkData]);
+
+              offset += dataChunkSize;
+              if (dataChunkSize % 2) offset++; // Word alignment
+            }
+          }
+          // After processing movi (or skipping it), we're done
           break;
         }
       }
@@ -242,8 +320,8 @@ export async function parseAvi(stream: ReadableStream<Uint8Array>): Promise<Medi
       offset = chunkStart + chunkSize;
       if (chunkSize % 2) offset++; // Word alignment
 
-      // Stop after reading headers
-      if (aviHeader && (videoStreams.length > 0 || audioStreams.length > 0)) {
+      // Stop after reading headers, unless we are extracting samples
+      if (!options?.onSamples && aviHeader && (videoStreams.length > 0 || audioStreams.length > 0)) {
         break;
       }
     }
@@ -297,14 +375,31 @@ export async function parseAvi(stream: ReadableStream<Uint8Array>): Promise<Medi
       const formatTagHex = `0x${stream.format.formatTag.toString(16).padStart(4, '0')}`;
       switch (stream.format.formatTag) {
         case 0x0001: {
-          codec = 'pcm_s16le';
+          switch (stream.format.bitsPerSample) {
+            case 8: {
+              codec = 'pcm_u8';
+              break;
+            }
+            case 24: {
+              codec = 'pcm_s24le';
+              break;
+            }
+            case 32: {
+              codec = 'pcm_s32le';
+              break;
+            }
+            default: {
+              codec = 'pcm_s16le';
+              break;
+            }
+          }
           codecDetail = `PCM (${formatTagHex})`;
           break;
         }
         case 0x0011:
         case 0x0069:
         case 0x0002: {
-          codec = 'adpcm';
+          codec = 'adpcm_ms';
           codecDetail = `ADPCM (${formatTagHex})`;
           break;
         }
@@ -345,6 +440,11 @@ export async function parseAvi(stream: ReadableStream<Uint8Array>): Promise<Medi
         bitrate: stream.format.avgBytesPerSec * 8,
         bitsPerSample: stream.format.bitsPerSample || undefined,
         durationInSeconds: duration,
+        codecDetails: {
+          formatTag: stream.format.formatTag,
+          blockAlign: stream.format.blockAlign,
+          samplesPerBlock: stream.format.adpcmDetails?.samplesPerBlock,
+        },
       });
     });
     mediaInfo.durationInSeconds = Math.max(

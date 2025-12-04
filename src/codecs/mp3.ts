@@ -53,6 +53,13 @@ export function parseMP3Header(data: Uint8Array): AudioStreamInfo {
     throw new UnsupportedFormatError('Not an MP3 file: insufficient data');
   }
 
+  // Frame Sync Patterns
+  // 11 bits set to 1 → 0xFFE or 0xFFF (when including next bit)
+  // Byte 1 must be: 0xFF
+  // (binary: 1111 1111)
+  // Byte 2 must be: 111xxxxx
+  // (where xxxxx are valid MPEG header fields)
+
   // Parse MP3 frame header (4 bytes)
   const header = data.slice(0, 4);
 

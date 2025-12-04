@@ -1,6 +1,7 @@
 # @handy-common-utils/media-utils
 
 A pure-JS, no-FFmpeg media info parser and audio stream extractor which works with popular formats and codecs.
+It runs well in both browser and Node.js environments.
 
 [![Version](https://img.shields.io/npm/v/@handy-common-utils/media-utils.svg)](https://npmjs.org/package/@handy-common-utils/media-utils)
 [![Downloads/week](https://img.shields.io/npm/dw/@handy-common-utils/media-utils.svg)](https://npmjs.org/package/@handy-common-utils/media-utils)
@@ -8,17 +9,17 @@ A pure-JS, no-FFmpeg media info parser and audio stream extractor which works wi
 
 ## Getting Media Information
 
-This library provides a unified interface to extract media information (duration, video/audio streams, codecs, etc.) from various media formats. It can use its own lightweight in-house parsers or different 3rd party parsers (`mp4box`, `codem-isoboxer`, `@remotion/media-parser`). Those 3rd party parsers are optional dependencies of this library.
+This library provides a unified interface to extract media information (duration, video/audio streams, codecs, etc.) from various media formats. It can use its own lightweight in-house parsers or several 3rd party parsers (`mp4box`, `codem-isoboxer`, `@remotion/media-parser`). Those 3rd party parsers are optional dependencies of this library.
 
 ### Key Features
 
 - **Unified API**: Get consistent `MediaInfo` object regardless of the parser used.
 - **Browser & Node.js**: Works in both environments (file system helpers are Node.js only).
 - **Smart Fallback**: The `auto` mode tries parsers in this order:
-  1. `media-utils` (this library): Fast, lightweight, for raw AAC/MP3/WAV/OGG files and WebM/ASF containers.
-  2. `mp4box`: [mp4box](https://www.npmjs.com/package/mp4box)
-  3. `isoboxer`: [codem-isoboxer](https://www.npmjs.com/package/codem-isoboxer)
-  4. `remotion`: [@remotion/media-parser](https://www.npmjs.com/package/@remotion/media-parser)
+  1. `media-utils` (this library): Fast, lightweight, for raw AAC/MP3/WAV/OGG/WMA audio files as well as MKV/WebM/ASF/WMV containers.
+  2. `mp4box`: [mp4box](https://www.npmjs.com/package/mp4box), handles only MP4/MOV containers.
+  3. `isoboxer`: [codem-isoboxer](https://www.npmjs.com/package/codem-isoboxer), handles only MP4/MOV containers.
+  4. `remotion`: [@remotion/media-parser](https://www.npmjs.com/package/@remotion/media-parser), handles some popular containers.
 
 ### Verified Combinations for getMediaInfo by parser
 
@@ -47,27 +48,17 @@ This library provides a unified interface to extract media information (duration
 | **WAV**             | PCM                  |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
 | **WMA**             | WMAv2                |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
 
-### Verified Combinations for extractAudio
-
-| Source Format | Source Codecs (Video/Audio) | Extracted Format | Supported |
-| :------------ | :-------------------------- | :--------------- | :-------: |
-| **MP4**       | H.264 / AAC                 | AAC              |    ✅     |
-| **MP4**       | H.264 / MP3                 | MP3              |    ✅     |
-| **MOV**       | H.264 / AAC                 | AAC              |    ✅     |
-| **MOV**       | H.264 / MP3                 | MP3              |    ✅     |
-| **WebM**      | VP9 / Opus                  | OGG (Opus)       |    ✅     |
-| **WebM**      | VP9 / Vorbis                | OGG (Vorbis)     |    ✅     |
-| **WMV**       | WMV2 / WMAv2                | WMA              |    ✅     |
+Note: For streaming MKV, no stream details are available.
 
 ### Optional Dependencies
 
-To support different formats, you may need to install optional dependencies:
+If you don't have those optional dependencies in use already, the recommendation is to install `mp4box` together with this package.
 
-- `mp4box`: [mp4box](https://www.npmjs.com/package/mp4box) - Recommended for MP4/MOV support.
-- `codem-isoboxer`: [codem-isoboxer](https://www.npmjs.com/package/codem-isoboxer) - Alternative for MP4/MOV.
-- `@remotion/media-parser`: [@remotion/media-parser](https://www.npmjs.com/package/@remotion/media-parser) - Supports WebM and other formats.
+```shell
+npm install @handy-common-utils/media-utils mp4box
+```
 
-This library picks them up automatically if they are installed.
+This library will pick optional dependencies automatically if they are installed.
 
 ### Example
 
@@ -87,21 +78,31 @@ const infoMp4Box = await getMediaInfoFromFile('path/to/video.mp4', { useParser: 
 
 ## Extracting Audio Stream
 
-You can extract audio streams from video files (MP4, MOV, WebM, ASF/WMV) without re-encoding. This is fast and preserves original quality.
+You can extract audio streams from video files (MP4, MOV, MKV/WebM, ASF/WMV, AVI) without re-encoding. This is fast and preserves original quality.
 
-### Supported Scenarios
+### Verified Combinations for extractAudio
 
-- **Containers**: MP4, MOV, WebM, ASF/WMV.
-- **Audio Codecs**:
-  - **AAC**: Can be saved as .aac
-  - **MP3**: Can be saved as .mp3
-  - **Opus**: Can be saved as .ogg
-  - **Vorbis**: Can be saved as .ogg
-  - **WMA**: Can be saved as .wma
+| Source Format | Source Codecs (Video/Audio) | Extracted Format | Supported |
+| :------------ | :-------------------------- | :--------------- | :-------: |
+| **MP4**       | H.264 / AAC                 | AAC              |    ✅     |
+| **MP4**       | H.264 / MP3                 | MP3              |    ✅     |
+| **MOV**       | H.264 / AAC                 | AAC              |    ✅     |
+| **MOV**       | H.264 / MP3                 | MP3              |    ✅     |
+| **WebM**      | VP9 / Opus                  | OGG (Opus)       |    ✅     |
+| **WebM**      | VP9 / Vorbis                | OGG (Vorbis)     |    ✅     |
+| **MKV**       | H.264 / AAC                 | AAC              |    ✅     |
+| **MKV**       | MSMPEG4v2 / MP3             | MP3              |    ✅     |
+| **AVI**       | MJPEG / PCM                 | WAV              |    ✅     |
+| **AVI**       | H.264 / PCM                 | WAV              |    ✅     |
+| **WMV**       | WMV2 / WMAv2                | WMA              |    ✅     |
 
 ### Dependencies
 
-- Requires `mp4box` to be installed.
+`extractAudio` requires `mp4box` to be installed.
+
+```shell
+npm install @handy-common-utils/media-utils mp4box
+```
 
 ### Example
 

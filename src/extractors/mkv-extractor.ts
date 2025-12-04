@@ -1,7 +1,9 @@
+import { createADTSFrame } from '../codecs/aac';
 import { OggMuxer } from '../codecs/ogg';
 import { ExtractAudioOptions } from '../extract-audio';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
 import { MkvParser } from '../parsers/mkv';
+import { UnsupportedFormatError } from '../utils';
 import { findAudioStreamToBeExtracted } from './utils';
 
 /**
@@ -77,9 +79,13 @@ export async function extractFromMkv(
           // Wrap frame in OGG page
           const oggPage = oggMuxer.muxFrame(sample.data, false, sample.time);
           await writer.write(oggPage);
-        } else {
-          // For non-OGG codecs, write raw frame data
+        } else if (stream?.codec === 'aac') {
+          const adtsFrame = createADTSFrame(sample.data, stream);
+          await writer.write(adtsFrame);
+        } else if (stream?.codec === 'mp3') {
           await writer.write(sample.data);
+        } else {
+          throw new UnsupportedFormatError(`Unsupported codec for extracting from MKV/WebM: ${stream?.codec}`);
         }
       }
     });

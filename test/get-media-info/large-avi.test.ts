@@ -33,6 +33,11 @@ describe('getMediaInfo with large AVI files', () => {
           bitrate: 448000,
           bitsPerSample: undefined,
           durationInSeconds: expect.closeTo(596, 0) as any,
+          codecDetails: {
+            blockAlign: 1,
+            formatTag: 8192,
+            samplesPerBlock: undefined,
+          },
         },
       ],
     } as MediaInfo);
