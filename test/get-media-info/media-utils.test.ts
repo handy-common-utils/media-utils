@@ -35,7 +35,7 @@ describe('getMediaInfo with media-utils parser', () => {
       audioStreams: [
         {
           id: 1,
-          bitrate: 64000,
+          bitrate: expect.closeTo(128273, -2) as any, // Average bitrate from VBR header
           channelCount: 2,
           codec: 'mp3',
           codecDetail: 'mp3',
@@ -254,6 +254,7 @@ describe('getMediaInfo with media-utils parser', () => {
           channelCount: 2,
           codec: 'wmav2',
           codecDetail: 'WMAv2',
+          bitrate: 128000,
           durationInSeconds: 6,
           sampleRate: 44100,
           bitsPerSample: 16,
@@ -283,6 +284,7 @@ describe('getMediaInfo with media-utils parser', () => {
           channelCount: 2,
           codec: 'wmav2',
           codecDetail: 'WMAv2',
+          bitrate: 128000,
           durationInSeconds: 6,
           sampleRate: 44100,
           bitsPerSample: 16,
@@ -323,6 +325,7 @@ describe('getMediaInfo with media-utils parser', () => {
           channelCount: 2,
           codec: 'wmav2',
           codecDetail: 'WMAv2',
+          bitrate: 128000,
           durationInSeconds: 6,
           sampleRate: 44100,
           bitsPerSample: 16,

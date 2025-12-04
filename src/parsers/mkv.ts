@@ -544,13 +544,17 @@ export class MkvParser {
 
     this.tracks.forEach((track) => {
       if (track.type === 2 && track.audio) {
+        // Extract codec-specific metadata from CodecPrivate
+        const codecMetadata = this.extractAudioCodecMetadata(track.codecId, track.codecPrivate, track.audio);
+
         audioStreams.push({
           id: track.number,
           codec: this.mapCodec(track.codecId, track.audio.bitDepth) as any,
           codecDetail: track.codecId,
-          sampleRate: track.audio.samplingFrequency,
-          channelCount: track.audio.channels,
-          bitsPerSample: track.audio.bitDepth,
+          sampleRate: codecMetadata.sampleRate ?? track.audio.samplingFrequency,
+          channelCount: codecMetadata.channelCount ?? track.audio.channels,
+          bitsPerSample: codecMetadata.bitsPerSample ?? track.audio.bitDepth,
+          bitrate: codecMetadata.bitrate,
           durationInSeconds: (this.duration * this.timecodeScale) / 1000000000,
         });
       } else if (track.type === 1 && track.video) {
@@ -576,6 +580,202 @@ export class MkvParser {
       audioStreams,
       videoStreams,
     };
+  }
+
+  /**
+   * Extract codec-specific metadata from CodecPrivate
+   * Different codecs store different information in CodecPrivate
+   * @param codecId The codec identifier string
+   * @param codecPrivate The CodecPrivate data from the track
+   * @param audioInfo Basic audio information from the track
+   * @param audioInfo.samplingFrequency The sampling frequency of the audio
+   * @param audioInfo.channels The number of channels in the audio
+   * @param audioInfo.bitDepth The bit depth of the audio
+   * @returns Extracted codec metadata including bitrate, sample rate, etc.
+   */
+  private extractAudioCodecMetadata(
+    codecId: string,
+    codecPrivate: Uint8Array | undefined,
+    audioInfo: { samplingFrequency: number; channels: number; bitDepth?: number },
+  ): {
+    sampleRate?: number;
+    channelCount?: number;
+    bitsPerSample?: number;
+    bitrate?: number;
+  } {
+    const result: {
+      sampleRate?: number;
+      channelCount?: number;
+      bitsPerSample?: number;
+      bitrate?: number;
+    } = {};
+
+    if (!codecPrivate || codecPrivate.length === 0) {
+      return result;
+    }
+
+    try {
+      switch (codecId) {
+        case 'A_VORBIS': {
+          // Vorbis stores 3 header packets in CodecPrivate
+          // Format: [num_packets(1)] [size1(varint)] [size2(varint)] [packet1] [packet2] [packet3]
+          // The identification header (packet1) contains bitrate info
+          const numPackets = codecPrivate[0];
+          if (numPackets >= 2) {
+            let offset = 1;
+            // Read lacing sizes for first two packets
+            const sizes: number[] = [];
+            for (let i = 0; i < numPackets - 1; i++) {
+              let size = 0;
+              while (offset < codecPrivate.length && codecPrivate[offset] === 255) {
+                size += 255;
+                offset++;
+              }
+              if (offset < codecPrivate.length) {
+                size += codecPrivate[offset];
+                offset++;
+              }
+              sizes.push(size);
+            }
+
+            // First packet is the identification header
+            if (offset + 30 <= codecPrivate.length) {
+              const idHeader = codecPrivate.subarray(offset, offset + sizes[0]);
+              // Vorbis identification header structure:
+              // 0: packet_type (1 byte) = 0x01
+              // 1-6: "vorbis" (6 bytes)
+              // 7-10: vorbis_version (4 bytes, little-endian)
+              // 11: audio_channels (1 byte)
+              // 12-15: audio_sample_rate (4 bytes, little-endian)
+              // 16-19: bitrate_maximum (4 bytes, little-endian, signed)
+              // 20-23: bitrate_nominal (4 bytes, little-endian, signed)
+              // 24-27: bitrate_minimum (4 bytes, little-endian, signed)
+              if (idHeader[0] === 0x01 && idHeader.length >= 28) {
+                const view = new DataView(idHeader.buffer, idHeader.byteOffset, idHeader.byteLength);
+                const nominalBitrate = view.getInt32(20, true); // little-endian
+                if (nominalBitrate > 0) {
+                  result.bitrate = nominalBitrate;
+                }
+              }
+            }
+          }
+          break;
+        }
+
+        case 'A_OPUS': {
+          // Opus CodecPrivate contains OpusHead
+          // OpusHead structure:
+          // 0-7: "OpusHead" (8 bytes)
+          // 8: Version (1 byte)
+          // 9: Channel Count (1 byte)
+          // 10-11: Pre-skip (2 bytes, little-endian)
+          // 12-15: Input Sample Rate (4 bytes, little-endian) - original sample rate, not 48kHz
+          // 16-17: Output Gain (2 bytes, little-endian, signed)
+          // 18: Channel Mapping Family (1 byte)
+          if (codecPrivate.length >= 19) {
+            const view = new DataView(codecPrivate.buffer, codecPrivate.byteOffset, codecPrivate.byteLength);
+            const channelCount = codecPrivate[9];
+            const inputSampleRate = view.getUint32(12, true);
+
+            result.channelCount = channelCount;
+            // Note: Opus always outputs at 48kHz, but we store the original sample rate for reference
+            if (inputSampleRate > 0 && inputSampleRate !== 48000) {
+              result.sampleRate = inputSampleRate;
+            }
+          }
+          break;
+        }
+
+        case 'A_FLAC': {
+          // FLAC CodecPrivate contains STREAMINFO block
+          // STREAMINFO is 34 bytes and contains:
+          // 0-1: min_blocksize (2 bytes, big-endian)
+          // 2-3: max_blocksize (2 bytes, big-endian)
+          // 4-6: min_framesize (3 bytes, big-endian)
+          // 7-9: max_framesize (3 bytes, big-endian)
+          // 10-17: sample_rate(20 bits) + channels(3 bits) + bits_per_sample(5 bits) + total_samples(36 bits)
+          if (codecPrivate.length >= 18) {
+            // Bytes 10-17 contain packed data
+            const byte10 = codecPrivate[10];
+            const byte11 = codecPrivate[11];
+            const byte12 = codecPrivate[12];
+            const byte13 = codecPrivate[13];
+
+            // Sample rate: bits 0-19 of the 64-bit field (bytes 10-12, plus 4 bits of byte 13)
+            const sampleRate = (byte10 << 12) | (byte11 << 4) | (byte12 >> 4);
+
+            // Channels: bits 20-22 (3 bits from byte 12)
+            const channels = ((byte12 & 0x0e) >> 1) + 1; // stored as channels-1
+
+            // Bits per sample: bits 23-27 (5 bits from byte 12 and byte 13)
+            const bitsPerSample = (((byte12 & 0x01) << 4) | (byte13 >> 4)) + 1; // stored as bps-1
+
+            result.sampleRate = sampleRate;
+            result.channelCount = channels;
+            result.bitsPerSample = bitsPerSample;
+          }
+          break;
+        }
+
+        case 'A_MS/ACM':
+        case 'A_ADPCM': {
+          // MS ADPCM / IMA ADPCM in MKV stores WAVEFORMATEX in CodecPrivate
+          // WAVEFORMATEX structure (little-endian):
+          // 0-1: wFormatTag (2 bytes)
+          // 2-3: nChannels (2 bytes)
+          // 4-7: nSamplesPerSec (4 bytes)
+          // 8-11: nAvgBytesPerSec (4 bytes)
+          // 12-13: nBlockAlign (2 bytes)
+          // 14-15: wBitsPerSample (2 bytes)
+          // 16-17: cbSize (2 bytes) - size of extra format information
+          if (codecPrivate.length >= 18) {
+            const view = new DataView(codecPrivate.buffer, codecPrivate.byteOffset, codecPrivate.byteLength);
+            const formatTag = view.getUint16(0, true);
+            const channels = view.getUint16(2, true);
+            const sampleRate = view.getUint32(4, true);
+            const avgBytesPerSec = view.getUint32(8, true);
+            const bitsPerSample = view.getUint16(14, true);
+
+            result.channelCount = channels;
+            result.sampleRate = sampleRate;
+            result.bitrate = avgBytesPerSec * 8;
+
+            // For ADPCM, bits per sample is typically 4 (implicit in the algorithm)
+            // But if WAVEFORMATEX specifies it, use that value
+            if (formatTag === 0x0002 || formatTag === 0x0011) {
+              // MS ADPCM or IMA ADPCM
+              result.bitsPerSample = 4; // ADPCM always uses 4 bits per sample
+            } else if (bitsPerSample > 0) {
+              result.bitsPerSample = bitsPerSample;
+            }
+          }
+          break;
+        }
+
+        case 'A_PCM/INT/LIT':
+        case 'A_PCM/INT/BIG': {
+          // For PCM, bits per sample is stored in the Audio.BitDepth element
+          // which is already in audioInfo.bitDepth
+          // Bitrate can be calculated: sampleRate * channels * bitsPerSample
+          if (audioInfo.bitDepth && audioInfo.samplingFrequency && audioInfo.channels) {
+            result.bitrate = audioInfo.samplingFrequency * audioInfo.channels * audioInfo.bitDepth;
+            result.bitsPerSample = audioInfo.bitDepth;
+          }
+          break;
+        }
+
+        // For MP3, AAC, and other codecs, we would need to parse the first frame
+        // which is not available in CodecPrivate. This would require parsing actual data blocks.
+        default: {
+          break;
+        }
+      }
+    } catch {
+      // If parsing fails, just return what we have
+      // Don't throw - better to have partial info than fail completely
+    }
+
+    return result;
   }
 
   private mapCodec(codecId: string, bitDepth?: number, codecPrivate?: Uint8Array): AudioCodecType | VideoCodecType {

@@ -1,5 +1,6 @@
-import { AsfGuid, calculateFieldSizes, interpreteAudioFormatTag, matchesGuid, readVarLengthField } from '../codecs/asf';
+import { AsfGuid, calculateFieldSizes, matchesGuid, readVarLengthField } from '../codecs/asf';
 import { readUInt16LE, readUInt32LE, readUInt64LE } from '../codecs/binary';
+import { mapWaveFormatTagToCodec, parseWaveFormatEx } from '../codecs/waveformatex';
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioStreamInfo, MediaInfo, toVideoCodec, VideoStreamInfo } from '../media-info';
 import { UnsupportedFormatError } from '../utils';
@@ -249,24 +250,20 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
       additionalStreamInfo.set(streamNumber, info);
 
       if (isAudio) {
-        const formatTag = data[typeSpecificDataOffset] | (data[typeSpecificDataOffset + 1] << 8);
-        const channelCount = data[typeSpecificDataOffset + 2] | (data[typeSpecificDataOffset + 3] << 8);
-        const sampleRate =
-          data[typeSpecificDataOffset + 4] |
-          (data[typeSpecificDataOffset + 5] << 8) |
-          (data[typeSpecificDataOffset + 6] << 16) |
-          (data[typeSpecificDataOffset + 7] << 24);
-        const bitsPerSample = data[typeSpecificDataOffset + 14] | (data[typeSpecificDataOffset + 15] << 8);
+        // Parse WAVEFORMATEX structure using centralized utility
+        const { format } = parseWaveFormatEx(data, typeSpecificDataOffset, typeSpecificDataLength);
 
-        const { codec, codecDetail } = interpreteAudioFormatTag(formatTag);
+        // Map format tag to codec type
+        const { codec, codecDetail } = mapWaveFormatTagToCodec(format.formatTag, format.bitsPerSample);
 
         audioStreams.push({
           id: streamNumber,
           codec,
           codecDetail,
-          channelCount,
-          sampleRate,
-          bitsPerSample,
+          channelCount: format.channels,
+          sampleRate: format.samplesPerSec,
+          bitsPerSample: format.bitsPerSample > 0 ? format.bitsPerSample : undefined, // Only set if meaningful (not 0)
+          bitrate: format.avgBytesPerSec * 8, // Convert bytes/sec to bits/sec
           durationInSeconds: undefined,
         });
       } else if (isVideo) {

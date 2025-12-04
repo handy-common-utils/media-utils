@@ -128,25 +128,134 @@ export function parseMP3Header(data: Uint8Array): AudioStreamInfo {
 }
 
 /**
- * Helper to parse Xing/Info/LAME header and get total number of frames
- * @param data The MP3 data with frame header
- * @returns Total number of frames got from the Xing/Info/LAME header
+ * VBR header information extracted from Xing/LAME or VBRI headers
  */
-export function parseXingHeader(data: Uint8Array): { totalFrames?: number } {
+export interface VBRHeaderInfo {
+  /** Total number of frames in the file */
+  totalFrames?: number;
+  /** Total file size in bytes (excluding ID3 tags) */
+  fileSize?: number;
+  /** Average bitrate in bps (calculated or from header) */
+  bitrate?: number;
+  /** Header type found */
+  headerType?: 'Xing' | 'Info' | 'LAME' | 'VBRI';
+}
+
+/**
+ * Parse VBR headers (Xing/Info/LAME or VBRI) from MP3 data
+ *
+ * Xing/Info/LAME header (used by LAME encoder):
+ * - Located after the first MP3 frame header
+ * - Contains: total frames, file size, quality indicator
+ * - "Xing" = VBR, "Info" = CBR with header, "LAME" = LAME encoder
+ *
+ * VBRI header (used by Fraunhofer encoder):
+ * - Located at fixed offset 36 bytes after frame header
+ * - Contains: total frames, file size, quality
+ *
+ * @param data The MP3 data starting from frame header
+ * @returns VBR header information
+ */
+export function parseVBRHeader(data: Uint8Array): VBRHeaderInfo {
+  const result: VBRHeaderInfo = {};
+
+  // Try Xing/Info/LAME header first (more common)
   // Scan the first 256 bytes for 'Xing', 'Info', or 'LAME' header
   const scanLimit = Math.min(data.length - 12, 256); // need at least 12 bytes for header+fields
   for (let offset = 0; offset < scanLimit; ++offset) {
     // eslint-disable-next-line unicorn/prefer-code-point
     const tag = String.fromCharCode(data[offset], data[offset + 1], data[offset + 2], data[offset + 3]);
+
     if (tag === 'Xing' || tag === 'Info' || tag === 'LAME') {
-      // Flags at offset+4 (4 bytes)
-      // const flags = (data[offset + 7] << 24) | (data[offset + 6] << 16) | (data[offset + 5] << 8) | data[offset + 4];
-      // Total frames at offset+8 (big-endian)
-      const totalFrames = (data[offset + 8] << 24) | (data[offset + 9] << 16) | (data[offset + 10] << 8) | data[offset + 11];
-      if (totalFrames > 0) {
-        return { totalFrames };
+      result.headerType = tag as 'Xing' | 'Info' | 'LAME';
+
+      // Flags at offset+4 (4 bytes, big-endian)
+      // Bit 0: Frames field is present
+      // Bit 1: Bytes field is present
+      // Bit 2: TOC field is present
+      // Bit 3: Quality field is present
+      const flags = (data[offset + 4] << 24) | (data[offset + 5] << 16) | (data[offset + 6] << 8) | data[offset + 7];
+
+      let fieldOffset = offset + 8;
+
+      // Frames field (4 bytes, big-endian) - if flag bit 0 is set
+      if (flags & 0x0001 && fieldOffset + 4 <= data.length) {
+        const totalFrames = (data[fieldOffset] << 24) | (data[fieldOffset + 1] << 16) | (data[fieldOffset + 2] << 8) | data[fieldOffset + 3];
+        if (totalFrames > 0) {
+          result.totalFrames = totalFrames;
+        }
+        fieldOffset += 4;
       }
+
+      // Bytes field (4 bytes, big-endian) - if flag bit 1 is set
+      if (flags & 0x0002 && fieldOffset + 4 <= data.length) {
+        const fileSize = (data[fieldOffset] << 24) | (data[fieldOffset + 1] << 16) | (data[fieldOffset + 2] << 8) | data[fieldOffset + 3];
+        if (fileSize > 0) {
+          result.fileSize = fileSize;
+        }
+        fieldOffset += 4;
+      }
+
+      // TOC field (100 bytes) - if flag bit 2 is set
+      if (flags & 0x0004) {
+        fieldOffset += 100;
+      }
+
+      // Quality field (4 bytes) - if flag bit 3 is set
+      // We don't use this currently
+
+      return result;
     }
   }
-  return {};
+
+  // Try VBRI header (Fraunhofer encoder)
+  // VBRI header is located at a fixed offset of 36 bytes after the frame header
+  const vbriOffset = 36;
+  if (data.length >= vbriOffset + 26) {
+    // eslint-disable-next-line unicorn/prefer-code-point
+    const vbriTag = String.fromCharCode(data[vbriOffset], data[vbriOffset + 1], data[vbriOffset + 2], data[vbriOffset + 3]);
+
+    if (vbriTag === 'VBRI') {
+      result.headerType = 'VBRI';
+
+      // VBRI header structure:
+      // 0-3: "VBRI" (4 bytes)
+      // 4-5: Version (2 bytes, big-endian)
+      // 6-7: Delay (2 bytes, big-endian)
+      // 8-9: Quality indicator (2 bytes, big-endian)
+      // 10-13: Bytes (4 bytes, big-endian) - total file size
+      // 14-17: Frames (4 bytes, big-endian) - total number of frames
+      // 18-19: TOC entries (2 bytes, big-endian)
+      // 20-21: TOC scale (2 bytes, big-endian)
+      // 22-23: TOC entry size (2 bytes, big-endian)
+      // 24-25: TOC frames per entry (2 bytes, big-endian)
+
+      // File size (bytes 10-13, big-endian)
+      const fileSize = (data[vbriOffset + 10] << 24) | (data[vbriOffset + 11] << 16) | (data[vbriOffset + 12] << 8) | data[vbriOffset + 13];
+      if (fileSize > 0) {
+        result.fileSize = fileSize;
+      }
+
+      // Total frames (bytes 14-17, big-endian)
+      const totalFrames = (data[vbriOffset + 14] << 24) | (data[vbriOffset + 15] << 16) | (data[vbriOffset + 16] << 8) | data[vbriOffset + 17];
+      if (totalFrames > 0) {
+        result.totalFrames = totalFrames;
+      }
+
+      return result;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Helper to parse Xing/Info/LAME header and get total number of frames
+ * @deprecated Use parseVBRHeader instead
+ * @param data The MP3 data with frame header
+ * @returns Total number of frames got from the Xing/Info/LAME header
+ */
+export function parseXingHeader(data: Uint8Array): { totalFrames?: number } {
+  const vbrInfo = parseVBRHeader(data);
+  return { totalFrames: vbrInfo.totalFrames };
 }

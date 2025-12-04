@@ -1,4 +1,4 @@
-import { parseMP3Header, parseXingHeader } from '../codecs/mp3';
+import { parseMP3Header, parseVBRHeader } from '../codecs/mp3';
 import { GetMediaInfoOptions } from '../get-media-info';
 import { MediaInfo } from '../media-info';
 import { readBeginning, UnsupportedFormatError } from '../utils';
@@ -14,7 +14,6 @@ import { readBeginning, UnsupportedFormatError } from '../utils';
  * @throws UnsupportedFormatError if the stream is not a valid MP3 file
  */
 export async function parseMp3(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
-  // Read the first chunk to parse the MP3 frame header
   // Read the first chunk to parse the MP3 frame header
   const reader = stream.getReader();
   const buffer = await readBeginning(reader);
@@ -39,10 +38,14 @@ export async function parseMp3(stream: ReadableStream<Uint8Array>, _options?: Ge
   // Parse MP3 frame header
   const audioStream = parseMP3Header(buffer.slice(offset));
 
-  // Try to extract duration from Xing/Info/LAME header
+  // Try to extract duration and bitrate from VBR header (Xing/Info/LAME or VBRI)
   let durationInSeconds: number | undefined = undefined;
-  const xing = parseXingHeader(buffer.slice(offset));
-  if (xing.totalFrames && audioStream.sampleRate) {
+  let averageBitrate: number | undefined = audioStream.bitrate; // Default to frame header bitrate
+
+  const vbrInfo = parseVBRHeader(buffer.slice(offset));
+
+  if (vbrInfo.totalFrames && audioStream.sampleRate) {
+    // Calculate duration from total frames
     // Samples per frame depends on MPEG version and Layer
     // For Layer III:
     // MPEG1: 1152 samples/frame, MPEG2/2.5: 576 samples/frame
@@ -75,8 +78,14 @@ export async function parseMp3(stream: ReadableStream<Uint8Array>, _options?: Ge
       }
       // No default
     }
-    const totalSamples = xing.totalFrames * samplesPerFrame;
+    const totalSamples = vbrInfo.totalFrames * samplesPerFrame;
     durationInSeconds = totalSamples / audioStream.sampleRate;
+
+    // Calculate average bitrate if we have file size
+    if (vbrInfo.fileSize && durationInSeconds > 0) {
+      // bitrate = (fileSize * 8) / duration
+      averageBitrate = Math.round((vbrInfo.fileSize * 8) / durationInSeconds);
+    }
   }
 
   return {
@@ -87,6 +96,7 @@ export async function parseMp3(stream: ReadableStream<Uint8Array>, _options?: Ge
     audioStreams: [
       {
         ...audioStream,
+        bitrate: averageBitrate,
         durationInSeconds,
       },
     ],

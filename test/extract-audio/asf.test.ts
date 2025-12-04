@@ -39,6 +39,7 @@ describe('Extract audio from ASF/WMV', () => {
           codecDetail: 'WMAv2',
           channelCount: 2,
           sampleRate: 44100,
+          bitrate: 128000,
           durationInSeconds: 6,
           bitsPerSample: 16,
         },
