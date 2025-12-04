@@ -1,13 +1,5 @@
-import {
-  AsfGuid,
-  calculateFieldSizes,
-  interpreteAudioFormatTag,
-  matchesGuid,
-  readUInt16,
-  readUInt32,
-  readUInt64,
-  readVarLengthField,
-} from '../codecs/asf';
+import { AsfGuid, calculateFieldSizes, interpreteAudioFormatTag, matchesGuid, readVarLengthField } from '../codecs/asf';
+import { readUInt16LE, readUInt32LE, readUInt64LE } from '../codecs/binary';
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioStreamInfo, MediaInfo, toVideoCodec, VideoStreamInfo } from '../media-info';
 import { UnsupportedFormatError } from '../utils';
@@ -188,10 +180,10 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
 
   // Parse header object size (8 bytes, little-endian)
   // JavaScript can't handle 64-bit integers well, so we only use the lower 32 bits
-  const headerSize = Number(readUInt64(data, 16));
+  const headerSize = Number(readUInt64LE(data, 16));
 
   // Number of header objects (4 bytes, little-endian)
-  const numObjects = readUInt32(data, 24);
+  const numObjects = readUInt32LE(data, 24);
 
   if (numObjects === 0 || headerSize < 50) {
     throw new UnsupportedFormatError('Not an ASF file: invalid header');
@@ -234,13 +226,13 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
       // +---------------------------------+------------+------------+
 
       // Object size (8 bytes, little-endian) at offset 16
-      const objectSize = Number(readUInt64(data, offset + 16));
+      const objectSize = Number(readUInt64LE(data, offset + 16));
 
       // Stream Type GUID at offset 24 (16 bytes)
       const isAudio = matchesGuid(data, offset + 24, AsfGuid.AUDIO_STREAM);
       const isVideo = matchesGuid(data, offset + 24, AsfGuid.VIDEO_STREAM);
 
-      const typeSpecificDataLength = readUInt32(data, offset + 64);
+      const typeSpecificDataLength = readUInt32LE(data, offset + 64);
 
       // Extract Stream Number from Flags field at offset 72 (2 bytes, little-endian)
       // Bits 0-6 contain the stream number (1-127)
@@ -344,28 +336,28 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
       // +--------------------------+------------+------------+
 
       // Object size (8 bytes, little-endian) at offset 16
-      const objectSize = Number(readUInt64(data, offset + 16));
+      const objectSize = Number(readUInt64LE(data, offset + 16));
       if (offset + objectSize > data.length) throw new UnsupportedFormatError(`Insufficient data for File Properties Object at offset ${offset}`);
 
-      const flags = readUInt32(data, offset + 88);
+      const flags = readUInt32LE(data, offset + 88);
       const broadcastFlag = flags & 1;
       const _seekableFlag = (flags >>> 1) & 1;
 
       // Capture global props
-      filePlayDuration = Number(readUInt64(data, offset + 64));
-      fileSendDuration = Number(readUInt64(data, offset + 72));
-      filePreroll = Number(readUInt64(data, offset + 80));
-      filePacketSize = readUInt32(data, offset + 100);
+      filePlayDuration = Number(readUInt64LE(data, offset + 64));
+      fileSendDuration = Number(readUInt64LE(data, offset + 72));
+      filePreroll = Number(readUInt64LE(data, offset + 80));
+      filePacketSize = readUInt32LE(data, offset + 100);
 
       if (!broadcastFlag) {
         // Specifies the time needed to play the file in 100-nanosecond units.
-        const playDuration = readUInt64(data, offset + 64);
+        const playDuration = readUInt64LE(data, offset + 64);
         // Specifies the amount of time to buffer data before starting to play the file, in millisecond units.
         // If this value is nonzero, the Play Duration field and all of the payload Presentation Time fields
         // have been offset by this amount. Therefore, player software must subtract the value in the preroll
         // field from the play duration and presentation times to calculate their actual values.
         // It follows that all payload Presentation Time fields need to be at least this value.
-        const preroll = readUInt64(data, offset + 80);
+        const preroll = readUInt64LE(data, offset + 80);
 
         const durationInSecondsBigInt = playDuration / 10000000n - preroll / 1000n;
         durationInSeconds = Number(durationInSecondsBigInt);
@@ -377,8 +369,8 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
       // However, for the purposes of this specification, the values for the Minimum Data Packet Size and
       // Maximum Data Packet Size fields shall be set to the same value, and this value should be set to
       // the packet size, even when the Broadcast Flag in the Flags field is set to 1.
-      const minPacketSize = readUInt32(data, offset + 92);
-      const maxPacketSize = readUInt32(data, offset + 96);
+      const minPacketSize = readUInt32LE(data, offset + 92);
+      const maxPacketSize = readUInt32LE(data, offset + 96);
       if (minPacketSize !== maxPacketSize) {
         throw new UnsupportedFormatError(
           `Not an ASF file: Min Data Packet Size (${minPacketSize}) and Max Data Packet Size (${maxPacketSize}) are not equal`,
@@ -389,15 +381,15 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
       offset += objectSize;
     } else if (matchesGuid(data, offset, AsfGuid.HEADER_EXTENSION)) {
       // Header Extension Object
-      const extensionDataSize = readUInt32(data, offset + 42);
+      const extensionDataSize = readUInt32LE(data, offset + 42);
       if (offset + 46 + extensionDataSize <= data.length) {
         let extOffset = offset + 46;
         const extEnd = extOffset + extensionDataSize;
 
         while (extOffset + 24 <= extEnd) {
-          const extObjSize = Number(readUInt64(data, extOffset + 16));
+          const extObjSize = Number(readUInt64LE(data, extOffset + 16));
           if (matchesGuid(data, extOffset, AsfGuid.EXTENDED_STREAM_PROPERTIES) && extOffset + 74 <= extEnd) {
-            const streamNum = readUInt16(data, extOffset + 72);
+            const streamNum = readUInt16LE(data, extOffset + 72);
             const extendedStreamPropertiesObject = data.slice(extOffset, extOffset + extObjSize);
             const info = additionalStreamInfo.get(streamNum) || ({} as AdditionalStreamInfo);
             info.extendedStreamPropertiesObject = extendedStreamPropertiesObject;
@@ -406,12 +398,12 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
           extOffset += extObjSize;
         }
       }
-      const objectSize = Number(readUInt64(data, offset + 16));
+      const objectSize = Number(readUInt64LE(data, offset + 16));
       offset += objectSize;
     } else {
       // Unknown / uninterested object
       // Skip this object - read its size
-      const objectSize = Number(readUInt64(data, offset + 16));
+      const objectSize = Number(readUInt64LE(data, offset + 16));
       offset += objectSize;
     }
   }
@@ -655,13 +647,13 @@ function parsePacket(
   // Send Time (4 bytes)
   if (offset + 4 > buffer.length)
     throw new UnsupportedFormatError(`Invalid ASF Data Packet: insufficient data for send time: ${offset} + 4 > ${buffer.length}`);
-  const packetSendTime = readUInt32(buffer, offset);
+  const packetSendTime = readUInt32LE(buffer, offset);
   offset += 4;
 
   // Duration (2 bytes)
   if (offset + 2 > buffer.length)
     throw new UnsupportedFormatError(`Invalid ASF Data Packet: insufficient data for duration: ${offset} + 2 > ${buffer.length}`);
-  const packetDuration = readUInt16(buffer, offset);
+  const packetDuration = readUInt16LE(buffer, offset);
   offset += 2;
 
   // 5.2.3 Payload Data

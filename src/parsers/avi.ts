@@ -1,6 +1,7 @@
 /* eslint-disable max-depth */
+import { mapWaveFormatTagToCodec, parseWaveFormatEx } from '../codecs/waveformatex';
 import { GetMediaInfoOptions } from '../get-media-info';
-import { AudioCodecType, findVideoCodec, MediaInfo } from '../media-info';
+import { findVideoCodec, MediaInfo } from '../media-info';
 import { ensureBufferData, UnsupportedFormatError } from '../utils';
 
 interface AviMainHeader {
@@ -220,47 +221,10 @@ export async function parseAvi(stream: ReadableStream<Uint8Array>, options?: Par
 
                       videoFormat = { width, height, bitDepth, compression };
                     } else if (streamHeader?.type === 'auds') {
-                      // WAVEFORMATEX
-                      const formatTag = readUInt16LE();
-                      const channels = readUInt16LE();
-                      const samplesPerSec = readUInt32LE();
-                      const avgBytesPerSec = readUInt32LE();
-                      const blockAlign = readUInt16LE();
-                      const bitsPerSample = readUInt16LE();
-
-                      audioFormat = { formatTag, channels, samplesPerSec, avgBytesPerSec, blockAlign, bitsPerSample };
-
-                      // Check for extra data (cbSize + extra bytes)
-                      // For ADPCM formats, the WAVEFORMATEX structure is extended with codec-specific data
-                      const bytesRead = 16; // The standard WAVEFORMATEX fields read so far
-                      if (strlChunkSize > bytesRead) {
-                        const cbSize = readUInt16LE();
-
-                        // Parse MS ADPCM specific data (formatTag 0x0002)
-                        // MS ADPCM extra data structure:
-                        // - samplesPerBlock (2 bytes) — STREAM LEVEL: constant for entire stream
-                        // - numCoef (2 bytes) — always 7 for MS ADPCM
-                        // - coefficients (numCoef * 4 bytes) — the 7 standard predictor coefficient pairs
-                        //
-                        // Note: The coefficient values are standardized and don't need to be stored.
-                        // Each ADPCM block header contains a predictor index (0-6) that selects
-                        // which coefficient pair to use for that block.
-                        if (formatTag === 0x0002 && cbSize >= 4) {
-                          // samplesPerBlock: How many PCM samples each ADPCM block will decode to
-                          // This is STREAM LEVEL — constant for the entire audio stream
-                          const samplesPerBlock = readUInt16LE();
-                          audioFormat.adpcmDetails = {
-                            samplesPerBlock,
-                          };
-                          // Skip the rest (numCoef + coefficients)
-                          // MS ADPCM coefficients are standardized (always the same 7 pairs)
-                          // and don't need to be stored per-stream
-                          skip(cbSize - 2);
-                        } else {
-                          // Skip other extra data
-                          skip(cbSize);
-                        }
-                      }
+                      // Parse WAVEFORMATEX structure
+                      const { format, bytesRead } = parseWaveFormatEx(buffer, offset, strlChunkSize);
+                      audioFormat = format;
+                      offset += bytesRead;
                     }
                   }
 
@@ -369,67 +333,8 @@ export async function parseAvi(stream: ReadableStream<Uint8Array>, options?: Par
           ? (stream.header.length * stream.header.scale) / stream.header.rate
           : mediaInfo.durationInSeconds;
 
-      // Map format tag to codec
-      let codec: AudioCodecType;
-      let codecDetail: string;
-      const formatTagHex = `0x${stream.format.formatTag.toString(16).padStart(4, '0')}`;
-      switch (stream.format.formatTag) {
-        case 0x0001: {
-          switch (stream.format.bitsPerSample) {
-            case 8: {
-              codec = 'pcm_u8';
-              break;
-            }
-            case 24: {
-              codec = 'pcm_s24le';
-              break;
-            }
-            case 32: {
-              codec = 'pcm_s32le';
-              break;
-            }
-            default: {
-              codec = 'pcm_s16le';
-              break;
-            }
-          }
-          codecDetail = `PCM (${formatTagHex})`;
-          break;
-        }
-        case 0x0011:
-        case 0x0069:
-        case 0x0002: {
-          codec = 'adpcm_ms';
-          codecDetail = `ADPCM (${formatTagHex})`;
-          break;
-        }
-        case 0x0003: {
-          codec = 'pcm_f32le';
-          codecDetail = `IEEE Float PCM (${formatTagHex})`;
-          break;
-        }
-        case 0x0050:
-        case 0x0055: {
-          codec = 'mp3';
-          codecDetail = `MP3 (${formatTagHex})`;
-          break;
-        }
-        case 0x0002000:
-        case 0x2000: {
-          codec = 'ac3';
-          codecDetail = `AC-3 (${formatTagHex})`;
-          break;
-        }
-        case 0x2001: {
-          codec = 'dts';
-          codecDetail = `DTS (${formatTagHex})`;
-          break;
-        }
-        default: {
-          codec = 'unknown' as any;
-          codecDetail = `Unknown (${formatTagHex})`;
-        }
-      }
+      // Map format tag to codec using the shared utility
+      const { codec, codecDetail } = mapWaveFormatTagToCodec(stream.format.formatTag, stream.format.bitsPerSample);
 
       mediaInfo.audioStreams.push({
         id: videoStreams.length + index + 1,

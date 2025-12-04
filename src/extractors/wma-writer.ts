@@ -1,4 +1,5 @@
-import { AsfGuid, writeObjectHeader, writeUInt16, writeUInt32, writeUInt64 } from '../codecs/asf';
+import { AsfGuid, writeObjectHeader } from '../codecs/asf';
+import { writeUInt16LE, writeUInt32LE, writeUInt64LE } from '../codecs/binary';
 import { PayloadMetadata } from '../parsers/asf';
 
 export interface AudioContent {
@@ -133,7 +134,7 @@ function buildFilePropertiesObject(metadata: AudioMetadata & { totalDataPackets:
   offset += 16;
 
   // File Size (QWORD) - Total file size = Header Object Size + Data Object Size (will be back-patched)
-  offset += writeUInt64(buf, offset, 0); // Placeholder: will be filled in finish() logic
+  offset += writeUInt64LE(buf, offset, 0); // Placeholder: will be filled in finish() logic
 
   // Creation Date (QWORD) - The value is given as the number of 100-nanosecond intervals since January 1, 1601,
   // according to Coordinated Universal Time (Greenwich Mean Time).
@@ -142,26 +143,26 @@ function buildFilePropertiesObject(metadata: AudioMetadata & { totalDataPackets:
   offset += 8;
 
   // Data Packets Count (QWORD)
-  offset += writeUInt64(buf, offset, metadata.totalDataPackets);
+  offset += writeUInt64LE(buf, offset, metadata.totalDataPackets);
 
   // Play Duration (QWORD) - Use from source
-  offset += writeUInt64(buf, offset, metadata.playDuration);
+  offset += writeUInt64LE(buf, offset, metadata.playDuration);
 
   // Send Duration (QWORD) - Use from source
-  offset += writeUInt64(buf, offset, metadata.sendDuration);
+  offset += writeUInt64LE(buf, offset, metadata.sendDuration);
 
   // Preroll (QWORD) - Use from source if available, otherwise 0
-  offset += writeUInt64(buf, offset, metadata.preroll);
+  offset += writeUInt64LE(buf, offset, metadata.preroll);
 
   // Flags (DWORD) - 0x00000002 (Broadcast Flag = 0, Seekable Flag = 1)
-  offset += writeUInt32(buf, offset, 0x00000002);
+  offset += writeUInt32LE(buf, offset, 0x00000002);
 
   // Minimum/Maximum Data Packet Size (DWORD) - Use packet size from source
-  offset += writeUInt32(buf, offset, metadata.packetSize); // Minimum
-  offset += writeUInt32(buf, offset, metadata.packetSize); // Maximum
+  offset += writeUInt32LE(buf, offset, metadata.packetSize); // Minimum
+  offset += writeUInt32LE(buf, offset, metadata.packetSize); // Maximum
 
   // Maximum Bitrate (DWORD) - Use from source if available
-  offset += writeUInt32(buf, offset, metadata.maxBitrate);
+  offset += writeUInt32LE(buf, offset, metadata.maxBitrate);
 
   return buf;
 }
@@ -217,42 +218,42 @@ function buildStreamPropertiesObject(metadata: AudioMetadata): Uint8Array {
   offset += 16;
 
   // Time Offset (QWORD)
-  offset += writeUInt64(buf, offset, 0);
+  offset += writeUInt64LE(buf, offset, 0);
 
   // Type-Specific Data Length (DWORD) - Size of WAVEFORMATEX structure
-  offset += writeUInt32(buf, offset, WAVEFORMATEX_SIZE);
+  offset += writeUInt32LE(buf, offset, WAVEFORMATEX_SIZE);
 
   // Error Correction Data Length (DWORD) - Size of Audio Spread error correction data
-  offset += writeUInt32(buf, offset, ERROR_CORRECTION_DATA_SIZE);
+  offset += writeUInt32LE(buf, offset, ERROR_CORRECTION_DATA_SIZE);
 
   // Flags (WORD) - bits 0-6 contain stream number, bit 15 = encrypted flag
-  offset += writeUInt16(buf, offset, metadata.streamNumber);
+  offset += writeUInt16LE(buf, offset, metadata.streamNumber);
 
   // Reserved (DWORD)
-  offset += writeUInt32(buf, offset, 0x00000000);
+  offset += writeUInt32LE(buf, offset, 0x00000000);
 
   // --- Type-Specific Data (WAVEFORMATEX structure for WMA) starts at offset 78 ---
 
   // WMA Codec ID (WORD) - formatTag
-  offset += writeUInt16(buf, offset, metadata.codecId);
+  offset += writeUInt16LE(buf, offset, metadata.codecId);
 
   // Number of Channels (WORD)
-  offset += writeUInt16(buf, offset, metadata.channels);
+  offset += writeUInt16LE(buf, offset, metadata.channels);
 
   // Sample Rate (DWORD) - samples/second
-  offset += writeUInt32(buf, offset, metadata.sampleRate);
+  offset += writeUInt32LE(buf, offset, metadata.sampleRate);
 
   // Average Bytes Per Second (DWORD) - copied from source
-  offset += writeUInt32(buf, offset, metadata.avgBytesPerSec);
+  offset += writeUInt32LE(buf, offset, metadata.avgBytesPerSec);
 
   // Block Align (WORD)
-  offset += writeUInt16(buf, offset, metadata.blockSize);
+  offset += writeUInt16LE(buf, offset, metadata.blockSize);
 
   // Bits Per Sample (WORD) - copied from source
-  offset += writeUInt16(buf, offset, metadata.bitsPerSample);
+  offset += writeUInt16LE(buf, offset, metadata.bitsPerSample);
 
   // Extra Data Size (WORD)
-  offset += writeUInt16(buf, offset, metadata.encoderSpecificData.length);
+  offset += writeUInt16LE(buf, offset, metadata.encoderSpecificData.length);
 
   // --- Stream-Specific Data (Encoder Specific) ---
   buf.set(metadata.encoderSpecificData, offset);
@@ -263,13 +264,13 @@ function buildStreamPropertiesObject(metadata: AudioMetadata): Uint8Array {
   buf[offset++] = 1;
 
   // Virtual Packet Length (WORD) - Size of the largest audio payload
-  offset += writeUInt16(buf, offset, metadata.maxPayloadSize);
+  offset += writeUInt16LE(buf, offset, metadata.maxPayloadSize);
 
   // Virtual Chunk Length (WORD) - Size of the largest audio payload (same as Virtual Packet Length)
-  offset += writeUInt16(buf, offset, metadata.maxPayloadSize);
+  offset += writeUInt16LE(buf, offset, metadata.maxPayloadSize);
 
   // Silence Data Length (WORD) - Number of bytes in Silence Data (Block Alignment)
-  offset += writeUInt16(buf, offset, SILENCE_DATA_LENGTH);
+  offset += writeUInt16LE(buf, offset, SILENCE_DATA_LENGTH);
 
   // Silence Data (BYTE array) - Array of silence data bytes (all zeros)
   for (let i = 0; i < SILENCE_DATA_LENGTH; i++) {
@@ -327,11 +328,11 @@ function buildHeaderExtensionObject(metadata: AudioMetadata): Uint8Array {
   offset += 16;
 
   // Reserved Field 2 (WORD) - must be 6
-  writeUInt16(buf, offset, 6);
+  writeUInt16LE(buf, offset, 6);
   offset += 2;
 
   // Header Extension Data Size (DWORD)
-  writeUInt32(buf, offset, HEADER_EXTENSION_DATA_SIZE);
+  writeUInt32LE(buf, offset, HEADER_EXTENSION_DATA_SIZE);
   offset += 4;
 
   // --- Extended Stream Properties Object ---
@@ -521,7 +522,7 @@ function buildDataObject(
     packetBuf[offset++] = 0b01111101; // 0x7D
 
     // Packet Length (DWORD, 4 bytes)
-    writeUInt32(packetBuf, offset, packetSize);
+    writeUInt32LE(packetBuf, offset, packetSize);
     offset += 4;
 
     // Sequence field is not written (Sequence Type = 0, reserved for future use)
@@ -531,12 +532,12 @@ function buildDataObject(
 
     // Send Time (DWORD, 4 bytes)
     // The Send Time field must be coded using a DWORD and is specified in millisecond units.
-    writeUInt32(packetBuf, offset, metadata.packetSendTime); // Time in ms
+    writeUInt32LE(packetBuf, offset, metadata.packetSendTime); // Time in ms
     offset += 4;
 
     // Duration (WORD, 2 bytes)
     // The Duration field is coded using a WORD and is specified in millisecond units.
-    writeUInt16(packetBuf, offset, metadata.packetDuration);
+    writeUInt16LE(packetBuf, offset, metadata.packetDuration);
     offset += 2;
 
     // 5.3.3.1 Single payload
@@ -627,10 +628,10 @@ function buildDataObject(
     packetBuf[offset++] = streamNumber;
 
     // Media Object Number (DWORD)
-    offset += writeUInt32(packetBuf, offset, metadata.mediaObjectNumber);
+    offset += writeUInt32LE(packetBuf, offset, metadata.mediaObjectNumber);
 
     // Offset Into Media Object (DWORD)
-    offset += writeUInt32(packetBuf, offset, metadata.offsetIntoMediaObjectOrPresentationTime);
+    offset += writeUInt32LE(packetBuf, offset, metadata.offsetIntoMediaObjectOrPresentationTime);
 
     // Replicated Data Length (BYTE)
     packetBuf[offset++] = replicatedDataSize;
@@ -667,11 +668,11 @@ function buildDataObject(
   offset += 16;
 
   // Total Data Packets (QWORD)
-  writeUInt64(dataObjectBuffer, offset, totalDataPackets);
+  writeUInt64LE(dataObjectBuffer, offset, totalDataPackets);
   offset += 8;
 
   // Reserved (WORD) - 0x0101
-  writeUInt16(dataObjectBuffer, offset, 0x0101);
+  writeUInt16LE(dataObjectBuffer, offset, 0x0101);
   offset += 2;
 
   // 2. Data Packets
@@ -725,7 +726,7 @@ function buildHeaderObject(metadata: AudioMetadata & { dataObjectSize: number; t
   offset += writeObjectHeader(headerBuf, offset, AsfGuid.HEADER, HEADER_SIZE);
 
   // Number of Header Objects (DWORD)
-  writeUInt32(headerBuf, offset, NUM_HEADER_OBJECTS);
+  writeUInt32LE(headerBuf, offset, NUM_HEADER_OBJECTS);
   offset += 4;
 
   // Reserved (BYTE) - 0x01
@@ -734,8 +735,8 @@ function buildHeaderObject(metadata: AudioMetadata & { dataObjectSize: number; t
   headerBuf[offset++] = 0x02;
 
   // 2. File Properties Object (Patch File Size and Packet Count)
-  writeUInt64(fileProps, 24 + 16, TOTAL_FILE_SIZE); // Patch the File Size field
-  writeUInt64(fileProps, 24 + 32, metadata.totalDataPackets); // Patch the Packet Count field
+  writeUInt64LE(fileProps, 24 + 16, TOTAL_FILE_SIZE); // Patch the File Size field
+  writeUInt64LE(fileProps, 24 + 32, metadata.totalDataPackets); // Patch the Packet Count field
   headerBuf.set(fileProps, offset);
   offset += fileProps.length;
 

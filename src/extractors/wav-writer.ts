@@ -1,3 +1,4 @@
+import { buildWaveFormatEx } from '../codecs/waveformatex';
 import { AudioStreamInfo } from '../media-info';
 
 /**
@@ -56,70 +57,24 @@ export class WavWriter {
       byteRate = this.audioStream.bitrate ? Math.floor(this.audioStream.bitrate / 8) : sampleRate * blockAlign;
     }
 
-    // Prepare extra data if needed
-    let extraData = new Uint8Array(0);
-    if (formatTag === 0x0002 && this.audioStream.codecDetails?.samplesPerBlock) {
-      // MS ADPCM (formatTag 0x0002)
-      //
-      // MS ADPCM uses exactly 7 standard predictor coefficient pairs.
-      // These are FIXED and STANDARDIZED — they never change between streams or files.
-      //
-      // Each ADPCM block header contains a predictor index (0-6) that selects
-      // which coefficient pair to use for decoding that specific block.
-      //
-      // The 7 standard MS ADPCM predictor coefficient pairs:
-      const standardCoefficients = [
-        { coeff1: 256, coeff2: 0 }, // Predictor 0
-        { coeff1: 512, coeff2: -256 }, // Predictor 1
-        { coeff1: 0, coeff2: 0 }, // Predictor 2
-        { coeff1: 192, coeff2: 64 }, // Predictor 3
-        { coeff1: 240, coeff2: 0 }, // Predictor 4
-        { coeff1: 460, coeff2: -208 }, // Predictor 5
-        { coeff1: 392, coeff2: -232 }, // Predictor 6
-      ];
+    // Build WAVEFORMATEX structure using the shared utility
+    const waveFormatEx = buildWaveFormatEx({
+      formatTag,
+      channels,
+      samplesPerSec: sampleRate,
+      avgBytesPerSec: byteRate,
+      blockAlign,
+      bitsPerSample,
+      adpcmDetails: this.audioStream.codecDetails?.samplesPerBlock
+        ? {
+            samplesPerBlock: this.audioStream.codecDetails.samplesPerBlock,
+          }
+        : undefined,
+    });
 
-      const { samplesPerBlock } = this.audioStream.codecDetails;
-      const numCoef = 7;
-
-      // Build the WAVEFORMATEX extension for MS ADPCM:
-      // cbSize (2) + samplesPerBlock (2) + numCoef (2) + coefficients (7 * 4 = 28)
-      const extraDataSize = 2 + 2 + 2 + numCoef * 4;
-      extraData = new Uint8Array(extraDataSize);
-      const view = new DataView(extraData.buffer);
-
-      // cbSize: size of the extra data following this field
-      view.setUint16(0, extraDataSize - 2, true);
-
-      // samplesPerBlock: STREAM LEVEL — constant for entire stream
-      // How many PCM samples each ADPCM block will decode to
-      view.setUint16(2, samplesPerBlock ?? 0, true);
-
-      // Actuall, coefficients are only needed for custom ADPCM formats, not MS ADPCM.
-
-      // numCoef: always 7 for MS ADPCM
-      view.setUint16(4, numCoef, true);
-
-      // Write the 7 standard coefficient pairs
-      // These are required by the WAV/AVI format specification,
-      // even though they're always the same values
-      for (let i = 0; i < numCoef; i++) {
-        view.setInt16(6 + i * 4, standardCoefficients[i].coeff1, true);
-        view.setInt16(8 + i * 4, standardCoefficients[i].coeff2, true);
-      }
-    } else if (formatTag !== 1) {
-      // For non-PCM formats, we usually need a cbSize of 0 at least
-      extraData = new Uint8Array(2);
-      // cbSize = 0
-    }
-
-    // So base size is 16.
-    // If formatTag != 1, we append cbSize (2 bytes) + extra data.
-    // My extraData buffer constructed above INCLUDES cbSize at the beginning.
-
-    const headerSize = 12 + (8 + 16 + extraData.length) + 8;
-    // RIFF (12)
-    // fmt (8 + 16 + extra)
-    // data header (8)
+    // Calculate total header size
+    const headerSize = 12 + (8 + waveFormatEx.length) + 8;
+    // RIFF (12) + fmt (8 + waveFormatEx.length) + data header (8)
 
     // Create header buffer
     const header = new Uint8Array(headerSize);
@@ -135,20 +90,11 @@ export class WavWriter {
 
     // fmt chunk
     header.set([0x66, 0x6d, 0x74, 0x20], 12); // "fmt "
-    view.setUint32(16, 16 + extraData.length, true); // fmt chunk size
-    view.setUint16(20, formatTag, true); // Audio format
-    view.setUint16(22, channels, true); // Number of channels
-    view.setUint32(24, sampleRate, true); // Sample rate
-    view.setUint32(28, byteRate, true); // Byte rate
-    view.setUint16(32, blockAlign, true); // Block align
-    view.setUint16(34, bitsPerSample, true); // Bits per sample
-
-    if (extraData.length > 0) {
-      header.set(extraData, 36);
-    }
+    view.setUint32(16, waveFormatEx.length, true); // fmt chunk size
+    header.set(waveFormatEx, 20); // WAVEFORMATEX data
 
     // data chunk header
-    const dataChunkOffset = 36 + extraData.length;
+    const dataChunkOffset = 20 + waveFormatEx.length;
     header.set([0x64, 0x61, 0x74, 0x61], dataChunkOffset); // "data"
     view.setUint32(dataChunkOffset + 4, this.dataSize, true); // Data size
 

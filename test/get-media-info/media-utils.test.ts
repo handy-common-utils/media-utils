@@ -371,7 +371,7 @@ describe('getMediaInfo with media-utils parser', () => {
           id: 2,
           channelCount: 2,
           codec: 'pcm_s16le',
-          codecDetail: 'PCM (0x0001)',
+          codecDetail: 'pcm_s16le',
           durationInSeconds: 6,
           sampleRate: 44100,
           bitsPerSample: 16,
@@ -379,6 +379,7 @@ describe('getMediaInfo with media-utils parser', () => {
           codecDetails: {
             formatTag: 1,
             blockAlign: 4,
+            samplesPerBlock: undefined,
           },
         },
       ],
@@ -408,7 +409,7 @@ describe('getMediaInfo with media-utils parser', () => {
           id: 2,
           channelCount: 2,
           codec: 'pcm_s16le',
-          codecDetail: 'PCM (0x0001)',
+          codecDetail: 'pcm_s16le',
           durationInSeconds: 6,
           sampleRate: 44100,
           bitsPerSample: 16,
@@ -416,6 +417,7 @@ describe('getMediaInfo with media-utils parser', () => {
           codecDetails: {
             formatTag: 1,
             blockAlign: 4,
+            samplesPerBlock: undefined,
           },
         },
       ],

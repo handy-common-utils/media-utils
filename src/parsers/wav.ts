@@ -1,3 +1,4 @@
+import { mapWaveFormatTagToCodec, parseWaveFormatEx } from '../codecs/waveformatex';
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
 import { readBeginning, UnsupportedFormatError } from '../utils';
@@ -57,97 +58,19 @@ export async function parseWav(stream: ReadableStream<Uint8Array>, _options?: Ge
 
   const fmtData = buffer.subarray(fmtOffset + 8, fmtOffset + 8 + fmtChunkSize);
 
-  // Parse fmt chunk fields (little-endian)
-  // These are STREAM LEVEL properties — constant for the entire audio stream
-  const audioFormat = fmtData[0] | (fmtData[1] << 8); // formatTag (wFormatTag)
-  const channelCount = fmtData[2] | (fmtData[3] << 8);
-  const sampleRate = fmtData[4] | (fmtData[5] << 8) | (fmtData[6] << 16) | (fmtData[7] << 24);
-  const byteRate = fmtData[8] | (fmtData[9] << 8) | (fmtData[10] << 16) | (fmtData[11] << 24);
-  const blockAlign = fmtData[12] | (fmtData[13] << 8); // nBlockAlign (STREAM LEVEL)
-  const bitsPerSample = fmtData[14] | (fmtData[15] << 8);
+  // Parse WAVEFORMATEX structure using the shared utility
+  const { format } = parseWaveFormatEx(fmtData, 0, fmtChunkSize);
 
-  // Parse extra data for ADPCM formats
-  let samplesPerBlock: number | undefined;
-  if (fmtChunkSize >= 20 && audioFormat === 0x0002) {
-    // MS ADPCM has extra data:
-    // cbSize (2 bytes) + samplesPerBlock (2 bytes) + numCoef (2 bytes) + coefficients
-    // samplesPerBlock is at offset 18 (after the 16-byte base WAVEFORMATEX + 2-byte cbSize)
-    samplesPerBlock = fmtData[18] | (fmtData[19] << 8);
-  }
+  const audioFormat = format.formatTag;
+  const channelCount = format.channels;
+  const sampleRate = format.samplesPerSec;
+  const byteRate = format.avgBytesPerSec;
+  const blockAlign = format.blockAlign;
+  const bitsPerSample = format.bitsPerSample;
+  const samplesPerBlock = format.adpcmDetails?.samplesPerBlock;
 
-  // Determine codec
-  let codec = 'unknown';
-  let codecDetail = `unknown_0x${audioFormat.toString(16)}`;
-
-  switch (audioFormat) {
-    case 0x0001: {
-      // PCM
-      switch (bitsPerSample) {
-        case 8: {
-          codec = 'pcm_u8';
-          codecDetail = 'pcm_u8';
-          break;
-        }
-        case 16: {
-          codec = 'pcm_s16le';
-          codecDetail = 'pcm_s16le';
-          break;
-        }
-        case 24: {
-          codec = 'pcm_s24le';
-          codecDetail = 'pcm_s24le';
-          break;
-        }
-        case 32: {
-          codec = 'pcm_s32le';
-          codecDetail = 'pcm_s32le';
-          break;
-        }
-        default: {
-          codec = 'pcm_s16le';
-          codecDetail = `pcm_s${bitsPerSample}le`;
-        }
-      }
-      break;
-    }
-    case 0x0002: {
-      // MS ADPCM
-      codec = 'adpcm_ms';
-      codecDetail = 'adpcm_ms';
-      break;
-    }
-    case 0x0003: {
-      // IEEE Float
-      codec = 'pcm_f32le';
-      codecDetail = 'pcm_f32le';
-      break;
-    }
-    case 0x0006: {
-      // ALAW
-      codec = 'pcm_alaw';
-      codecDetail = 'pcm_alaw';
-      break;
-    }
-    case 0x0007: {
-      // MULAW
-      codec = 'pcm_mulaw';
-      codecDetail = 'pcm_mulaw';
-      break;
-    }
-    case 0x0011: {
-      // IMA ADPCM
-      codec = 'adpcm_ima_wav';
-      codecDetail = 'adpcm_ima_wav';
-      break;
-    }
-    default: {
-      if (audioFormat === 0xfffe) {
-        // WAVE_FORMAT_EXTENSIBLE - tricky, depends on SubFormat
-        codec = 'pcm_s16le'; // Fallback
-        codecDetail = 'wave_format_extensible';
-      }
-    }
-  }
+  // Map format tag to codec using the shared utility
+  const { codec, codecDetail } = mapWaveFormatTagToCodec(audioFormat, bitsPerSample);
 
   // Find data chunk to calculate duration
   let dataOffset = fmtOffset + 8 + fmtChunkSize;

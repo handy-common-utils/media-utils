@@ -1,5 +1,6 @@
 import { AudioCodecType } from '../media-info';
 import { UnsupportedFormatError } from '../utils';
+import { readUInt16LE, readUInt32LE, writeUInt64LE } from './binary';
 
 // ASF GUID Constants
 // Note: GUIDs in ASF have mixed endianness - first 3 fields are little-endian
@@ -90,100 +91,16 @@ export function readVarLengthField(buffer: Uint8Array, offset: number, type: num
     }
     case 2: {
       if (offset + 2 > buffer.length) throw new UnsupportedFormatError('Not an ASF file: insufficient data for variable-length field');
-      return { value: buffer[offset] | (buffer[offset + 1] << 8), size: 2 };
+      return { value: readUInt16LE(buffer, offset), size: 2 };
     }
     case 3: {
       if (offset + 4 > buffer.length) throw new UnsupportedFormatError('Not an ASF file: insufficient data for variable-length field');
-      return {
-        value: buffer[offset] | (buffer[offset + 1] << 8) | (buffer[offset + 2] << 16) | (buffer[offset + 3] << 24),
-        size: 4,
-      };
+      return { value: readUInt32LE(buffer, offset), size: 4 };
     }
     default: {
       throw new UnsupportedFormatError(`Invalid ASF Data Length Field Type: ${type}`);
     }
   }
-}
-
-/**
- * Read a 16-bit unsigned integer (little-endian) from buffer
- * @param buffer The buffer to read from
- * @param offset Offset to read from
- * @returns The uint16 value, or null if not enough data available
- */
-export function readUInt16(buffer: Uint8Array, offset: number): number {
-  if (offset + 2 > buffer.length)
-    throw new UnsupportedFormatError(`Insufficient data for reading uint16 at offset ${offset} from a buffer of size ${buffer.length}`);
-  return buffer[offset] | (buffer[offset + 1] << 8);
-}
-
-/**
- * Read a 32-bit unsigned integer (little-endian) from buffer
- * @param buffer The buffer to read from
- * @param offset Offset to read from
- * @returns The uint32 value, or null if not enough data available
- */
-export function readUInt32(buffer: Uint8Array, offset: number): number {
-  if (offset + 4 > buffer.length)
-    throw new UnsupportedFormatError(`Insufficient data for reading uint32 at offset ${offset} from a buffer of size ${buffer.length}`);
-  return buffer[offset] | (buffer[offset + 1] << 8) | (buffer[offset + 2] << 16) | (buffer[offset + 3] << 24);
-}
-
-/**
- * Read a 64-bit unsigned integer (little-endian) from buffer
- * @param buffer The buffer to read from
- * @param offset Offset to read from
- * @returns The uint64 value, or null if not enough data available
- */
-export function readUInt64(buffer: Uint8Array, offset: number): bigint {
-  if (offset + 8 > buffer.length)
-    throw new UnsupportedFormatError(`Insufficient data for reading uint64 at offset ${offset} from a buffer of size ${buffer.length}`);
-  const low = readUInt32(buffer, offset);
-  const high = readUInt32(buffer, offset + 4);
-  return (BigInt(high) << 32n) + BigInt(low);
-}
-
-/**
- * Write a 16-bit little-endian integer
- * @param buf Buffer to write to
- * @param offset Offset in buffer
- * @param value Value to write
- * @returns Number of bytes written
- */
-export function writeUInt16(buf: Uint8Array, offset: number, value: number): number {
-  buf[offset] = value & 0xff;
-  buf[offset + 1] = (value >> 8) & 0xff;
-  return 2;
-}
-
-/**
- * Write a 32-bit little-endian integer
- * @param buf Buffer to write to
- * @param offset Offset in buffer
- * @param value Value to write
- * @returns Number of bytes written
- */
-export function writeUInt32(buf: Uint8Array, offset: number, value: number): number {
-  buf[offset] = value & 0xff;
-  buf[offset + 1] = (value >> 8) & 0xff;
-  buf[offset + 2] = (value >> 16) & 0xff;
-  buf[offset + 3] = (value >> 24) & 0xff;
-  return 4;
-}
-
-/**
- * Write a 64-bit little-endian integer
- * @param buf Buffer to write to
- * @param offset Offset in buffer
- * @param value Value to write
- * @returns Number of bytes written
- */
-export function writeUInt64(buf: Uint8Array, offset: number, value: bigint | number): number {
-  const low = BigInt(value) & 0xffffffffn;
-  const high = BigInt(value) >> 32n;
-  writeUInt32(buf, offset, Number(low));
-  writeUInt32(buf, offset + 4, Number(high));
-  return 8;
 }
 
 /**
@@ -196,7 +113,7 @@ export function writeUInt64(buf: Uint8Array, offset: number, value: bigint | num
  */
 export function writeObjectHeader(buf: Uint8Array, offset: number, guid: readonly number[], size: number | bigint): number {
   buf.set(guid, offset);
-  writeUInt64(buf, offset + 16, size);
+  writeUInt64LE(buf, offset + 16, size);
   return 24;
 }
 

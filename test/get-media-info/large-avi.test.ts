@@ -27,7 +27,7 @@ describe('getMediaInfo with large AVI files', () => {
         {
           id: 2,
           codec: 'ac3',
-          codecDetail: 'AC-3 (0x2000)',
+          codecDetail: 'AC-3',
           channelCount: 5,
           sampleRate: 48000,
           bitrate: 448000,

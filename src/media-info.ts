@@ -66,11 +66,14 @@ const audioCodecs = {
   pcm_s24be: new AudioCodecDetails('pcm_s24be', 'wav', ['pcm-s24be']),
   pcm_s32be: new AudioCodecDetails('pcm_s32be', 'wav', ['pcm-s32be']),
   pcm_f32le: new AudioCodecDetails('pcm_f32le', 'wav', ['pcm-f32le', 'pcm-f32', 'A_PCM/FLOAT/IEEE']),
+  pcm_alaw: new AudioCodecDetails('pcm_alaw', 'wav', ['pcm-alaw']),
+  pcm_mulaw: new AudioCodecDetails('pcm_mulaw', 'wav', ['pcm-mulaw']),
   mp2: new AudioCodecDetails('mp2', 'mp2', ['A_MPEG/L2', 'A_MPEG/L1']),
   mp1: new AudioCodecDetails('mp1', 'mp1', ['A_MPEG/L1']),
   dts: new AudioCodecDetails('dts', 'dts', ['A_DTS']),
   alac: new AudioCodecDetails('alac', 'm4a', ['A_ALAC']),
   adpcm_ms: new AudioCodecDetails('adpcm_ms', 'wav', ['A_ADPCM']),
+  adpcm_ima_wav: new AudioCodecDetails('adpcm_ima_wav', 'wav', ['adpcm-ima-wav']),
 };
 
 export type AudioCodecType = keyof typeof audioCodecs;

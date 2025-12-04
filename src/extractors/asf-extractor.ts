@@ -4,7 +4,7 @@
  * by extracting payloads from the target audio stream and re-muxing into a new ASF container.
  */
 
-import { readUInt16, readUInt32 } from '../codecs/asf';
+import { readUInt16LE, readUInt32LE } from '../codecs/binary';
 import { ExtractAudioOptions } from '../extract-audio';
 import { AudioStreamInfo } from '../media-info';
 import { AsfMediaInfo, parseAsf } from '../parsers/asf';
@@ -43,14 +43,14 @@ export async function extractFromAsf(
   const { codecPrivate } = additionalStreamInfo;
 
   // Parse WAVEFORMATEX from codecPrivate
-  const codecId = readUInt16(codecPrivate, 0) ?? 0;
-  const channels = readUInt16(codecPrivate, 2) ?? 0;
-  const sampleRate = readUInt32(codecPrivate, 4);
-  const avgBytesPerSec = readUInt32(codecPrivate, 8);
+  const codecId = readUInt16LE(codecPrivate, 0) ?? 0;
+  const channels = readUInt16LE(codecPrivate, 2) ?? 0;
+  const sampleRate = readUInt32LE(codecPrivate, 4);
+  const avgBytesPerSec = readUInt32LE(codecPrivate, 8);
   const bitrate = avgBytesPerSec * 8;
-  const blockSize = readUInt16(codecPrivate, 12) ?? 0;
-  const _bitsPerSample = readUInt16(codecPrivate, 14) ?? 16; // Bits per sample from WAVEFORMATEX
-  const cbSize = readUInt16(codecPrivate, 16) ?? 0; // Size of extra format information
+  const blockSize = readUInt16LE(codecPrivate, 12) ?? 0;
+  const _bitsPerSample = readUInt16LE(codecPrivate, 14) ?? 16; // Bits per sample from WAVEFORMATEX
+  const cbSize = readUInt16LE(codecPrivate, 16) ?? 0; // Size of extra format information
   const encoderSpecificData = codecPrivate.slice(18, 18 + cbSize);
 
   // ASF container structure requires all payloads to be available before writing the header.
