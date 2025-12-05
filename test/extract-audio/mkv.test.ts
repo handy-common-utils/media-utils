@@ -26,13 +26,17 @@ describe('Extract audio from MKV', () => {
     expect(extractedAudioInfo).toEqual({
       audioStreams: [
         {
-          id: 1,
+          id: 0,
           bitrate: 160000,
           channelCount: 2,
           codec: 'mp3',
-          codecDetail: 'mp3',
+          codecDetail: 'MPEG-1 Layer III',
           durationInSeconds: undefined,
           sampleRate: 48000,
+          codecDetails: {
+            layer: 3,
+            padding: 0,
+          },
         },
       ],
       container: 'mp3',
@@ -63,7 +67,7 @@ describe('Extract audio from MKV', () => {
     expect(extractedAudioInfo).toEqual({
       audioStreams: [
         {
-          id: 1,
+          id: 0,
           channelCount: 2,
           codec: 'aac',
           codecDetail: 'mp4a.40.2',

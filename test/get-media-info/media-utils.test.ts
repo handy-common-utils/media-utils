@@ -12,11 +12,10 @@ describe('getMediaInfo with media-utils parser', () => {
     expect(info).toEqual({
       audioStreams: [
         {
-          id: 1,
+          id: 0,
           channelCount: 2,
           codec: 'aac',
           codecDetail: 'mp4a.40.2',
-          durationInSeconds: undefined,
           sampleRate: 44100,
           profile: 'LC',
         },
@@ -34,13 +33,17 @@ describe('getMediaInfo with media-utils parser', () => {
     expect(info).toEqual({
       audioStreams: [
         {
-          id: 1,
+          id: 0,
           bitrate: expect.closeTo(128273, -2) as any, // Average bitrate from VBR header
           channelCount: 2,
           codec: 'mp3',
-          codecDetail: 'mp3',
+          codecDetail: 'MPEG-1 Layer III',
           durationInSeconds: expect.closeTo(6, 0.1),
           sampleRate: 44100,
+          codecDetails: {
+            layer: 3,
+            padding: 0,
+          },
         },
       ],
       container: 'mp3',
@@ -442,16 +445,107 @@ describe('getMediaInfo with media-utils parser', () => {
     } as MediaInfo);
   });
 
-  it.each(['engine-start.h264.aac.mp4', 'engine-start.mpeg2video.mp2.m2ts', 'engine-start.h264.aac.mov', 'engine-start.h264.mp3.mov'])(
-    'should fail to parse %s',
-    async (filename) => {
-      try {
-        await getMediaInfoFromFile(sampleFile(filename), { useParser: 'media-utils' });
-        expect('').toBe('should fail to parse');
-      } catch (error) {
-        expect(error).toBeInstanceOf(Error);
-        expect(error).toHaveProperty('isUnsupportedFormatError', true);
-      }
-    },
-  );
+  it('should parse engine-start.mpeg2video.mp2.m2ts file', async () => {
+    const info = await getMediaInfoFromFile(sampleFile('engine-start.mpeg2video.mp2.m2ts'), { useParser: 'media-utils' });
+    expect(info).toEqual({
+      audioStreams: [
+        {
+          id: 257,
+          codec: 'mp2',
+          codecDetail: 'MPEG-1 Layer II',
+          sampleRate: 44100,
+          channelCount: 2,
+          bitrate: 384000,
+          durationInSeconds: undefined,
+          codecDetails: {
+            layer: 2,
+            padding: 0,
+          },
+        },
+      ],
+      container: 'mpegts',
+      containerDetail: 'mpegts',
+      parser: 'media-utils',
+      videoStreams: [
+        {
+          id: 256,
+          codec: 'mpeg2video',
+          codecDetail: 'mpeg2video',
+          width: 1280,
+          height: 534,
+          fps: 24,
+        },
+      ],
+    } as MediaInfo);
+  });
+
+  it('should parse MPEG-TS file with H.264 video and AAC audio', async () => {
+    const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.aac.m2ts'), { useParser: 'media-utils' });
+    expect(info).toEqual({
+      container: 'mpegts',
+      containerDetail: 'mpegts',
+      parser: 'media-utils',
+      audioStreams: [
+        {
+          id: 4352,
+          codec: 'aac',
+          codecDetail: 'mp4a.40.2',
+          sampleRate: 44100,
+          channelCount: 2,
+        },
+      ],
+      videoStreams: [
+        {
+          id: 4113,
+          codec: 'h264',
+          codecDetail: 'avc1.64001f',
+          width: 1280,
+          height: 534,
+        },
+      ],
+    } as MediaInfo);
+  });
+
+  it('should parse MPEG-TS file with H.264 video and MP3 audio', async () => {
+    const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.mp3.m2ts'), { useParser: 'media-utils' });
+    expect(info).toEqual({
+      container: 'mpegts',
+      containerDetail: 'mpegts',
+      parser: 'media-utils',
+      audioStreams: [
+        {
+          id: 4352,
+          codec: 'mp3',
+          codecDetail: 'MPEG-1 Layer III',
+          sampleRate: 44100,
+          channelCount: 2,
+          bitrate: 128000,
+          durationInSeconds: undefined,
+          codecDetails: {
+            layer: 3,
+            padding: 1,
+          },
+        },
+      ],
+      videoStreams: [
+        {
+          id: 4113,
+          codec: 'h264',
+          codecDetail: 'avc1.64001f',
+          width: 1280,
+          height: 534,
+        },
+      ],
+    } as MediaInfo);
+  });
+
+  it.each(['engine-start.h264.aac.mp4', 'engine-start.h264.aac.mov', 'engine-start.h264.mp3.mov'])('should fail to parse %s', async (filename) => {
+    try {
+      await getMediaInfoFromFile(sampleFile(filename), { useParser: 'media-utils' });
+      expect('').toBe('should fail to parse');
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect(error).toHaveProperty('isUnsupportedFormatError', true);
+    }
+  });
 });

@@ -31,6 +31,11 @@ export async function parseAac(stream: ReadableStream<Uint8Array>, _options?: Ge
     containerDetail: 'aac',
     durationInSeconds: undefined,
     videoStreams: [],
-    audioStreams: [audioStream],
+    audioStreams: [
+      {
+        ...audioStream,
+        id: 0,
+      },
+    ],
   };
 }

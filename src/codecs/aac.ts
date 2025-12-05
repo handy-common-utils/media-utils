@@ -1,5 +1,6 @@
 import { AudioStreamInfo } from '../media-info';
 import { UnsupportedFormatError } from '../utils';
+import { toHexString } from './binary';
 
 /**
  * Mapping table between AAC audio object types and profile names
@@ -42,16 +43,17 @@ export function getAudioObjectTypeFromAacProfileName(profile: string): number | 
  * ADTS headers are 7 bytes (without CRC) or 9 bytes (with CRC).
  *
  * @param data The AAC data with ADTS header
+ * @param offset The offset of the header in the buffer
  * @returns Audio stream information extracted from the ADTS header
  * @throws Error if the data is not a valid ADTS header
  */
-export function parseADTSHeader(data: Uint8Array): AudioStreamInfo {
-  if (data.length < 7) {
+export function parseADTSHeader(data: Uint8Array, offset: number = 0): Omit<AudioStreamInfo, 'id' | 'durationInSeconds'> {
+  if (data.length - offset < 7) {
     throw new UnsupportedFormatError('Not an AAC file: insufficient data');
   }
 
   // Parse ADTS header (7 bytes minimum)
-  const header = data.slice(0, 7);
+  const header = data.slice(offset, offset + 7);
 
   // Check syncword (12 bits) - should be 0xFFF
   const syncword = (header[0] << 4) | (header[1] >> 4);
@@ -87,7 +89,9 @@ export function parseADTSHeader(data: Uint8Array): AudioStreamInfo {
   const sampleRate = samplingFrequencies[samplingFreqIndex];
 
   if (!sampleRate) {
-    throw new UnsupportedFormatError(`Invalid ADTS header: unsupported sampling frequency index ${samplingFreqIndex}`);
+    throw new UnsupportedFormatError(
+      `Invalid ADTS header: unsupported sampling frequency index ${samplingFreqIndex}: ${toHexString(data.subarray(offset - 10, offset + 200))} ...`,
+    );
   }
 
   // Extract channel configuration (3 bits)
@@ -109,13 +113,11 @@ export function parseADTSHeader(data: Uint8Array): AudioStreamInfo {
   const _frameLength = ((header[3] & 0x03) << 11) | (header[4] << 3) | ((header[5] >> 5) & 0x07);
 
   return {
-    id: 1,
     codec: 'aac',
     codecDetail: `mp4a.40.${audioObjectType}`,
     channelCount,
     sampleRate,
     profile,
-    durationInSeconds: undefined,
   };
 }
 

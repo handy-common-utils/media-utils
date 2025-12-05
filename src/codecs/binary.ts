@@ -160,7 +160,18 @@ export function toHex(value: number, minDigits = 4): string {
  * toHexString(1) // "01"
  * toHexString(255) // "ff"
  * toHexString(4096, 4) // "1000"
+ * toHexString(new Uint8Array([1, 2, 3])) // "01 02 03"
  */
-export function toHexString(value: number, minDigits = 2): string {
-  return value.toString(16).padStart(minDigits, '0');
+export function toHexString(value: number | Uint8Array | ArrayBufferLike, minDigits = 2): string {
+  if (value == null) {
+    return JSON.stringify(value);
+  }
+
+  if (typeof value === 'number') {
+    return value.toString(16).padStart(minDigits, '0');
+  }
+
+  // Convert ArrayBufferLike to Uint8Array if needed
+  const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join(' ');
 }

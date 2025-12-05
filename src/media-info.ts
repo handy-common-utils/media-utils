@@ -9,6 +9,7 @@ export class ContainerDetails<T extends string> {
 }
 
 const containers = {
+  unknown: new ContainerDetails('unknown', 'mp4', []),
   mov: new ContainerDetails('mov', 'mov', ['mov', 'qt', 'qt ', 'qt  ']),
   mp4: new ContainerDetails('mp4', 'mp4', ['m4v', 'm4a', 'isom', 'iso2', 'mp41', 'mp42']),
   webm: new ContainerDetails('webm', 'webm', []),
@@ -48,9 +49,14 @@ export class AudioCodecDetails<T extends string> {
 }
 
 const audioCodecs = {
-  mp3: new AudioCodecDetails('mp3', 'mp3', ['mp4a.6b', '.mp3', 'A_MPEG/L3']),
+  unknown: new AudioCodecDetails('unknown', 'wav', []),
+  mp3: new AudioCodecDetails('mp3', 'mp3', ['mp4a.6b', '.mp3', 'A_MPEG/L3', 'MPEG-2.5 Layer III', 'MPEG-2 Layer III', 'MPEG-1 Layer III']),
   opus: new AudioCodecDetails('opus', 'ogg', ['opus', 'mp4a.ad', 'A_OPUS']),
   aac: new AudioCodecDetails('aac', 'aac', [/^mp4a\.40/, 'mp4a', 'A_AAC', /^A_AAC\/MPEG2\//, /^A_AAC\/MPEG4\//]),
+  /**
+   * AAC LATM (Advanced Audio Coding LATM syntax)
+   */
+  aac_latm: new AudioCodecDetails('aac_latm', 'aac', []),
   wmav1: new AudioCodecDetails('wmav1', 'wma', ['WMAv1']),
   wmav2: new AudioCodecDetails('wmav2', 'wma', ['WMAv2']),
   wmapro: new AudioCodecDetails('wmapro', 'wma', ['WMAPro', 'WMA Pro']),
@@ -68,12 +74,24 @@ const audioCodecs = {
   pcm_f32le: new AudioCodecDetails('pcm_f32le', 'wav', ['pcm-f32le', 'pcm-f32', 'A_PCM/FLOAT/IEEE']),
   pcm_alaw: new AudioCodecDetails('pcm_alaw', 'wav', ['pcm-alaw']),
   pcm_mulaw: new AudioCodecDetails('pcm_mulaw', 'wav', ['pcm-mulaw']),
-  mp2: new AudioCodecDetails('mp2', 'mp2', ['A_MPEG/L2', 'A_MPEG/L1']),
+  mp2: new AudioCodecDetails('mp2', 'mp2', [
+    'A_MPEG/L2',
+    'A_MPEG/L1',
+    'MPEG-2.5 Layer II',
+    'MPEG-2 Layer II',
+    'MPEG-2 Layer I',
+    'MPEG-1 Layer II',
+    'MPEG-1 Layer I',
+  ]),
   mp1: new AudioCodecDetails('mp1', 'mp1', ['A_MPEG/L1']),
   dts: new AudioCodecDetails('dts', 'dts', ['A_DTS']),
   alac: new AudioCodecDetails('alac', 'm4a', ['A_ALAC']),
   adpcm_ms: new AudioCodecDetails('adpcm_ms', 'wav', ['A_ADPCM']),
   adpcm_ima_wav: new AudioCodecDetails('adpcm_ima_wav', 'wav', ['adpcm-ima-wav']),
+  /**
+   * ATSC A/52B (AC-3, E-AC-3)
+   */
+  eac3: new AudioCodecDetails('eac3', 'ac3', ['E-AC-3']),
 };
 
 export type AudioCodecType = keyof typeof audioCodecs;
@@ -104,6 +122,7 @@ export class VideoCodecDetails<T extends string> {
 }
 
 const videoCodecs = {
+  unknown: new VideoCodecDetails('unknown', []),
   h264: new VideoCodecDetails('h264', ['H264', 'avc', 'avc1', 'X264', 'AVC1', /^avc1\./, 'V_MPEG4/ISO/AVC']),
   hevc: new VideoCodecDetails('hevc', ['h265', 'H265', 'hvc', 'hev', /^hevc_.*/, 'V_MPEGH/ISO/HEVC']),
   vp8: new VideoCodecDetails('vp8', ['vp08', /^vp08\./, 'V_VP8']),
@@ -111,11 +130,24 @@ const videoCodecs = {
   wmv2: new AudioCodecDetails('wmv2', 'asf', ['WMV2']),
   av1: new VideoCodecDetails('av1', ['av01', 'V_AV1']),
   prores: new VideoCodecDetails('prores', ['ap']),
+  /**
+   * MPEG-4 part 2 (decoders: mpeg4 mpeg4_v4l2m2m mpeg4_cuvid ) (encoders: mpeg4 libxvid mpeg4_omx mpeg4_v4l2m2m )
+   */
   mpeg4: new VideoCodecDetails('mpeg4', ['FMP4', 'V_MPEG4/ISO/SP', 'V_MPEG4/ISO/ASP', 'V_MPEG4/ISO/AP']),
-  mpeg2: new VideoCodecDetails('mpeg2', ['V_MPEG2']),
+  /**
+   * MPEG-2 video (decoders: mpeg2video mpegvideo mpeg2_v4l2m2m mpeg2_qsv mpeg2_cuvid ) (encoders: mpeg2video mpeg2_qsv mpeg2_vaapi )
+   */
+  mpeg2video: new VideoCodecDetails('mpeg2video', ['V_MPEG2']),
   theora: new VideoCodecDetails('theora', ['V_THEORA']),
   mjpeg: new VideoCodecDetails('mjpeg', ['mjpg', 'MJPG', 'V_MJPEG']),
+  /**
+   * MPEG-4 part 2 Microsoft variant version 2
+   */
   msmpeg4v2: new VideoCodecDetails('msmpeg4v2', ['MP42']),
+  /**
+   * MPEG-1 video (decoders: mpeg1video mpeg1_v4l2m2m mpeg1_cuvid )
+   */
+  mpeg1video: new VideoCodecDetails('mpeg1video', []),
 };
 
 export type VideoCodecType = keyof typeof videoCodecs;
@@ -207,6 +239,11 @@ export interface AudioStreamInfo {
      * ...but NOT samples-per-block (that's known from the stream header).
      */
     samplesPerBlock?: number;
+    /**
+     * Something like layer I, II, III
+     */
+    layer?: number;
+    padding?: number;
   };
 }
 

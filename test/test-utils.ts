@@ -1,4 +1,4 @@
-import { afterAll } from '@jest/globals';
+import { afterAll, expect } from '@jest/globals';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -23,6 +23,14 @@ export function sampleFile(filename: string): string {
  */
 export function outputFile(filename: string): string {
   return path.join(OUTPUT_DIR, filename);
+}
+
+/**
+ * Assert that the file size is greater than zero
+ * @param filePath - The path to the file to check
+ */
+export function assertFileSizeGreaterThanZero(filePath: string): void {
+  expect(fs.statSync(filePath).size).toBeGreaterThan(0);
 }
 
 // Track files to clean up after tests

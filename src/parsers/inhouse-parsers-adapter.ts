@@ -9,6 +9,7 @@ import { parseAsf } from './asf';
 import { parseAvi } from './avi';
 import { parseMkv } from './mkv';
 import { parseMp3 } from './mp3';
+import { parseMpegTs } from './mpegts';
 import { parseOgg } from './ogg';
 import { parseWav } from './wav';
 
@@ -22,9 +23,10 @@ import { parseWav } from './wav';
  * - OGG files with page headers (Vorbis, Opus)
  * - AVI files with RIFF headers
  * - ASF/WMA/WMV files with ASF headers
+ * - MPEG-TS files with TS packets
  */
 export class InhouseParserAdapter implements MediaParserAdapter {
-  private readonly parsers = [parseMp3, parseAac, parseMkv, parseWav, parseOgg, parseAvi, parseAsf];
+  private readonly parsers = [parseMp3, parseAac, parseMkv, parseWav, parseOgg, parseAvi, parseAsf, parseMpegTs];
 
   async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
     let i = 0;

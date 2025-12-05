@@ -95,6 +95,7 @@ export async function parseMp3(stream: ReadableStream<Uint8Array>, _options?: Ge
     videoStreams: [],
     audioStreams: [
       {
+        id: 0,
         ...audioStream,
         bitrate: averageBitrate,
         durationInSeconds,

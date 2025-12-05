@@ -4,6 +4,7 @@ import { extractFromAsf } from './extractors/asf-extractor';
 import { extractFromAvi } from './extractors/avi-extractor';
 import { extractFromMkv } from './extractors/mkv-extractor';
 import { extractFromMp4 } from './extractors/mp4-extractor';
+import { extractFromMpegTs } from './extractors/mpegts-extractor';
 import { getMediaInfo } from './get-media-info';
 import { AsfMediaInfo } from './parsers/asf';
 import { createReadableStreamFromFile, ParserRelatedOptions, UnsupportedFormatError } from './utils';
@@ -90,8 +91,11 @@ export async function extractAudio(
     case 'avi': {
       return extractFromAvi(extractStream, output, mediaInfo, options);
     }
+    case 'mpegts': {
+      return extractFromMpegTs(extractStream, output, mediaInfo, options);
+    }
     default: {
-      throw new UnsupportedFormatError(`Unsupported container format: ${container}. Supported formats: mp4, mov, mkv/webm, asf, wma, avi`);
+      throw new UnsupportedFormatError(`Unsupported container format: ${container}. Supported formats: mp4, mov, mkv/webm, asf, wma, avi, mpegts`);
     }
   }
 }

@@ -34,13 +34,12 @@ describe('Extract audio from MP4', () => {
       videoStreams: [],
       audioStreams: [
         {
-          id: 1,
+          id: 0,
           codec: 'aac',
           codecDetail: 'mp4a.40.2',
           profile: 'LC',
           channelCount: 2,
           sampleRate: 44100,
-          durationInSeconds: undefined,
         },
       ],
     });
@@ -72,13 +71,17 @@ describe('Extract audio from MP4', () => {
       videoStreams: [],
       audioStreams: [
         {
-          id: 1,
+          id: 0,
           codec: 'mp3',
-          codecDetail: 'mp3',
+          codecDetail: 'MPEG-1 Layer III',
           channelCount: 2,
           sampleRate: 44100,
           bitrate: 128000,
           durationInSeconds: undefined,
+          codecDetails: {
+            layer: 3,
+            padding: 0,
+          },
         },
       ],
     });
