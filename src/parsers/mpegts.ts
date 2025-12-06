@@ -4,6 +4,7 @@ import { h264LevelString, h264ProfileName, parseSPS } from '../codecs/h264';
 import { h265LevelString, h265ProfileName } from '../codecs/h265';
 import { parseMP3Header } from '../codecs/mp3';
 import {
+  guessAudioHeaderInPES,
   parseAacHeaderInPES,
   parseAc3DescriptorTagBody,
   parseDtsDescriptorTagBody,
@@ -47,7 +48,7 @@ type StreamDetails = Omit<AudioStreamInfo | VideoStreamInfo, 'id' | 'durationInS
   programNumber: number;
   pid: number;
   streamType: number;
-  streamTypeCategory: 'video' | 'audio' | 'other';
+  streamTypeCategory: 'video' | 'audio' | 'private' | 'other';
   /**
    * Whether at least one frame header in the PES payload has been parsed.
    * That also means the details of the codec is complete.
@@ -485,19 +486,24 @@ export class MpegTsParser {
           if (streamDetails.pesBuffer.length < pesStart + 100) return false; // Need more data for parsing the header
           // try to parse the audio header
           try {
-            switch (streamDetails.codec) {
-              case 'mp2':
-              case 'mp3': {
-                parseMp2OrMp3HeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
-                break;
-              }
-              case 'aac': {
-                parseAacHeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
-                break;
-              }
-              default: {
-                // Other codec, let's assume it is valid
-                break;
+            if (streamDetails.streamTypeCategory === 'private') {
+              // We need to guess, because ffmpeg uses 0x06 for aac and mp3 but with different packaging
+              guessAudioHeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
+            } else {
+              switch (streamDetails.codec) {
+                case 'mp2':
+                case 'mp3': {
+                  parseMp2OrMp3HeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
+                  break;
+                }
+                case 'aac': {
+                  parseAacHeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
+                  break;
+                }
+                default: {
+                  // Other codec, let's assume it is valid
+                  break;
+                }
               }
             }
           } catch {
@@ -702,7 +708,7 @@ export async function parseMpegTs(
 }
 
 // Stream Types Mapping
-const STREAM_TYPE_MAP: Record<number, { type: 'video' | 'audio' | 'other'; codec: AudioCodecType | VideoCodecType }> = {
+const STREAM_TYPE_MAP: Record<number, { type: 'video' | 'audio' | 'private' | 'other'; codec: AudioCodecType | VideoCodecType }> = {
   0x01: { type: 'video', codec: 'mpeg1video' }, // Not strictly in VideoCodecType but let's see
   0x02: { type: 'video', codec: 'mpeg2video' },
   0x03: { type: 'audio', codec: 'mp3' }, // MPEG-1 Audio (mp1/mp2/mp3 - need to parse to determine)
@@ -716,7 +722,7 @@ const STREAM_TYPE_MAP: Record<number, { type: 'video' | 'audio' | 'other'; codec
   0x87: { type: 'audio', codec: 'eac3' }, // ATSC E-AC-3
 
   // But, ffmpeg uses this for its LATM muxed PES payload starting with AudioMuxConfig
-  0x06: { type: 'audio', codec: 'aac' }, // Private Data, often AC-3 or E-AC-3 in DVB, requires descriptor check
+  0x06: { type: 'private', codec: 'unknown' }, // Private Data, often AC-3 or E-AC-3 in DVB, requires descriptor check
 };
 
 /**

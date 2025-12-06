@@ -100,6 +100,8 @@ export function parseAudioMuxElement(br: BitReader, assertMuxVersions: [number, 
     // throw new UnsupportedFormatError(`Unsupported LATM frameLengthType: ${frameLengthType}`);
   }
 
+  br.readBits(2); // otherDataPresent, crcCheckPresent
+
   // return parsed info
   return asc;
 }

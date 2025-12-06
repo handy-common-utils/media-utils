@@ -181,6 +181,14 @@ export class BitReader {
     this.buffer = buffer;
   }
 
+  getByteOffset(): number {
+    return this.byteOffset;
+  }
+
+  getBitOffset(): number {
+    return this.bitOffset;
+  }
+
   readBit(): number {
     if (this.byteOffset >= this.buffer.length) {
       throw new Error('End of stream');

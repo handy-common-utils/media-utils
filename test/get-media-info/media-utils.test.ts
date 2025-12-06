@@ -487,11 +487,11 @@ describe('getMediaInfo with media-utils parser', () => {
       audioStreams: [
         {
           id: 4352,
-          codec: 'aac_latm',
-          codecDetail: 'AAC in FFMPEG LATM',
+          codec: 'aac',
+          codecDetail: 'AAC in ADTS',
           sampleRate: 44100,
           language: 'eng',
-          // channelCount: 2,
+          channelCount: 2,
         },
       ],
       videoStreams: [
@@ -506,7 +506,7 @@ describe('getMediaInfo with media-utils parser', () => {
     } as MediaInfo);
   });
 
-  it.only('should parse MPEG-TS file with H.264 video and MP3 audio', async () => {
+  it('should parse MPEG-TS file with H.264 video and MP3 audio', async () => {
     const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.mp3.m2ts'), { useParser: 'media-utils' });
     expect(info).toEqual({
       container: 'mpegts',
@@ -521,9 +521,10 @@ describe('getMediaInfo with media-utils parser', () => {
           channelCount: 2,
           bitrate: 128000,
           durationInSeconds: undefined,
+          language: 'eng',
           codecDetails: {
             layer: 3,
-            padding: 1,
+            padding: 0,
           },
         },
       ],
