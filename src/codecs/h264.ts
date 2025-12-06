@@ -1,49 +1,5 @@
 import { VideoStreamInfo } from '../media-info';
-
-class BitReader {
-  private buffer: Uint8Array;
-  private byteOffset: number = 0;
-  private bitOffset: number = 0;
-
-  constructor(buffer: Uint8Array) {
-    this.buffer = buffer;
-  }
-
-  readBit(): number {
-    if (this.byteOffset >= this.buffer.length) {
-      throw new Error('End of stream');
-    }
-    const bit = (this.buffer[this.byteOffset] >> (7 - this.bitOffset)) & 1;
-    this.bitOffset++;
-    if (this.bitOffset === 8) {
-      this.byteOffset++;
-      this.bitOffset = 0;
-    }
-    return bit;
-  }
-
-  readBits(n: number): number {
-    let res = 0;
-    for (let i = 0; i < n; i++) {
-      res = (res << 1) | this.readBit();
-    }
-    return res;
-  }
-
-  readUE(): number {
-    let leadingZeros = 0;
-    while (this.readBit() === 0 && leadingZeros < 32) {
-      leadingZeros++;
-    }
-    return (1 << leadingZeros) - 1 + this.readBits(leadingZeros);
-  }
-
-  readSE(): number {
-    const val = this.readUE();
-    const sign = val & 1 ? 1 : -1;
-    return sign * ((val + 1) >> 1);
-  }
-}
+import { BitReader } from './binary';
 
 /**
  * Remove Emulation Prevention Bytes (0x03) from H.264 NAL unit
@@ -197,4 +153,33 @@ export function parseSPS(data: Uint8Array): Partial<VideoStreamInfo> {
 
 function toHex(value: number, minDigits: number): string {
   return value.toString(16).padStart(minDigits, '0');
+}
+
+/**
+ * @param profileIdc Profile IDC
+ * @returns Profile name
+ */
+export function h264ProfileName(profileIdc: number): string {
+  switch (profileIdc) {
+    case 66: {
+      return 'Baseline';
+    }
+    case 77: {
+      return 'Main';
+    }
+    case 100: {
+      return 'High';
+    }
+    default: {
+      return `Profile${profileIdc}`;
+    }
+  }
+}
+
+/**
+ * @param levelIdc Level IDC
+ * @returns Level string
+ */
+export function h264LevelString(levelIdc: number): string {
+  return (levelIdc / 10).toFixed(1);
 }

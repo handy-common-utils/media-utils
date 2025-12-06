@@ -1,7 +1,20 @@
 import { parseADTSHeader } from '../codecs/aac';
-import { parseSPS } from '../codecs/h264';
+import { readAscii, readUInt16BE, readUInt32BE, toHexString } from '../codecs/binary';
+import { h264LevelString, h264ProfileName, parseSPS } from '../codecs/h264';
+import { h265LevelString, h265ProfileName } from '../codecs/h265';
 import { parseMP3Header } from '../codecs/mp3';
-import { parseMpeg2VideoSequenceHeader } from '../codecs/mpeg2-video';
+import {
+  parseAacHeaderInPES,
+  parseAc3DescriptorTagBody,
+  parseDtsDescriptorTagBody,
+  parseEac3DescriptorTagBody,
+  parseEsDescriptors,
+  parseH264HeaderInPES,
+  parseLanguageDescriptorTagBody,
+  parseMp2OrMp3HeaderInPES,
+  parseMpeg2VideoHeaderInPES,
+  parseMpeg2VideoSequenceHeader,
+} from '../codecs/mpegts';
 import { PesPayloadHandler } from '../codecs/pes';
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioCodecType, AudioStreamInfo, MediaInfo, VideoCodecType, VideoStreamInfo } from '../media-info';
@@ -21,22 +34,6 @@ const TID_PAT = 0x00;
 const TID_PMT = 0x02;
 const TID_SDT = 0x42;
 
-// Stream Types Mapping
-const STREAM_TYPE_MAP: Record<number, { type: 'video' | 'audio' | 'other'; codec: AudioCodecType | VideoCodecType }> = {
-  0x01: { type: 'video', codec: 'mpeg1video' }, // Not strictly in VideoCodecType but let's see
-  0x02: { type: 'video', codec: 'mpeg2video' },
-  0x03: { type: 'audio', codec: 'mp3' }, // MPEG-1 Audio (mp1/mp2/mp3 - need to parse to determine)
-  0x04: { type: 'audio', codec: 'mp3' }, // MPEG-2 Audio (mp1/mp2/mp3 - need to parse to determine)
-  0x0f: { type: 'audio', codec: 'aac' }, // ADTS
-  0x11: { type: 'audio', codec: 'aac_latm' }, // LATM
-  0x1b: { type: 'video', codec: 'h264' },
-  0x24: { type: 'video', codec: 'hevc' },
-  0x81: { type: 'audio', codec: 'ac3' }, // ATSC AC-3
-  0x82: { type: 'audio', codec: 'dts' }, // SCTE DTS
-  0x87: { type: 'audio', codec: 'eac3' }, // ATSC E-AC-3
-  // 0x06 is Private Data, often AC-3 or E-AC-3 in DVB, requires descriptor check
-};
-
 interface StreamInfo {
   pid: number;
   type: 'video' | 'audio' | 'unknown';
@@ -46,16 +43,59 @@ interface StreamInfo {
   pesHandler?: PesPayloadHandler; // For audio streams during extraction
 }
 
-// ...
+type StreamDetails = Omit<AudioStreamInfo | VideoStreamInfo, 'id' | 'durationInSeconds'> & {
+  programNumber: number;
+  pid: number;
+  streamType: number;
+  streamTypeCategory: 'video' | 'audio' | 'other';
+  /**
+   * Whether at least one frame header in the PES payload has been parsed.
+   * That also means the details of the codec is complete.
+   */
+  parsed: boolean;
+  /**
+   * All the data in PES including the start bytes 000001
+   * It is always initialised to be an empty array.
+   */
+  pesBuffer: Uint8Array;
+  /**
+   * When the PES payload has an unknown length, we have to wait for the next PES start bytes to know the end of the payload.
+   * This is the offset of the start of the unfinished PES payload in the PES buffer.
+   */
+  pesPayloadStartOffsetInPesBuffer: number | undefined;
+  /**
+   * Handler of PES payloads. Used for extracting audio frames from PES payloads.
+   * It could be undefined when there's no need to extract stream data.
+   */
+  pesPayloadHandler?: PesPayloadHandler;
+};
+
+function convertStreamDetailsToStreamInfo<T extends AudioStreamInfo | VideoStreamInfo>(streamDetails: StreamDetails): T {
+  const info = Object.assign({ id: streamDetails.pid }, streamDetails) as Partial<typeof streamDetails> & T;
+  delete info.pid;
+  delete info.streamType;
+  delete info.streamTypeCategory;
+  delete info.programNumber;
+  delete info.parsed;
+  delete info.pesBuffer;
+  delete info.pesPayloadStartOffsetInPesBuffer;
+  delete info.pesPayloadHandler;
+  return info;
+}
+
+interface PmtDetails {
+  pmtPid: number;
+  programNumber: number;
+  found: boolean;
+}
 
 export class MpegTsParser {
   private buffer: Uint8Array = new Uint8Array(0);
   private bufferOffset = 0;
   private reader: ReadableStreamDefaultReader<Uint8Array>;
 
-  private patFound = false;
-  private pmtPids: Set<number> = new Set();
-  private processedPmtPids: Set<number> = new Set();
+  private allPmtDetails: Map<number, PmtDetails> = new Map();
+  private allStreamDetails: Map<number, StreamDetails> = new Map();
   private sdtFound = false;
 
   private audioStreams: AudioStreamInfo[] = [];
@@ -70,6 +110,7 @@ export class MpegTsParser {
   private bytesRead = 0;
   private readonly MAX_SCAN_BYTES = 2 * 1024 * 1024; // 2MB
   private packetSize = 0; // Will be detected (188 or 192)
+  private tsPacketsProcessed = 0;
 
   constructor(
     stream: ReadableStream<Uint8Array>,
@@ -138,7 +179,8 @@ export class MpegTsParser {
 
         // Parse packet
         const packetData = this.buffer.subarray(syncOffset, syncOffset + this.packetSize);
-        await this.processPacket(packetData);
+        await this.processTsPacket(packetData);
+        this.tsPacketsProcessed++;
 
         this.bufferOffset = syncOffset + this.packetSize;
         this.bytesRead += this.packetSize;
@@ -148,22 +190,27 @@ export class MpegTsParser {
         if (!this.onSamples && (this.isMetadataComplete() || this.bytesRead > this.MAX_SCAN_BYTES)) {
           break;
         }
+
+        // There could be remaining PES payload of unknown size, we flush them out
+        if (done && this.onSamples) {
+          for (const streamDetails of this.allStreamDetails.values()) {
+            await this.flushRemainingPESPayload(streamDetails, this.buffer.length);
+          }
+        }
       }
     } finally {
-      if (!this.onSamples) {
-        this.reader.cancel().catch(() => {});
-      }
-    }
-
-    if (this.videoStreams.length === 0 && this.audioStreams.length === 0) {
-      throw new UnsupportedFormatError('No streams found in MPEG-TS');
+      this.reader.cancel().catch(() => {});
     }
 
     return {
       container: 'mpegts',
       containerDetail: 'mpegts',
-      audioStreams: this.audioStreams,
-      videoStreams: this.videoStreams,
+      audioStreams: [...this.allStreamDetails.values()]
+        .filter((s) => s.streamTypeCategory === 'audio')
+        .map((s) => convertStreamDetailsToStreamInfo(s)),
+      videoStreams: [...this.allStreamDetails.values()]
+        .filter((s) => s.streamTypeCategory === 'video')
+        .map((s) => convertStreamDetailsToStreamInfo(s)),
     };
   }
 
@@ -213,87 +260,50 @@ export class MpegTsParser {
     return true;
   }
 
-  private isValidTsPacket(offset: number): boolean {
-    // Check if there's enough data for a minimal TS packet header
-    if (offset + 4 > this.buffer.length) {
-      return false;
-    }
-
-    // Sync byte must be 0x47
-    if (this.buffer[offset] !== SYNC_BYTE) {
-      return false;
-    }
-
-    // Read the header
-    const byte1 = this.buffer[offset + 1];
-    const byte2 = this.buffer[offset + 2];
-    const byte3 = this.buffer[offset + 3];
-
-    // Check transport error indicator (should typically be 0)
-    const transportErrorIndicator = (byte1 & 0x80) !== 0;
-    if (transportErrorIndicator) {
-      return false; // Packets with errors are not valid for our purposes
-    }
-
-    // Extract PID (13 bits from byte1 and byte2)
-    const pid = ((byte1 & 0x1f) << 8) | byte2;
-
-    // PID should be valid (0x0000 to 0x1FFF)
-    // Some PIDs are reserved and shouldn't appear in normal streams
-    if (pid === 0x1fff) {
-      return false; // Null packets
-    }
-
-    // Check adaptation field control (2 bits in byte3)
-    const adaptationFieldControl = (byte3 & 0x30) >> 4;
-
-    // Valid values are: 01 (payload only), 10 (adaptation only), 11 (both)
-    // 00 is reserved and invalid
-    if (adaptationFieldControl === 0x00) {
-      return false;
-    }
-
-    // If adaptation field is present, verify its length is reasonable
-    if ((adaptationFieldControl & 0x02) !== 0 && offset + 4 < this.buffer.length) {
-      const adaptationLength = this.buffer[offset + 4];
-      // Adaptation length should not exceed packet size
-      if (adaptationLength > 183) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
   private isMetadataComplete(): boolean {
-    // We need PAT, and if we have PMT PIDs, we need to have processed them.
-    // SDT is optional but good to have.
-    if (!this.patFound) return false;
-    if (this.pmtPids.size > 0 && this.processedPmtPids.size < this.pmtPids.size) return false;
+    // Because there could be multiple PATs, we need to make sure we've given them chances to show up
+    if (this.tsPacketsProcessed < 200) return false;
 
-    // Check if we have parsed headers for all streams we are tracking
-    for (const stream of this.streamInfoByPid.values()) {
-      if (!stream.parsed) return false;
+    // PAT should have been parsed and we should have PMT PIDs
+    if (this.allPmtDetails.size === 0) return false;
+
+    // All PMT should have been found
+    for (const pmtDetails of this.allPmtDetails.values()) {
+      if (!pmtDetails.found) return false;
     }
 
-    // We can stop if we have streams, even if SDT is missing, to save time.
-    // But let's try to get SDT if it's close.
+    // All audio/video streams should have been found
+    for (const streamDetails of this.allStreamDetails.values()) {
+      if ((streamDetails.streamTypeCategory === 'audio' || streamDetails.streamTypeCategory === 'video') && !streamDetails.parsed) return false;
+    }
+
     return true;
   }
 
-  private async processPacket(data: Uint8Array) {
+  /**
+   * TS packet (188 bytes)
+   *
+   * -------------------------------------------------------------------------
+   * | Sync Byte (8) | TEI (1) | PUSI (1) | T. Priority (1) | PID (13) | ...
+   * -------------------------------------------------------------------------
+   * ... | TSC (2) | AFC (2) | CC (4) | [Adaptation Field] | [Payload]
+   * -------------------------------------------------------------------------
+   * Sync Byte: 0x47
+   * TEI: Transport Error Indicator
+   * PUSI: Payload Unit Start Indicator (1 means payload starts with a section/PES header)
+   * T. Priority: High priority packet if set
+   * PID: Packet Identifier
+   * TSC: Transport Scrambling Control
+   * AFC: Adaptation Field Control (01: Payload only, 10: Adaptation only, 11: Both)
+   * CC: Continuity Counter
+   * @param data The 188-byte packet data
+   */
+  private async processTsPacket(data: Uint8Array) {
     // M2TS files have 4 bytes of timestamp before the 188-byte TS packet
     const tsPacketStart = this.packetSize === TS_PACKET_SIZE_192 ? 4 : 0;
     const tsPacket = data.subarray(tsPacketStart, tsPacketStart + TS_PACKET_SIZE_188);
 
-    const view = new DataView(tsPacket.buffer, tsPacket.byteOffset, tsPacket.byteLength);
-    const header = view.getUint32(0);
-
-    // Sync byte check (already done but good for sanity)
-    const syncByte = header >>> 24;
-    if (syncByte !== SYNC_BYTE) {
-      return;
-    }
+    const header = readUInt32BE(tsPacket, 0);
 
     const transportErrorIndicator = (header & 0x800000) !== 0;
     if (transportErrorIndicator) return;
@@ -318,27 +328,80 @@ export class MpegTsParser {
 
     const payload = tsPacket.subarray(payloadOffset);
 
-    if (pid === PID_PAT) {
-      this.parsePat(payload, payloadUnitStartIndicator);
-    } else if (pid === PID_SDT) {
-      this.parseSdt(payload, payloadUnitStartIndicator);
-    } else if (this.pmtPids.has(pid)) {
-      this.parsePmt(payload, payloadUnitStartIndicator, pid);
-    } else if (this.streamInfoByPid.has(pid)) {
-      await this.processStreamPacket(pid, payload, payloadUnitStartIndicator);
+    if (pid === PID_PAT && payloadUnitStartIndicator) {
+      // Populating this.allPmtDetails
+      this.parsePat(payload);
+      return;
+    }
+    // } else if (pid === PID_SDT) {
+    //   this.parseSdt(payload, payloadUnitStartIndicator);
+
+    let pmtDetails = this.allPmtDetails.get(pid);
+    if (payloadUnitStartIndicator && pmtDetails /* && pmtDetails.found === false */) {
+      // Populating this.allStreamDetails with information available in this PMT.
+      // There could be multiple PMTs needed for finding information about all streams.
+      this.parsePmt(payload, pid);
+      pmtDetails.found = true;
+      return;
+    }
+
+    const streamDetails = this.allStreamDetails.get(pid);
+    if (streamDetails && (streamDetails.parsed === false || this.onSamples)) {
+      streamDetails.parsed = streamDetails.parsed || (await this.processStreamPacket(pid, payload, payloadUnitStartIndicator));
+      return;
     }
   }
 
-  private async processStreamPacket(pid: number, payload: Uint8Array, _payloadUnitStartIndicator: boolean) {
-    const stream = this.streamInfoByPid.get(pid);
-    if (!stream) return;
-    if (stream.parsed && !this.onSamples) return;
+  private async flushRemainingPESPayload(streamDetails: StreamDetails, pesStart: number) {
+    // Flush out any remaining PES payload
+    if (streamDetails.pesPayloadHandler && streamDetails.pesPayloadStartOffsetInPesBuffer !== undefined) {
+      await streamDetails.pesPayloadHandler.onData(streamDetails.pesBuffer.subarray(streamDetails.pesPayloadStartOffsetInPesBuffer, pesStart));
+      streamDetails.pesPayloadStartOffsetInPesBuffer = undefined;
+    }
+  }
+
+  /**
+   * Process stream packet that contains PES/ES data.
+   * Handles buffering, PES header parsing, and payload extraction.
+   *
+   * Since ES packets could span across multiple stream packets, we need to use a per-PID buffer and detect ES packet start.
+   * ES packets may or may not have a known length, that means we may need to wait for the next ES packet start to determine the end of the current ES packet.
+   * For audio streams, we need to facilitate the onSamples call back which is called when a complete ES packet is available.
+   * An audio stream's ES packet payload contains multiple samples/frames.
+   *
+   * If PUSI is set, a PES header usually follows.
+   * --------------------------------------------------------------------------
+   * | Packet Start Code Prefix (24) | Stream ID (8) | PES Packet Length (16) |
+   * --------------------------------------------------------------------------
+   * | Optional PES Header ... | Elementary Stream Data ...
+   * --------------------------------------------------------------------------
+   * Packet Start Code Prefix: 0x000001
+   * Stream ID: e.g. 0xE0-0xEF (Video), 0xC0-0xDF (Audio)
+   * PES Packet Length: Length of the remaining packet (0 for unbounded video)
+   *
+   * @param pid Packet Identifier
+   * @param payload The payload data
+   * @param payloadUnitStartIndicator Whether this packet starts a new PES unit
+   * @returns true if parsing is done, false if more data is needed
+   */
+  private async processStreamPacket(pid: number, payload: Uint8Array, payloadUnitStartIndicator: boolean): Promise<boolean> {
+    const streamDetails = this.allStreamDetails.get(pid)!;
+    const audioStreamDetails = streamDetails as Partial<AudioStreamInfo>;
+    const videoStreamDetails = streamDetails as Partial<VideoStreamInfo>;
 
     // Append payload to buffer
-    const newBuffer = new Uint8Array(stream.buffer.length + payload.length);
-    newBuffer.set(stream.buffer);
-    newBuffer.set(payload, stream.buffer.length);
-    stream.buffer = newBuffer;
+    const newBuffer = new Uint8Array(streamDetails.pesBuffer.length + payload.length);
+    newBuffer.set(streamDetails.pesBuffer);
+    newBuffer.set(payload, streamDetails.pesBuffer.length);
+    streamDetails.pesBuffer = newBuffer;
+
+    // Wait for more data to be available next time
+    if (streamDetails.pesBuffer.length < 9) return false;
+
+    // When PUSI is not set, it is guaranteed that the full payload is a part of the previous PES packet.
+    if (payloadUnitStartIndicator === false) {
+      return false;
+    }
 
     // Try to parse if we have enough data
     // We need to handle PES headers first
@@ -347,323 +410,174 @@ export class MpegTsParser {
     // PES Packet Length: 2 bytes
     // Optional PES header...
 
-    // Find PES start code
-    let pesOffset = -1;
-    for (let i = 0; i < stream.buffer.length - 3; i++) {
-      if (stream.buffer[i] === 0x00 && stream.buffer[i + 1] === 0x00 && stream.buffer[i + 2] === 0x01) {
-        pesOffset = i;
-        break;
+    const checkAvailableData = ({
+      pesLength,
+      pesStart,
+      onKnownLengthData,
+    }: {
+      pesLength: number;
+      pesStart: number;
+      onKnownLengthData?: (begin: number, end: number) => void;
+    }) => {
+      // Known length
+      if (pesLength > 0) {
+        const nextPesStart = pesStart + 6 + pesLength;
+        // Data is complete
+        if (nextPesStart < streamDetails.pesBuffer.length) {
+          if (onKnownLengthData) onKnownLengthData(pesStart + 6, nextPesStart);
+          return { shouldReturnNotContinue: false, nextIndex: nextPesStart - 1 };
+        }
+        // Wait for more data
+        return { shouldReturnNotContinue: true };
       }
-    }
 
-    if (pesOffset === -1) {
-      // Keep only last 3 bytes to handle split start code
-      if (stream.buffer.length > 3) {
-        stream.buffer = stream.buffer.slice(-3);
-      }
-      return;
-    }
+      // Unknown PES length → "keep searching"
+      return { shouldReturnNotContinue: false, nextIndex: pesStart + 2 };
+    };
 
-    // We have a PES start code.
-    // Skip PES header to get to ES data.
-    // PES header length is variable.
-    // 00 00 01 [StreamID] [PacketLength(2)]
-    // If StreamID is not specific (program_stream_map, padding_stream, etc.), parsing is different.
-    // Assuming audio/video streams:
-    // [10: flags] [11: flags] [12: header_data_length]
-    // ES data starts at 9 + header_data_length (if we count from 00 00 01 as offset 0)
-    // Actually:
-    // 0: 00
-    // 1: 00
-    // 2: 01
-    // 3: StreamID
-    // 4-5: Packet Length
-    // 6: '10' (2 bits) ...
-    // 7: ...
-    // 8: PES_header_data_length
-    // 9...: PES header data
-    // 9 + PES_header_data_length: ES Data
+    let parsedPESHeader = false;
 
-    const headerStart = pesOffset;
-    if (stream.buffer.length < headerStart + 9) return; // Need more data
+    let pesStart = 0;
+    for (let i = 0; i < streamDetails.pesBuffer.length - 3; i++) {
+      if (streamDetails.pesBuffer[i] === 0x00 && streamDetails.pesBuffer[i + 1] === 0x00 && streamDetails.pesBuffer[i + 2] === 0x01) {
+        if (streamDetails.pesBuffer.length < pesStart + 9) return false; // Need more data
 
-    // Check Stream ID to ensure it has PES header extensions
-    const streamId = stream.buffer[headerStart + 3];
-    // These stream IDs do NOT have the extension:
-    // program_stream_map, private_stream_2, ECM, EMM, program_stream_directory, DSMCC, H.222.1 type E
-    // padding_stream
-    if (
-      streamId !== 0xbc && // program_stream_map
-      streamId !== 0xbf && // private_stream_2
-      streamId !== 0xf0 && // ECM
-      streamId !== 0xf1 && // EMM
-      streamId !== 0xff && // program_stream_directory
-      streamId !== 0xf2 && // DSMCC
-      streamId !== 0xf8 // H.222.1 type E
-    ) {
-      const pesHeaderDataLength = stream.buffer[headerStart + 8];
-      const esDataStart = headerStart + 9 + pesHeaderDataLength;
-
-      if (stream.buffer.length < esDataStart + 16) return; // Need some ES data
-
-      const esData = stream.buffer.subarray(esDataStart);
-
-      // Sniff codec if unknown
-      // if (stream.codec === 'unknown') {
-      //   this.sniffCodec(pid, esData);
-      //   // If sniffed, it will update stream.codec and we can continue
-      //   if (stream.codec === 'unknown') {
-      //     // Still unknown, maybe need more data or it's just not supported
-      //     // If we have a lot of data and still unknown, give up
-      //     if (esData.length > 4096) {
-      //       stream.parsed = true;
-      //     }
-      //     return;
-      //   }
-      // }
-
-      switch (stream.codec) {
-        case 'mp2':
-        case 'mp3': {
-          if (!stream.parsed) {
-            this.parseMp2Header(pid, esData);
-          }
-          if (this.onSamples && !stream.pesHandler) {
-            // Lazy init pesHandler for sniffed streams
-            stream.pesHandler = new PesPayloadHandler(stream.codec as any, (frames) =>
-              this.onSamples!(
-                pid,
-                frames.map((f) => f.data),
-              ),
-            );
-          }
-          await stream.pesHandler?.onData(esData);
-          break;
-        }
-        case 'mpeg2video': {
-          this.parseMpeg2VideoHeader(pid, esData);
-          break;
-        }
-        case 'h264': {
-          this.parseH264Header(pid, esData);
-          break;
-        }
-        case 'aac': {
-          if (!stream.parsed) {
-            this.parseAacHeader(pid, esData);
-          }
-          if (this.onSamples && !stream.pesHandler) {
-            stream.pesHandler = new PesPayloadHandler('aac', (frames) =>
-              this.onSamples!(
-                pid,
-                frames.map((f) => f.data),
-              ),
-            );
-          }
-          await stream.pesHandler?.onData(esData);
-          break;
-        }
-        default: {
-          // For other codecs, we might mark as parsed to stop buffering
-          stream.parsed = true;
-          break;
-        }
-      }
-    } else {
-      // Stream ID without extension, payload follows immediately after length (offset 6)
-      // But usually audio/video streams have extensions.
-      stream.parsed = true;
-    }
-  }
-
-  private sniffCodec(pid: number, data: Uint8Array) {
-    const stream = this.streamInfoByPid.get(pid);
-    if (!stream) return;
-
-    // Try to detect AAC (FFF)
-    // ADTS header: Sync (12 bits) + ID (1 bit) + Layer (2 bits) + Protection (1 bit)
-    // Layer must be 00 for AAC
-    for (let i = 0; i < Math.min(data.length - 2, 1024); i++) {
-      if (data[i] === 0xff && (data[i + 1] & 0xf6) === 0xf0) {
-        stream.codec = 'aac';
-        stream.type = 'audio';
-        this.addAudioStream(pid, 'aac');
-        return;
-      }
-    }
-
-    // Try to detect MP3 (FFE/FFF)
-    try {
-      for (let i = 0; i < Math.min(data.length - 4, 1024); i++) {
-        if (data[i] === 0xff && (data[i + 1] & 0xe0) === 0xe0) {
-          const header = data.subarray(i, i + 4);
-          const layer = (header[1] >> 1) & 0x03;
-          if (layer !== 0) {
-            try {
-              const info = parseMP3Header(header);
-              stream.codec = info.codec;
-              stream.type = 'audio';
-              this.addAudioStream(pid, info.codec);
-              return;
-            } catch {
-              // Not MP3
-            }
-          }
-        }
-      }
-    } catch {
-      // Ignore
-    }
-  }
-
-  private addAudioStream(pid: number, codec: string) {
-    if (!this.audioStreams.some((s) => s.id === pid)) {
-      this.audioStreams.push({
-        id: pid,
-        codec: codec as any,
-        codecDetail: codec,
-      });
-    }
-  }
-
-  private parseMp2Header(pid: number, data: Uint8Array) {
-    try {
-      // Look for frame sync (0xFFF)
-      // Note: MP2/MP3 frame header is 4 bytes.
-      // We scan a bit to find it.
-      for (let i = 0; i < Math.min(data.length - 4, 2048); i++) {
-        if (data[i] === 0xff && (data[i + 1] & 0xe0) === 0xe0) {
-          // 111xxxxx
-          const header = data.subarray(i, i + 4);
-          const info = parseMP3Header(header); // Reusing MP3 parser which handles Layer I/II/III
-
-          // Update audio stream info
-          const stream = this.audioStreams.find((s) => s.id === pid);
-          if (stream) {
-            Object.assign(stream, info);
-          } else {
-            this.audioStreams.push({ ...info, id: pid });
-          }
-
-          const streamData = this.streamInfoByPid.get(pid);
-          if (streamData) {
-            streamData.parsed = true;
-            // Update codec in streamData
-            streamData.codec = info.codec;
-
-            // Create PES handler now that we know the actual codec
-            if (this.onSamples && !streamData.pesHandler) {
-              console.error('Setting PesPayloadHandler from parseMp2Header', streamData.pid);
-              streamData.pesHandler = new PesPayloadHandler(info.codec, (frames) =>
-                this.onSamples!(
-                  pid,
-                  frames.map((f) => f.data),
-                ),
-              );
-            }
-          }
-          return;
-        }
-      }
-    } catch {
-      // Ignore errors, maybe not enough data or false sync
-    }
-  }
-
-  private parseMpeg2VideoHeader(pid: number, data: Uint8Array) {
-    try {
-      // Look for Sequence Header (0x000001B3)
-      for (let i = 0; i < Math.min(data.length - 12, 2048); i++) {
-        if (data[i] === 0x00 && data[i + 1] === 0x00 && data[i + 2] === 0x01 && data[i + 3] === 0xb3) {
-          const info = parseMpeg2VideoSequenceHeader(data.subarray(i));
-
-          const stream = this.videoStreams.find((s) => s.id === pid);
-          if (stream) {
-            if (info.width) stream.width = info.width;
-            if (info.height) stream.height = info.height;
-            if (info.fps) stream.fps = info.fps;
-          }
-
-          const streamData = this.streamInfoByPid.get(pid);
-          if (streamData) streamData.parsed = true;
-          return;
-        }
-      }
-    } catch {
-      // Ignore
-    }
-  }
-
-  private parseH264Header(pid: number, data: Uint8Array) {
-    try {
-      // Look for SPS NAL unit (type 7)
-      // Start code prefix: 00 00 01 or 00 00 00 01
-      for (let i = 0; i < Math.min(data.length - 5, 4096); i++) {
-        if (data[i] === 0x00 && data[i + 1] === 0x00) {
-          let nalStart = -1;
-          if (data[i + 2] === 0x01) {
-            nalStart = i + 3;
-          } else if (data[i + 2] === 0x00 && data[i + 3] === 0x01) {
-            nalStart = i + 4;
-          }
-
-          if (nalStart !== -1) {
-            const nalType = data[nalStart] & 0x1f;
-            if (nalType === 7) {
-              // SPS
-              // Found SPS, parse it
-              // We need to pass the data starting from nalStart + 1 (after header)
-              // But parseSPS expects the RBSP (Raw Byte Sequence Payload) which is handled inside it?
-              // No, parseSPS in h264.ts takes the NAL unit payload (after header byte)
-              const spsData = data.subarray(nalStart + 1);
-              const info = parseSPS(spsData);
-
-              const stream = this.videoStreams.find((s) => s.id === pid);
-              if (stream) {
-                if (info.width) stream.width = info.width;
-                if (info.height) stream.height = info.height;
-                if (info.codecDetail) stream.codecDetail = info.codecDetail;
+        pesStart = i;
+        const streamId = streamDetails.pesBuffer[pesStart + 3];
+        const pesLength = readUInt16BE(streamDetails.pesBuffer, pesStart + 4);
+        if (streamId >= 0xe0 && streamId <= 0xef) {
+          // 0xE0–0xEF Video stream (MPEG-1/2/4, H.264/AVC, H.265/HEVC inside TS)
+          if (streamDetails.pesBuffer.length < pesStart + 100) return false; // Need more data for parsing the header
+          // try to parse the video header
+          try {
+            switch (streamDetails.codec) {
+              case 'h264': {
+                parseH264HeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), videoStreamDetails);
+                break;
               }
-
-              const streamData = this.streamInfoByPid.get(pid);
-              if (streamData) streamData.parsed = true;
-              return;
+              case 'mpeg2video': {
+                parseMpeg2VideoHeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), videoStreamDetails);
+                break;
+              }
+              default: {
+                // Other codec, let's assume it is valid
+                break;
+              }
             }
-          }
-        }
-      }
-    } catch {
-      // Ignore
-    }
-  }
-
-  private parseAacHeader(pid: number, data: Uint8Array) {
-    try {
-      // Look for ADTS sync word (0xFFF)
-      for (let i = 0; i < Math.min(data.length - 7, 2048); i++) {
-        if (data[i] === 0xff && (data[i + 1] & 0xf0) === 0xf0) {
-          const info = parseADTSHeader(data.subarray(i));
-
-          const stream = this.audioStreams.find((s) => s.id === pid);
-          if (stream) {
-            if (info.sampleRate) stream.sampleRate = info.sampleRate;
-            if (info.channelCount) stream.channelCount = info.channelCount;
-            if (info.codecDetail) stream.codecDetail = info.codecDetail;
+          } catch {
+            // could be caused by false positive PES start code, keep searching
+            i += 2;
+            continue;
           }
 
-          const streamData = this.streamInfoByPid.get(pid);
-          if (streamData) streamData.parsed = true;
-          return;
+          // We believe a legit PES packet start is found
+          parsedPESHeader = true;
+
+          // Flush out any remaining PES payload
+          await this.flushRemainingPESPayload(streamDetails, pesStart);
+
+          const { shouldReturnNotContinue, nextIndex } = checkAvailableData({ pesLength, pesStart });
+          if (shouldReturnNotContinue) return parsedPESHeader;
+          i = nextIndex!;
+          continue;
+        } else if (streamId >= 0xc0 && streamId <= 0xdf) {
+          // 0xC0–0xDF ISO/IEC 13818-3 audio streams (MPEG-1/2 Layer I/II/III), AAC, etc.
+          if (streamDetails.pesBuffer.length < pesStart + 100) return false; // Need more data for parsing the header
+          // try to parse the audio header
+          try {
+            switch (streamDetails.codec) {
+              case 'mp2':
+              case 'mp3': {
+                parseMp2OrMp3HeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
+                break;
+              }
+              case 'aac': {
+                parseAacHeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
+                break;
+              }
+              default: {
+                // Other codec, let's assume it is valid
+                break;
+              }
+            }
+          } catch {
+            // could be caused by false positive PES start code, keep searching
+            i += 2;
+            continue;
+          }
+
+          // Now we believe a legit PES packet start is found, and the codec information in streamDetails has been updated
+          parsedPESHeader = true;
+
+          if (this.onSamples && !streamDetails.pesPayloadHandler) {
+            streamDetails.pesPayloadHandler = new PesPayloadHandler(audioStreamDetails.codec!, (frames) =>
+              this.onSamples!(
+                pid,
+                frames.map((f) => f.data),
+              ),
+            );
+          }
+
+          // Flush out any remaining PES payload
+          await this.flushRemainingPESPayload(streamDetails, pesStart);
+
+          const { shouldReturnNotContinue, nextIndex } = checkAvailableData({
+            pesLength,
+            pesStart,
+            onKnownLengthData: (start, end) => {
+              streamDetails.pesPayloadHandler?.onData(streamDetails.pesBuffer.subarray(start, end));
+            },
+          });
+          if (shouldReturnNotContinue) return parsedPESHeader;
+          i = nextIndex!;
+          continue;
+        } else if (streamId === 0xbd) {
+          // 0xBD Private Stream 1 (AC-3, DTS, DVB subtitles, teletext, etc.)
+          if (streamDetails.pesBuffer.length < pesStart + 100) return false; // Need more data for parsing the header
+
+          const { shouldReturnNotContinue, nextIndex } = checkAvailableData({ pesLength, pesStart });
+          if (shouldReturnNotContinue) return parsedPESHeader;
+          i = nextIndex!;
+          continue;
+        } else if (
+          (streamId >= 0xbc && streamId <= 0xbf) ||
+          streamId === 0xff ||
+          (streamId >= 0xf0 && streamId <= 0xf2) ||
+          (streamId >= 0xf8 && streamId <= 0xfe)
+        ) {
+          // BC, BE, BF, FF Special system streams
+          // F0–F2, F8–FE Reserved
+
+          const { shouldReturnNotContinue, nextIndex } = checkAvailableData({ pesLength, pesStart });
+          if (shouldReturnNotContinue) return parsedPESHeader;
+          i = nextIndex!;
+          continue;
+        } else {
+          // Invalid stream ID, maybe the PES start is false positive
+          // continue searching for next possible PES start code
+          i += 2;
+          continue;
         }
       }
-    } catch {
-      // Ignore
     }
+
+    // Discard already processed data  which could be valid data or garbage
+    if (pesStart < streamDetails.pesBuffer.length) {
+      streamDetails.pesBuffer = streamDetails.pesBuffer.slice(pesStart);
+    }
+
+    return parsedPESHeader;
   }
 
-  private parsePat(payload: Uint8Array, payloadUnitStartIndicator: boolean) {
-    if (!payloadUnitStartIndicator) return; // Only handle start of section for simplicity
-
+  /**
+   * Program Association Table (PAT) - PID 0x0000, Table ID 0x00
+   * Maps Program Numbers to PMT (Program Map Table) PIDs.
+   * --------------------------------------------------------------------------------------
+   * | Table ID (8) | ... | Section Length (12) | ... | Program Num (16) | PMT PID (13) ...
+   * --------------------------------------------------------------------------------------
+   * @param payload The payload data
+   */
+  private parsePat(payload: Uint8Array) {
     let offset = 0;
     const pointerField = payload[offset];
     offset += 1 + pointerField; // Skip pointer field
@@ -687,30 +601,62 @@ export class MpegTsParser {
 
     while (current < end) {
       const programNumber = (payload[current] << 8) | payload[current + 1];
-      const pid = ((payload[current + 2] & 0x1f) << 8) | payload[current + 3];
+      const pmtPid = ((payload[current + 2] & 0x1f) << 8) | payload[current + 3];
 
-      if (programNumber !== 0) {
-        // 0 is NIT
-        this.pmtPids.add(pid);
+      if (
+        programNumber !== 0 && // 0 is NIT
+        !this.allPmtDetails.has(pmtPid)
+      ) {
+        this.allPmtDetails.set(pmtPid, { pmtPid, programNumber, found: false });
       }
       current += 4;
     }
-    this.patFound = true;
   }
 
-  private parsePmt(payload: Uint8Array, payloadUnitStartIndicator: boolean, pid: number) {
-    if (!payloadUnitStartIndicator) return;
-
+  /**
+   * Program Map Table (PMT) - PID specified in PAT, Table ID 0x02
+   * Maps Program Elements to Elementary Stream PIDs.
+   * -------------------------------------------------------------------------------
+   * | Table ID (8) | ... | Section Length (12) | ... | Stream Type (8) | ES PID (13) ...
+   * -------------------------------------------------------------------------------
+   * The PMT is the table that tells you:
+   * - What streams exist inside a program
+   * - The codec or stream type (via stream_type)
+   * - Additional codec metadata appears in descriptors inside the PMT
+   *
+   * @param payload The payload data
+   * @param pmtPid The PID of this PMT
+   */
+  private parsePmt(payload: Uint8Array, pmtPid: number) {
     let offset = 0;
     const pointerField = payload[offset];
     offset += 1 + pointerField;
 
     if (offset >= payload.length) return;
 
+    // table_id                          8 bits (always 0x02)
+    // section_syntax_indicator          1 bit (always 1)
+    // '0'                               1 bit
+    // reserved                          2 bits
+    // section_length                    12 bits
+    // program_number                    16 bits
+    // reserved                          2 bits
+    // version_number                    5 bits
+    // current_next_indicator            1 bit
+    // section_number                    8 bits
+    // last_section_number               8 bits
+    // reserved                          3 bits
+    // PCR_PID                           13 bits
+    // reserved                          4 bits
+    // program_info_length               12 bits
+    // program_info_descriptors...       program_info_length bytes
+
     const tableId = payload[offset];
     if (tableId !== TID_PMT) return;
 
     const sectionLength = ((payload[offset + 1] & 0x0f) << 8) | payload[offset + 2];
+
+    const programNumber = readUInt16BE(payload, offset + 3);
 
     // Program info length is at offset + 10 (12 bits)
     const programInfoLength = ((payload[offset + 10] & 0x0f) << 8) | payload[offset + 11];
@@ -719,148 +665,21 @@ export class MpegTsParser {
     const end = offset + 3 + sectionLength - 4; // Exclude CRC
 
     while (current < end) {
-      const streamType = payload[current];
       const elementaryPid = ((payload[current + 1] & 0x1f) << 8) | payload[current + 2];
       const esInfoLength = ((payload[current + 3] & 0x0f) << 8) | payload[current + 4];
+      if (!this.allStreamDetails.has(elementaryPid)) {
+        const streamType = payload[current];
+        const descriptors = payload.subarray(current + 5, current + 5 + esInfoLength);
 
-      const descriptors = payload.subarray(current + 5, current + 5 + esInfoLength);
-
-      if (!this.streamInfoByPid.has(elementaryPid)) {
-        this.addStream(streamType, elementaryPid, descriptors);
+        const streamDetails: StreamDetails = {
+          ...buildStreamDetails(streamType, descriptors),
+          programNumber,
+          pid: elementaryPid,
+          pesBuffer: new Uint8Array(0),
+        };
+        this.allStreamDetails.set(elementaryPid, streamDetails);
       }
-
       current += 5 + esInfoLength;
-    }
-    this.processedPmtPids.add(pid);
-  }
-
-  private addStream(streamType: number, pid: number, descriptors: Uint8Array) {
-    let codecInfo = STREAM_TYPE_MAP[streamType];
-
-    if (!codecInfo && streamType === 0x06) {
-      // Private data, check descriptors for AC-3 / E-AC-3
-      if (this.hasDescriptor(descriptors, 0x6a)) {
-        // AC-3 descriptor
-        codecInfo = { type: 'audio', codec: 'ac3' };
-      } else if (this.hasDescriptor(descriptors, 0x7a)) {
-        // Enhanced AC-3 descriptor
-        codecInfo = { type: 'audio', codec: 'eac3' };
-      } else if (this.hasDescriptor(descriptors, 0x7c)) {
-        // AAC descriptor
-        codecInfo = { type: 'audio', codec: 'aac' };
-      }
-    }
-
-    if (codecInfo?.type === 'video') {
-      // Check if we already have this stream
-      if (!this.videoStreams.some((s) => s.id === pid)) {
-        this.videoStreams.push({
-          id: pid,
-          codec: codecInfo.codec as any,
-          codecDetail: codecInfo.codec,
-          width: 0, // Not easily available without parsing ES
-          height: 0,
-          // duration is hard to get
-        });
-
-        if (codecInfo.codec === 'mpeg2video' || codecInfo.codec === 'h264') {
-          this.streamInfoByPid.set(pid, { pid, type: 'video', codec: codecInfo.codec, buffer: new Uint8Array(0), parsed: false });
-        }
-      }
-    } else if (codecInfo?.type === 'audio') {
-      if (!this.audioStreams.some((s) => s.id === pid)) {
-        this.audioStreams.push({
-          id: pid,
-          codec: codecInfo.codec as AudioCodecType,
-          codecDetail: codecInfo.codec,
-          // sampleRate, channels etc from descriptors if available
-        });
-
-        // For unknown codec (MPEG audio), we'll determine mp2/mp3 later in parseMp2Header
-        // For now, just set up the stream data for buffering
-        if (codecInfo.codec === 'mp2' || codecInfo.codec === 'mp3' || codecInfo.codec === 'aac') {
-          this.streamInfoByPid.set(pid, {
-            pid,
-            type: 'audio',
-            codec: codecInfo.codec, // mp2 could be mistaken as mp3 now, but will be corrected later when the audio frame is parsed
-            buffer: new Uint8Array(0),
-            parsed: false,
-            pesHandler: this.onSamples
-              ? new PesPayloadHandler(codecInfo.codec, (frames) =>
-                  this.onSamples!(
-                    pid,
-                    frames.map((f) => f.data),
-                  ),
-                )
-              : undefined,
-          });
-        }
-      }
-    } else if (!codecInfo && streamType === 0x06 && !this.streamInfoByPid.has(pid)) {
-      // Unknown private data, try to sniff
-      this.streamInfoByPid.set(pid, { pid, type: 'unknown', codec: 'unknown', buffer: new Uint8Array(0), parsed: false });
-    }
-  }
-
-  private hasDescriptor(descriptors: Uint8Array, tag: number): boolean {
-    let i = 0;
-    while (i < descriptors.length) {
-      const descTag = descriptors[i];
-      const descLen = descriptors[i + 1];
-      if (descTag === tag) return true;
-      i += 2 + descLen;
-    }
-    return false;
-  }
-
-  private parseSdt(payload: Uint8Array, payloadUnitStartIndicator: boolean) {
-    if (!payloadUnitStartIndicator) return;
-
-    let offset = 0;
-    const pointerField = payload[offset];
-    offset += 1 + pointerField;
-
-    if (offset >= payload.length) return;
-
-    const tableId = payload[offset];
-    if (tableId !== TID_SDT) return; // Actual SDT
-
-    const sectionLength = ((payload[offset + 1] & 0x0f) << 8) | payload[offset + 2];
-
-    let current = offset + 11; // After original_network_id (2) + reserved (1)
-    const end = offset + 3 + sectionLength - 4;
-
-    while (current < end) {
-      // const serviceId = (payload[current] << 8) | payload[current + 1];
-      const descriptorsLoopLength = ((payload[current + 3] & 0x0f) << 8) | payload[current + 4];
-
-      const descriptors = payload.subarray(current + 5, current + 5 + descriptorsLoopLength);
-      this.parseSdtDescriptors(descriptors);
-
-      current += 5 + descriptorsLoopLength;
-    }
-    this.sdtFound = true;
-  }
-
-  private parseSdtDescriptors(descriptors: Uint8Array) {
-    let i = 0;
-    while (i < descriptors.length) {
-      const tag = descriptors[i];
-      const len = descriptors[i + 1];
-
-      if (tag === 0x48) {
-        // Service Descriptor
-        // const serviceType = descriptors[i + 2];
-        const providerNameLen = descriptors[i + 3];
-        const providerName = new TextDecoder().decode(descriptors.subarray(i + 4, i + 4 + providerNameLen));
-        const serviceNameLen = descriptors[i + 4 + providerNameLen];
-        const serviceName = new TextDecoder().decode(descriptors.subarray(i + 5 + providerNameLen, i + 5 + providerNameLen + serviceNameLen));
-
-        this.serviceName = serviceName;
-        this.providerName = providerName;
-      }
-
-      i += 2 + len;
     }
   }
 }
@@ -880,4 +699,44 @@ export async function parseMpegTs(
   const parser = new MpegTsParser(stream, options, onSamples);
   const info = await parser.parse();
   return { ...info, parser: 'media-utils' };
+}
+
+// Stream Types Mapping
+const STREAM_TYPE_MAP: Record<number, { type: 'video' | 'audio' | 'other'; codec: AudioCodecType | VideoCodecType }> = {
+  0x01: { type: 'video', codec: 'mpeg1video' }, // Not strictly in VideoCodecType but let's see
+  0x02: { type: 'video', codec: 'mpeg2video' },
+  0x03: { type: 'audio', codec: 'mp3' }, // MPEG-1 Audio (mp1/mp2/mp3 - need to parse to determine)
+  0x04: { type: 'audio', codec: 'mp3' }, // MPEG-2 Audio (mp1/mp2/mp3 - need to parse to determine)
+  0x0f: { type: 'audio', codec: 'aac' }, // Raw AAC, without ADTS, could be LATM or raw AUs
+  0x11: { type: 'audio', codec: 'aac_latm' }, // LATM/LOAS AAC
+  0x1b: { type: 'video', codec: 'h264' },
+  0x24: { type: 'video', codec: 'hevc' },
+  0x81: { type: 'audio', codec: 'ac3' }, // ATSC AC-3
+  0x82: { type: 'audio', codec: 'dts' }, // SCTE DTS
+  0x87: { type: 'audio', codec: 'eac3' }, // ATSC E-AC-3
+
+  // But, ffmpeg uses this for its LATM muxed PES payload starting with AudioMuxConfig
+  0x06: { type: 'audio', codec: 'aac' }, // Private Data, often AC-3 or E-AC-3 in DVB, requires descriptor check
+};
+
+/**
+ * Build StreamDetails based on information found in PMT
+ * @param streamType The stream type
+ * @param descriptors The descriptors
+ * @returns An StreamDetails object that is missing pid and programNumber properties
+ */
+export function buildStreamDetails(streamType: number, descriptors: Uint8Array): Omit<StreamDetails, 'programNumber' | 'pid'> {
+  const streamTypeInfo = STREAM_TYPE_MAP[streamType];
+  console.error('buildStreamDetails', streamType, streamTypeInfo);
+  const info: Omit<StreamDetails, 'programNumber' | 'pid'> = {
+    streamType,
+    streamTypeCategory: streamTypeInfo?.type ?? 'other',
+    codec: streamTypeInfo?.codec ?? 'unknown',
+    parsed: false,
+    pesBuffer: new Uint8Array(0),
+    pesPayloadStartOffsetInPesBuffer: undefined,
+    pesPayloadHandler: undefined,
+  };
+  parseEsDescriptors(descriptors, info);
+  return info;
 }
