@@ -4,7 +4,7 @@ import { InhouseParserAdapter } from './parsers/inhouse-parsers-adapter';
 import { IsoBoxerAdapter } from './parsers/isoboxer-adapter';
 import { Mp4BoxAdapter } from './parsers/mp4box-adapter';
 import { RemotionAdapter } from './parsers/remotion-adapter';
-import { createReadableStreamFromFile, ParserRelatedOptions } from './utils';
+import { createReadableStreamFromFile, ParserRelatedOptions, setupGlobalLogger } from './utils';
 
 export type GetMediaInfoOptions = ParserRelatedOptions & {
   /**
@@ -12,6 +12,11 @@ export type GetMediaInfoOptions = ParserRelatedOptions & {
    * Default value is true.
    */
   quiet?: boolean;
+  /**
+   * Whether to enable debug logging.
+   * Default value is false.
+   */
+  debug?: boolean;
 };
 
 /**
@@ -28,8 +33,10 @@ export async function getMediaInfo(
   const options = {
     useParser: 'auto' as GetMediaInfoOptions['useParser'],
     quiet: true,
+    debug: false,
     ...optionsInput,
   };
+  const logger = setupGlobalLogger(options);
 
   const { useParser } = options;
 
@@ -80,6 +87,7 @@ export async function getMediaInfo(
       if (adapters.length === 0) {
         throw new Error('Very likely none of the required NPM packages (such like mp4box, codem-isoboxer, or @remotion/media-parser) is installed');
       }
+      if (logger.isDebug) logger.debug(`Using fallback parser chain for 'auto': ${adapters.map((a) => a.constructor.name).join(', ')}`);
       parser = new FallbackChainParserAdapter(adapters);
       break;
     }

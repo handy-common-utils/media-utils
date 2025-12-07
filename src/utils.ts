@@ -1,6 +1,50 @@
 /* eslint-disable @typescript-eslint/no-require-imports, unicorn/prefer-module */
 
+import { ConsoleLineLogger, LineLogger } from '@handy-common-utils/misc-utils';
+
 import { MediaInfo } from './media-info';
+
+/**
+ * This is the global logger for the library.
+ * It can be changed using the `setLogger` function.
+ */
+let logger: undefined | ConsoleLineLogger;
+
+/**
+ * Returns the global logger for the library.
+ * If the logger has not been set, it will be initialized default settings which discards all logs.
+ * @returns The global logger for the library.
+ */
+export function getGlobalLogger(): ConsoleLineLogger {
+  if (logger == null) {
+    logger = LineLogger.console({
+      quiet: (process.env.MEDIA_UTILS_LOG_QUIET?.toLowerCase() || 'true') === 'true',
+    });
+  }
+  return logger;
+}
+
+/**
+ * Set the global logger for the library.
+ * External facing modules could use this function to alter the global logger instance
+ * based on the needs of the consumer of the library.
+ * @param newLogger The new logger to use.
+ */
+// export function setGlobalLogger(newLogger: any) {
+//   logger = newLogger;
+// }
+
+/**
+ * Set the global logger for the library to a new console logger.
+ * @param flags The flags to pass to the console logger.
+ * @param flags.quiet Whether to suppress console output.
+ * @param flags.debug Whether to enable debug logging.
+ * @returns The global logger for the library.
+ */
+export function setupGlobalLogger(flags: { quiet?: boolean; debug?: boolean }): ConsoleLineLogger {
+  logger = LineLogger.console(flags);
+  return logger;
+}
 
 export interface ParsingError {
   isUnsupportedFormatError?: boolean;
