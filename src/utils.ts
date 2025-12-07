@@ -4,6 +4,13 @@ import { ConsoleLineLogger, LineLogger } from '@handy-common-utils/misc-utils';
 
 import { MediaInfo } from './media-info';
 
+function env(): Record<string, string | undefined> {
+  if (typeof process !== 'undefined') {
+    return process.env;
+  }
+  return {};
+}
+
 /**
  * This is the global logger for the library.
  * It can be changed using the `setLogger` function.
@@ -19,8 +26,8 @@ let logger: undefined | ConsoleLineLogger;
 export function getGlobalLogger(): ConsoleLineLogger {
   if (logger == null) {
     logger = LineLogger.console({
-      quiet: (process.env.MEDIA_UTILS_LOG_QUIET?.toLowerCase() || 'true') === 'true',
-      debug: (process.env.MEDIA_UTILS_LOG_DEBUG?.toLowerCase() || 'false') === 'true',
+      quiet: (env().MEDIA_UTILS_LOG_QUIET?.toLowerCase() || 'true') === 'true',
+      debug: (env().MEDIA_UTILS_LOG_DEBUG?.toLowerCase() || 'false') === 'true',
     });
   }
   return logger;
@@ -47,14 +54,14 @@ export function getGlobalLogger(): ConsoleLineLogger {
 export function setupGlobalLogger(flags: { quiet?: boolean; debug?: boolean } | undefined | null): ConsoleLineLogger {
   logger = LineLogger.console({
     ...flags,
-    ...(process.env.MEDIA_UTILS_LOG_QUIET
+    ...(env().MEDIA_UTILS_LOG_QUIET
       ? {
-          quiet: process.env.MEDIA_UTILS_LOG_QUIET.toLowerCase() === 'true',
+          quiet: env().MEDIA_UTILS_LOG_QUIET?.toLowerCase() === 'true',
         }
       : undefined),
-    ...(process.env.MEDIA_UTILS_LOG_DEBUG
+    ...(env().MEDIA_UTILS_LOG_DEBUG
       ? {
-          debug: process.env.MEDIA_UTILS_LOG_DEBUG.toLowerCase() === 'true',
+          debug: env().MEDIA_UTILS_LOG_DEBUG?.toLowerCase() === 'true',
         }
       : undefined),
   });
