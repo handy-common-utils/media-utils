@@ -13,12 +13,14 @@ let logger: undefined | ConsoleLineLogger;
 /**
  * Returns the global logger for the library.
  * If the logger has not been set, it will be initialized default settings which discards all logs.
+ * Please note that environment variables MEDIA_UTILS_LOG_QUIET and MEDIA_UTILS_LOG_DEBUG can be used to override the logging behavior.
  * @returns The global logger for the library.
  */
 export function getGlobalLogger(): ConsoleLineLogger {
   if (logger == null) {
     logger = LineLogger.console({
       quiet: (process.env.MEDIA_UTILS_LOG_QUIET?.toLowerCase() || 'true') === 'true',
+      debug: (process.env.MEDIA_UTILS_LOG_DEBUG?.toLowerCase() || 'false') === 'true',
     });
   }
   return logger;
@@ -36,13 +38,26 @@ export function getGlobalLogger(): ConsoleLineLogger {
 
 /**
  * Set the global logger for the library to a new console logger.
+ * Please note that environment variables MEDIA_UTILS_LOG_QUIET and MEDIA_UTILS_LOG_DEBUG can be used to override the logging behavior.
  * @param flags The flags to pass to the console logger.
  * @param flags.quiet Whether to suppress console output.
  * @param flags.debug Whether to enable debug logging.
  * @returns The global logger for the library.
  */
-export function setupGlobalLogger(flags: { quiet?: boolean; debug?: boolean }): ConsoleLineLogger {
-  logger = LineLogger.console(flags);
+export function setupGlobalLogger(flags: { quiet?: boolean; debug?: boolean } | undefined | null): ConsoleLineLogger {
+  logger = LineLogger.console({
+    ...flags,
+    ...(process.env.MEDIA_UTILS_LOG_QUIET
+      ? {
+          quiet: process.env.MEDIA_UTILS_LOG_QUIET.toLowerCase() === 'true',
+        }
+      : undefined),
+    ...(process.env.MEDIA_UTILS_LOG_DEBUG
+      ? {
+          debug: process.env.MEDIA_UTILS_LOG_DEBUG.toLowerCase() === 'true',
+        }
+      : undefined),
+  });
   return logger;
 }
 

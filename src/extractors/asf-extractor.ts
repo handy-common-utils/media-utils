@@ -8,7 +8,7 @@ import { readUInt16LE, readUInt32LE } from '../codecs/binary';
 import { ExtractAudioOptions } from '../extract-audio';
 import { AudioStreamInfo } from '../media-info';
 import { AsfMediaInfo, parseAsf } from '../parsers/asf';
-import { UnsupportedFormatError } from '../utils';
+import { setupGlobalLogger, UnsupportedFormatError } from '../utils';
 import { findAudioStreamToBeExtracted } from './utils';
 import { PayloadDetails, writeWma } from './wma-writer';
 
@@ -37,6 +37,9 @@ export async function extractFromAsf(
   }
   // Find the audio stream to extract
   const stream: AudioStreamInfo = findAudioStreamToBeExtracted(mediaInfo, options);
+
+  const logger = setupGlobalLogger(options);
+  if (logger.isDebug) logger.debug(`Extracting audio from ASF. Stream: ${stream.id}, Codec: ${stream.codec}`);
 
   const { fileProperties, additionalStreamInfo: extractedStreamInfo } = mediaInfo;
   const additionalStreamInfo = extractedStreamInfo!.get(stream.id)!;

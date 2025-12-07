@@ -132,6 +132,36 @@ await extractAudio(inputStream, outputStream, {
 });
 ```
 
+## Logging
+
+This library supports logging control via options and environment variables.
+
+### Options
+
+Both `getMediaInfo` and `extractAudio` accept options to control logging:
+
+- `quiet`: (boolean) If `true`, suppresses all console output. Defaults to `true`.
+- `debug`: (boolean) If `true`, enables debug logging. Defaults to `false`.
+
+This example shows how debug logging can be enabled:
+
+```typescript
+await getMediaInfoFromFile('video.mp4', { quiet: false, debug: true });
+```
+
+Please note that if `quiet` is `true`, debug logging is always disabled even if `debug` is set to `true`.
+
+### Environment Variables
+
+You can override the logging behavior using environment variables. These variables take precedence over the options passed to functions.
+
+- `MEDIA_UTILS_LOG_QUIET`: Set to 'true' or 'false' to control quiet mode.
+- `MEDIA_UTILS_LOG_DEBUG`: Set to 'true' or 'false' to control debug logging.
+
+```bash
+MEDIA_UTILS_LOG_QUIET=false MEDIA_UTILS_LOG_DEBUG=true node my-script.js
+```
+
 ## Utility Functions
 
 This library exports several utility functions to help you work with media streams in Node.js environments.

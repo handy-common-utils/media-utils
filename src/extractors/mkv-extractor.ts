@@ -3,7 +3,7 @@ import { OggMuxer } from '../codecs/ogg';
 import { ExtractAudioOptions } from '../extract-audio';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
 import { MkvParser } from '../parsers/mkv';
-import { UnsupportedFormatError } from '../utils';
+import { setupGlobalLogger, UnsupportedFormatError } from '../utils';
 import { findAudioStreamToBeExtracted } from './utils';
 
 /**
@@ -41,6 +41,9 @@ export async function extractFromMkv(
     writer.abort(error).catch(() => {});
     throw error;
   }
+
+  const logger = setupGlobalLogger(options);
+  if (logger.isDebug) logger.debug(`Extracting audio from MKV. Stream: ${stream.id}, Codec: ${stream.codec}`);
 
   const parser = new MkvParser(input, options, (trackId, samples) => {
     if (!stream || trackId !== stream.id) return;

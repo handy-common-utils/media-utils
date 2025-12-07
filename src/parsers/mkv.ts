@@ -1,6 +1,6 @@
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioCodecType, AudioStreamInfo, findAudioCodec, findVideoCodec, MediaInfo, VideoCodecType, VideoStreamInfo } from '../media-info';
-import { ensureBufferData, UnsupportedFormatError } from '../utils';
+import { ensureBufferData, setupGlobalLogger, UnsupportedFormatError } from '../utils';
 
 // EBML Element IDs
 const EBML_ID = 0x1a45dfa3;
@@ -82,6 +82,8 @@ export class MkvParser {
   }
 
   async parse(): Promise<Omit<MediaInfo, 'parser'>> {
+    const logger = setupGlobalLogger(this.options);
+    if (logger.isDebug) logger.debug('Starting parsing MKV/WebM');
     let requiredSize = 64 * 1024;
     try {
       // eslint-disable-next-line no-constant-condition

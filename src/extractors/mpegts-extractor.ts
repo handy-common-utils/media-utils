@@ -1,7 +1,7 @@
 import { ExtractAudioOptions } from '../extract-audio';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
 import { parseMpegTs } from '../parsers/mpegts';
-import { UnsupportedFormatError } from '../utils';
+import { setupGlobalLogger, UnsupportedFormatError } from '../utils';
 import { findAudioStreamToBeExtracted } from './utils';
 
 /**
@@ -37,6 +37,9 @@ export async function extractFromMpegTs(
     writer.abort(error).catch(() => {});
     throw error;
   }
+
+  const logger = setupGlobalLogger(options);
+  if (logger.isDebug) logger.debug(`Extracting audio from MPEG-TS. Stream: ${stream.id}, Codec: ${stream.codec}`);
 
   // Validate codec support
   if (stream.codec !== 'aac' && stream.codec !== 'mp3' && stream.codec !== 'mp2') {

@@ -6,7 +6,7 @@ import { createADTSFrame } from '../codecs/aac';
 import { ExtractAudioOptions } from '../extract-audio';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
 import { makeMp4BoxQuiet } from '../parsers/mp4box-adapter';
-import { UnsupportedFormatError } from '../utils';
+import { setupGlobalLogger, UnsupportedFormatError } from '../utils';
 import { findAudioStreamToBeExtracted } from './utils';
 
 /**
@@ -97,6 +97,8 @@ export async function extractFromMp4(
       }
 
       mp4file.setExtractionOptions(stream.id, null, { nbSamples: 1000 });
+      const logger = setupGlobalLogger(options);
+      if (logger.isDebug) logger.debug(`Extracting audio from MP4. Stream: ${stream.id}, Codec: ${stream.codec}`);
       mp4file.start();
     };
 

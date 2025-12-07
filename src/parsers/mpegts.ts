@@ -10,7 +10,7 @@ import {
 import { PesPayloadHandler } from '../codecs/pes';
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioCodecType, AudioStreamInfo, MediaInfo, VideoCodecType, VideoStreamInfo } from '../media-info';
-import { ensureBufferData, UnsupportedFormatError } from '../utils';
+import { ensureBufferData, setupGlobalLogger, UnsupportedFormatError } from '../utils';
 
 // Constants
 const TS_PACKET_SIZE_188 = 188;
@@ -695,6 +695,8 @@ export async function parseMpegTs(
   options?: GetMediaInfoOptions,
   onSamples?: (streamId: number, samples: Uint8Array[]) => Promise<void>,
 ): Promise<MediaInfo> {
+  const logger = setupGlobalLogger(options);
+  if (logger.isDebug) logger.debug('Starting parsing MPEG-TS');
   const parser = new MpegTsParser(stream, options, onSamples);
   const info = await parser.parse();
   return { ...info, parser: 'media-utils' };

@@ -1,18 +1,20 @@
 import { mapWaveFormatTagToCodec, parseWaveFormatEx } from '../codecs/waveformatex';
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioStreamInfo, MediaInfo } from '../media-info';
-import { readBeginning, UnsupportedFormatError } from '../utils';
+import { readBeginning, setupGlobalLogger, UnsupportedFormatError } from '../utils';
 
 /**
  * Parses WAV file from a stream and extracts media information.
  * WAV files use RIFF container format with simple header structure.
  *
  * @param stream The input media stream
- * @param _options Optional options for the parser
+ * @param options Optional options for the parser
  * @returns Media information without the parser field
  * @throws UnsupportedFormatError if the stream is not a valid WAV file
  */
-export async function parseWav(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
+export async function parseWav(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
+  const logger = setupGlobalLogger(options);
+  if (logger.isDebug) logger.debug('Starting parsing WAV');
   const reader = stream.getReader();
   const buffer = await readBeginning(reader);
 

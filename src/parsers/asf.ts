@@ -3,7 +3,7 @@ import { readUInt16LE, readUInt32LE, readUInt64LE } from '../codecs/binary';
 import { mapWaveFormatTagToCodec, parseWaveFormatEx } from '../codecs/waveformatex';
 import { GetMediaInfoOptions } from '../get-media-info';
 import { AudioStreamInfo, MediaInfo, toVideoCodec, VideoStreamInfo } from '../media-info';
-import { UnsupportedFormatError } from '../utils';
+import { setupGlobalLogger, UnsupportedFormatError } from '../utils';
 
 /**
  * Metadata about a payload
@@ -95,6 +95,8 @@ export type AsfMediaInfo = Omit<MediaInfo, 'parser'> & {
  * @throws UnsupportedFormatError if the stream is not a valid ASF file
  */
 export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: ParseAsfOptions): Promise<AsfMediaInfo> {
+  const logger = setupGlobalLogger(options);
+  if (logger.isDebug) logger.debug('Starting parsing ASF');
   const shouldExtractPayload = options?.extractStreams && options?.extractStreams.length > 0 && options?.onPayload;
   const extractStreamSet = new Set(options?.extractStreams);
 

@@ -2,7 +2,7 @@
 import { mapWaveFormatTagToCodec, parseWaveFormatEx } from '../codecs/waveformatex';
 import { GetMediaInfoOptions } from '../get-media-info';
 import { findVideoCodec, MediaInfo } from '../media-info';
-import { ensureBufferData, UnsupportedFormatError } from '../utils';
+import { ensureBufferData, setupGlobalLogger, UnsupportedFormatError } from '../utils';
 
 interface AviMainHeader {
   microSecPerFrame: number;
@@ -63,6 +63,8 @@ export interface ParseAviOptions extends GetMediaInfoOptions {
  * @returns Promise resolving to MediaInfo
  */
 export async function parseAvi(stream: ReadableStream<Uint8Array>, options?: ParseAviOptions): Promise<MediaInfo> {
+  const logger = setupGlobalLogger(options);
+  if (logger.isDebug) logger.debug('Starting parsing AVI');
   const reader = stream.getReader();
   let buffer: Uint8Array = new Uint8Array(0);
   let offset = 0;

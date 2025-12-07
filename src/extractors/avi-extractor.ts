@@ -1,7 +1,7 @@
 import { ExtractAudioOptions } from '../extract-audio';
 import { isPCM, MediaInfo } from '../media-info';
 import { parseAvi } from '../parsers/avi';
-import { UnsupportedFormatError } from '../utils';
+import { setupGlobalLogger, UnsupportedFormatError } from '../utils';
 import { findAudioStreamToBeExtracted } from './utils';
 import { WavWriter } from './wav-writer';
 
@@ -85,6 +85,9 @@ export async function extractFromAvi(
     writer.abort(error).catch(() => {});
     throw error;
   }
+
+  const logger = setupGlobalLogger(options);
+  if (logger.isDebug) logger.debug(`Extracting audio from AVI. Stream: ${audioStream.id}, Codec: ${audioStream.codec}`);
 
   // Only PCM and ADPCM are supported for now
   if (!isPCM(audioStream.codec)) {
