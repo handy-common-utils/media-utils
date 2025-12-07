@@ -1,20 +1,11 @@
-import { parseADTSHeader } from '../codecs/aac';
-import { readAscii, readUInt16BE, readUInt32BE, toHexString } from '../codecs/binary';
-import { h264LevelString, h264ProfileName, parseSPS } from '../codecs/h264';
-import { h265LevelString, h265ProfileName } from '../codecs/h265';
-import { parseMP3Header } from '../codecs/mp3';
+import { readUInt16BE, readUInt32BE } from '../codecs/binary';
 import {
   guessAudioHeaderInPES,
   parseAacHeaderInPES,
-  parseAc3DescriptorTagBody,
-  parseDtsDescriptorTagBody,
-  parseEac3DescriptorTagBody,
   parseEsDescriptors,
   parseH264HeaderInPES,
-  parseLanguageDescriptorTagBody,
   parseMp2OrMp3HeaderInPES,
   parseMpeg2VideoHeaderInPES,
-  parseMpeg2VideoSequenceHeader,
 } from '../codecs/mpegts';
 import { PesPayloadHandler } from '../codecs/pes';
 import { GetMediaInfoOptions } from '../get-media-info';
@@ -28,21 +19,12 @@ const SYNC_BYTE = 0x47;
 
 // PIDs
 const PID_PAT = 0x0000;
-const PID_SDT = 0x0011;
+const _PID_SDT = 0x0011;
 
 // Table IDs
 const TID_PAT = 0x00;
 const TID_PMT = 0x02;
-const TID_SDT = 0x42;
-
-interface StreamInfo {
-  pid: number;
-  type: 'video' | 'audio' | 'unknown';
-  codec: AudioCodecType | VideoCodecType;
-  buffer: Uint8Array;
-  parsed: boolean;
-  pesHandler?: PesPayloadHandler; // For audio streams during extraction
-}
+const _TID_SDT = 0x42;
 
 type StreamDetails = Omit<AudioStreamInfo | VideoStreamInfo, 'id' | 'durationInSeconds'> & {
   programNumber: number;
@@ -97,21 +79,11 @@ export class MpegTsParser {
 
   private allPmtDetails: Map<number, PmtDetails> = new Map();
   private allStreamDetails: Map<number, StreamDetails> = new Map();
-  private sdtFound = false;
 
-  private audioStreams: AudioStreamInfo[] = [];
-  private videoStreams: VideoStreamInfo[] = [];
-
-  private streamInfoByPid: Map<number, StreamInfo> = new Map();
-
-  private serviceName?: string;
-  private providerName?: string;
-
-  // Limit how much we scan to avoid reading the whole file
-  private bytesRead = 0;
   private readonly MAX_SCAN_BYTES = 2 * 1024 * 1024; // 2MB
   private packetSize = 0; // Will be detected (188 or 192)
   private tsPacketsProcessed = 0;
+  private bytesRead = 0;
 
   constructor(
     stream: ReadableStream<Uint8Array>,
@@ -152,6 +124,11 @@ export class MpegTsParser {
         }
 
         if (done && this.buffer.length - this.bufferOffset < this.packetSize) {
+          if (this.onSamples) {
+            for (const streamDetails of this.allStreamDetails.values()) {
+              await this.flushRemainingPESPayload(streamDetails, this.buffer.length);
+            }
+          }
           break;
         }
 
@@ -190,13 +167,6 @@ export class MpegTsParser {
         // If we are extracting (onSamples is provided), we read until the end
         if (!this.onSamples && (this.isMetadataComplete() || this.bytesRead > this.MAX_SCAN_BYTES)) {
           break;
-        }
-
-        // There could be remaining PES payload of unknown size, we flush them out
-        if (done && this.onSamples) {
-          for (const streamDetails of this.allStreamDetails.values()) {
-            await this.flushRemainingPESPayload(streamDetails, this.buffer.length);
-          }
         }
       }
     } finally {
@@ -348,7 +318,8 @@ export class MpegTsParser {
 
     const streamDetails = this.allStreamDetails.get(pid);
     if (streamDetails && (streamDetails.parsed === false || this.onSamples)) {
-      streamDetails.parsed = streamDetails.parsed || (await this.processStreamPacket(pid, payload, payloadUnitStartIndicator));
+      const parsed = await this.processStreamPacket(pid, payload, payloadUnitStartIndicator);
+      streamDetails.parsed = streamDetails.parsed || parsed;
       return;
     }
   }
@@ -414,10 +385,12 @@ export class MpegTsParser {
     const checkAvailableData = ({
       pesLength,
       pesStart,
+      frameDataOffset,
       onKnownLengthData,
     }: {
       pesLength: number;
       pesStart: number;
+      frameDataOffset?: number;
       onKnownLengthData?: (begin: number, end: number) => void;
     }) => {
       // Known length
@@ -425,7 +398,7 @@ export class MpegTsParser {
         const nextPesStart = pesStart + 6 + pesLength;
         // Data is complete
         if (nextPesStart < streamDetails.pesBuffer.length) {
-          if (onKnownLengthData) onKnownLengthData(pesStart + 6, nextPesStart);
+          if (onKnownLengthData) onKnownLengthData(pesStart + 6 + (frameDataOffset ?? 0), nextPesStart);
           return { shouldReturnNotContinue: false, nextIndex: nextPesStart - 1 };
         }
         // Wait for more data
@@ -433,13 +406,14 @@ export class MpegTsParser {
       }
 
       // Unknown PES length → "keep searching"
+      // If we found a valid header, we can likely skip ahead a bit, but for safety + 2 is fine
       return { shouldReturnNotContinue: false, nextIndex: pesStart + 2 };
     };
 
     let parsedPESHeader = false;
 
     let pesStart = 0;
-    for (let i = 0; i < streamDetails.pesBuffer.length - 3; i++) {
+    for (let i = 0; i < streamDetails.pesBuffer.length - 4; i++) {
       if (streamDetails.pesBuffer[i] === 0x00 && streamDetails.pesBuffer[i + 1] === 0x00 && streamDetails.pesBuffer[i + 2] === 0x01) {
         if (streamDetails.pesBuffer.length < pesStart + 9) return false; // Need more data
 
@@ -477,27 +451,30 @@ export class MpegTsParser {
           // Flush out any remaining PES payload
           await this.flushRemainingPESPayload(streamDetails, pesStart);
 
-          const { shouldReturnNotContinue, nextIndex } = checkAvailableData({ pesLength, pesStart });
+          const { shouldReturnNotContinue, nextIndex } = checkAvailableData({ pesLength, pesStart, frameDataOffset: 0 });
           if (shouldReturnNotContinue) return parsedPESHeader;
           i = nextIndex!;
           continue;
         } else if (streamId >= 0xc0 && streamId <= 0xdf) {
           // 0xC0–0xDF ISO/IEC 13818-3 audio streams (MPEG-1/2 Layer I/II/III), AAC, etc.
           if (streamDetails.pesBuffer.length < pesStart + 100) return false; // Need more data for parsing the header
+
+          let frameOffset = 0;
+
           // try to parse the audio header
           try {
             if (streamDetails.streamTypeCategory === 'private') {
               // We need to guess, because ffmpeg uses 0x06 for aac and mp3 but with different packaging
-              guessAudioHeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
+              frameOffset = guessAudioHeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
             } else {
               switch (streamDetails.codec) {
                 case 'mp2':
                 case 'mp3': {
-                  parseMp2OrMp3HeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
+                  frameOffset = parseMp2OrMp3HeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
                   break;
                 }
                 case 'aac': {
-                  parseAacHeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
+                  frameOffset = parseAacHeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
                   break;
                 }
                 default: {
@@ -530,6 +507,7 @@ export class MpegTsParser {
           const { shouldReturnNotContinue, nextIndex } = checkAvailableData({
             pesLength,
             pesStart,
+            frameDataOffset: frameOffset,
             onKnownLengthData: (start, end) => {
               streamDetails.pesPayloadHandler?.onData(streamDetails.pesBuffer.subarray(start, end));
             },
@@ -631,9 +609,9 @@ export class MpegTsParser {
    * - Additional codec metadata appears in descriptors inside the PMT
    *
    * @param payload The payload data
-   * @param pmtPid The PID of this PMT
+   * @param _pmtPid The PID of this PMT
    */
-  private parsePmt(payload: Uint8Array, pmtPid: number) {
+  private parsePmt(payload: Uint8Array, _pmtPid: number) {
     let offset = 0;
     const pointerField = payload[offset];
     offset += 1 + pointerField;

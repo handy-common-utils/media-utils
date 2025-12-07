@@ -24,7 +24,7 @@ export function parseLOAS(data: Uint8Array, hasSyncWord = true): ReturnType<type
   // -------------------------
   // 2. AudioMuxLength
   // -------------------------
-  const audioMuxLength = readAudioMuxLength(br);
+  const _audioMuxLength = readAudioMuxLength(br);
 
   // -------------------------
   // 3. audioMuxElement()
@@ -66,7 +66,7 @@ export function parseAudioMuxElement(br: BitReader, assertMuxVersions: [number, 
   }
 
   // allStreamsSameTimeFraming = 1 → Only this case supported
-  const allStreamsSameTimeFraming = br.readBits(2);
+  const _allStreamsSameTimeFraming = br.readBits(2);
   // if (allStreamsSameTimeFraming !== 1) {
   //   throw new UnsupportedFormatError('Unsupported LATM: allStreamsSameTimeFraming = 0');
   // }
