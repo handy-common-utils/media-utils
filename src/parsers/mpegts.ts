@@ -88,7 +88,7 @@ export class MpegTsParser {
   constructor(
     stream: ReadableStream<Uint8Array>,
     private options?: GetMediaInfoOptions,
-    private onSamples?: (streamId: number, samples: Uint8Array[]) => void,
+    private onSamples?: (streamId: number, samples: Uint8Array[]) => Promise<void>,
   ) {
     this.reader = stream.getReader();
   }
@@ -326,7 +326,12 @@ export class MpegTsParser {
 
   private async flushRemainingPESPayload(streamDetails: StreamDetails, pesStart: number) {
     // Flush out any remaining PES payload
-    if (streamDetails.pesPayloadHandler && streamDetails.pesPayloadStartOffsetInPesBuffer !== undefined) {
+    if (
+      streamDetails.pesPayloadHandler &&
+      streamDetails.pesPayloadStartOffsetInPesBuffer !== undefined &&
+      streamDetails.pesPayloadStartOffsetInPesBuffer < pesStart
+    ) {
+      // console.error('flushRemainingPESPayload', streamDetails.pesPayloadStartOffsetInPesBuffer, pesStart);
       await streamDetails.pesPayloadHandler.onData(streamDetails.pesBuffer.subarray(streamDetails.pesPayloadStartOffsetInPesBuffer, pesStart));
       streamDetails.pesPayloadStartOffsetInPesBuffer = undefined;
     }
@@ -382,7 +387,7 @@ export class MpegTsParser {
     // PES Packet Length: 2 bytes
     // Optional PES header...
 
-    const checkAvailableData = ({
+    const checkAvailableData = async ({
       pesLength,
       pesStart,
       frameDataOffset,
@@ -391,23 +396,25 @@ export class MpegTsParser {
       pesLength: number;
       pesStart: number;
       frameDataOffset?: number;
-      onKnownLengthData?: (begin: number, end: number) => void;
+      onKnownLengthData?: (begin: number, end: number) => Promise<void>;
     }) => {
+      streamDetails.pesPayloadStartOffsetInPesBuffer = pesStart; // could be updated later in this function
       // Known length
       if (pesLength > 0) {
         const nextPesStart = pesStart + 6 + pesLength;
         // Data is complete
         if (nextPesStart < streamDetails.pesBuffer.length) {
-          if (onKnownLengthData) onKnownLengthData(pesStart + 6 + (frameDataOffset ?? 0), nextPesStart);
-          return { shouldReturnNotContinue: false, nextIndex: nextPesStart - 1 };
+          streamDetails.pesPayloadStartOffsetInPesBuffer = undefined;
+          if (onKnownLengthData) await onKnownLengthData(pesStart + 6 + (frameDataOffset ?? 0), nextPesStart);
+          return { shouldBreakNotContinue: false, nextIndex: nextPesStart - 1 };
         }
         // Wait for more data
-        return { shouldReturnNotContinue: true };
+        return { shouldBreakNotContinue: true };
       }
 
       // Unknown PES length → "keep searching"
       // If we found a valid header, we can likely skip ahead a bit, but for safety + 2 is fine
-      return { shouldReturnNotContinue: false, nextIndex: pesStart + 2 };
+      return { shouldBreakNotContinue: false, nextIndex: pesStart + 2 };
     };
 
     let parsedPESHeader = false;
@@ -415,14 +422,15 @@ export class MpegTsParser {
     let pesStart = 0;
     for (let i = 0; i < streamDetails.pesBuffer.length - 4; i++) {
       if (streamDetails.pesBuffer[i] === 0x00 && streamDetails.pesBuffer[i + 1] === 0x00 && streamDetails.pesBuffer[i + 2] === 0x01) {
-        if (streamDetails.pesBuffer.length < pesStart + 9) return false; // Need more data
+        // if (pid === 257)console.log('i=', i, 'pid=', pid, 'streamDetails.pesBuffer.length=', streamDetails.pesBuffer.length);
+        if (streamDetails.pesBuffer.length < pesStart + 9) break; // leave for next time when there is more data
 
         pesStart = i;
         const streamId = streamDetails.pesBuffer[pesStart + 3];
         const pesLength = readUInt16BE(streamDetails.pesBuffer, pesStart + 4);
         if (streamId >= 0xe0 && streamId <= 0xef) {
           // 0xE0–0xEF Video stream (MPEG-1/2/4, H.264/AVC, H.265/HEVC inside TS)
-          if (streamDetails.pesBuffer.length < pesStart + 100) return false; // Need more data for parsing the header
+          if (streamDetails.pesBuffer.length < pesStart + 100) break; // leave for next time when there is more data
           // try to parse the video header
           try {
             switch (streamDetails.codec) {
@@ -451,13 +459,13 @@ export class MpegTsParser {
           // Flush out any remaining PES payload
           await this.flushRemainingPESPayload(streamDetails, pesStart);
 
-          const { shouldReturnNotContinue, nextIndex } = checkAvailableData({ pesLength, pesStart, frameDataOffset: 0 });
-          if (shouldReturnNotContinue) return parsedPESHeader;
+          const { shouldBreakNotContinue, nextIndex } = await checkAvailableData({ pesLength, pesStart, frameDataOffset: 0 });
+          if (shouldBreakNotContinue) break;
           i = nextIndex!;
           continue;
         } else if (streamId >= 0xc0 && streamId <= 0xdf) {
           // 0xC0–0xDF ISO/IEC 13818-3 audio streams (MPEG-1/2 Layer I/II/III), AAC, etc.
-          if (streamDetails.pesBuffer.length < pesStart + 100) return false; // Need more data for parsing the header
+          if (streamDetails.pesBuffer.length < pesStart + 100) break; // leave for next time when there is more data
 
           let frameOffset = 0;
 
@@ -493,34 +501,38 @@ export class MpegTsParser {
           parsedPESHeader = true;
 
           if (this.onSamples && !streamDetails.pesPayloadHandler) {
-            streamDetails.pesPayloadHandler = new PesPayloadHandler(audioStreamDetails.codec!, (frames) =>
-              this.onSamples!(
-                pid,
-                frames.map((f) => f.data),
-              ),
+            streamDetails.pesPayloadHandler = new PesPayloadHandler(
+              audioStreamDetails.codec!,
+              async (frames) =>
+                await this.onSamples!(
+                  pid,
+                  frames.map((f) => f.data),
+                ),
             );
           }
 
           // Flush out any remaining PES payload
           await this.flushRemainingPESPayload(streamDetails, pesStart);
 
-          const { shouldReturnNotContinue, nextIndex } = checkAvailableData({
+          const { shouldBreakNotContinue, nextIndex } = await checkAvailableData({
             pesLength,
             pesStart,
             frameDataOffset: frameOffset,
-            onKnownLengthData: (start, end) => {
-              streamDetails.pesPayloadHandler?.onData(streamDetails.pesBuffer.subarray(start, end));
+            onKnownLengthData: async (start, end) => {
+              // console.error('onKnownLengthData', start, end, end-start, streamDetails.pesBuffer.length);
+              await streamDetails.pesPayloadHandler?.onData(streamDetails.pesBuffer.subarray(start, end));
             },
           });
-          if (shouldReturnNotContinue) return parsedPESHeader;
+          if (shouldBreakNotContinue) break;
           i = nextIndex!;
+          // console.log('pesStart:', pesStart, 'nextIndex:', nextIndex, 'new i:', i);
           continue;
         } else if (streamId === 0xbd) {
           // 0xBD Private Stream 1 (AC-3, DTS, DVB subtitles, teletext, etc.)
-          if (streamDetails.pesBuffer.length < pesStart + 100) return false; // Need more data for parsing the header
+          if (streamDetails.pesBuffer.length < pesStart + 100) break; // leave for next time when there is more data
 
-          const { shouldReturnNotContinue, nextIndex } = checkAvailableData({ pesLength, pesStart });
-          if (shouldReturnNotContinue) return parsedPESHeader;
+          const { shouldBreakNotContinue, nextIndex } = await checkAvailableData({ pesLength, pesStart });
+          if (shouldBreakNotContinue) break;
           i = nextIndex!;
           continue;
         } else if (
@@ -532,8 +544,8 @@ export class MpegTsParser {
           // BC, BE, BF, FF Special system streams
           // F0–F2, F8–FE Reserved
 
-          const { shouldReturnNotContinue, nextIndex } = checkAvailableData({ pesLength, pesStart });
-          if (shouldReturnNotContinue) return parsedPESHeader;
+          const { shouldBreakNotContinue, nextIndex } = await checkAvailableData({ pesLength, pesStart });
+          if (shouldBreakNotContinue) break;
           i = nextIndex!;
           continue;
         } else {
@@ -546,10 +558,13 @@ export class MpegTsParser {
     }
 
     // Discard already processed data  which could be valid data or garbage
-    if (pesStart < streamDetails.pesBuffer.length) {
+    // console.log('pid=', streamDetails.pid, 'pesStart=', pesStart, 'pesBuffer.length=', streamDetails.pesBuffer.length);
+    if (pesStart <= streamDetails.pesBuffer.length) {
+      if (streamDetails.pesPayloadStartOffsetInPesBuffer !== undefined) {
+        streamDetails.pesPayloadStartOffsetInPesBuffer -= pesStart;
+      }
       streamDetails.pesBuffer = streamDetails.pesBuffer.slice(pesStart);
     }
-
     return parsedPESHeader;
   }
 
@@ -678,7 +693,7 @@ export class MpegTsParser {
 export async function parseMpegTs(
   stream: ReadableStream<Uint8Array>,
   options?: GetMediaInfoOptions,
-  onSamples?: (streamId: number, samples: Uint8Array[]) => void,
+  onSamples?: (streamId: number, samples: Uint8Array[]) => Promise<void>,
 ): Promise<MediaInfo> {
   const parser = new MpegTsParser(stream, options, onSamples);
   const info = await parser.parse();
