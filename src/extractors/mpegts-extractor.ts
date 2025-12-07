@@ -46,7 +46,7 @@ export async function extractFromMpegTs(
   }
 
   try {
-    await parseMpegTs(input, options, (streamId, samples) => {
+    await parseMpegTs(input, options, async (streamId, samples) => {
       if (!stream || streamId !== stream.id) return;
 
       // Queue processing to maintain order
@@ -57,11 +57,9 @@ export async function extractFromMpegTs(
           if (stream.codec === 'aac') {
             // AAC in MPEG-TS is already in ADTS frames
             await writer.write(sample);
-            // console.error('Writing AAC sample', sample.length);
           } else if (stream.codec === 'mp3' || stream.codec === 'mp2') {
             // MP3/MP2 frames can be written directly
             await writer.write(sample);
-            // console.error('Writing MP2/MP3 sample', stream.codec, sample.length);
           }
         }
       });

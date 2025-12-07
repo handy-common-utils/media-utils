@@ -456,7 +456,7 @@ describe('getMediaInfo with media-utils parser', () => {
           sampleRate: 44100,
           channelCount: 2,
           bitrate: 384000,
-          durationInSeconds: undefined,
+          language: 'eng',
           codecDetails: {
             layer: 2,
             padding: 0,
@@ -470,7 +470,6 @@ describe('getMediaInfo with media-utils parser', () => {
         {
           id: 256,
           codec: 'mpeg2video',
-          codecDetail: 'mpeg2video',
           width: 1280,
           height: 534,
           fps: 24,
@@ -489,8 +488,9 @@ describe('getMediaInfo with media-utils parser', () => {
         {
           id: 4352,
           codec: 'aac',
-          codecDetail: 'mp4a.40.2',
+          codecDetail: 'AAC in ADTS',
           sampleRate: 44100,
+          language: 'eng',
           channelCount: 2,
         },
       ],
@@ -521,9 +521,10 @@ describe('getMediaInfo with media-utils parser', () => {
           channelCount: 2,
           bitrate: 128000,
           durationInSeconds: undefined,
+          language: 'eng',
           codecDetails: {
             layer: 3,
-            padding: 1,
+            padding: 0,
           },
         },
       ],

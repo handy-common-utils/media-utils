@@ -129,26 +129,6 @@ export function readUInt32BE(buffer: Uint8Array, offset: number): number {
   return (buffer[offset] << 24) | (buffer[offset + 1] << 16) | (buffer[offset + 2] << 8) | buffer[offset + 3];
 }
 
-// ============================================================================
-// Hex Formatting
-// ============================================================================
-
-/**
- * Format a number as a hexadecimal string with 0x prefix
- *
- * @param value Number to format
- * @param minDigits Minimum number of hex digits (padded with zeros). Default: 4
- * @returns Hex string (e.g., "0x0001", "0x2000")
- *
- * @example
- * toHex(1) // "0x0001"
- * toHex(8192) // "0x2000"
- * toHex(255, 2) // "0xff"
- */
-export function toHex(value: number, minDigits = 4): string {
-  return `0x${value.toString(16).padStart(minDigits, '0')}`;
-}
-
 /**
  * Format a number as a hexadecimal string without 0x prefix
  *
@@ -174,4 +154,73 @@ export function toHexString(value: number | Uint8Array | ArrayBufferLike, minDig
   // Convert ArrayBufferLike to Uint8Array if needed
   const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
   return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join(' ');
+}
+
+/**
+ * Read an ASCII string from a Uint8Array
+ * @param u8 The Uint8Array to read from
+ * @param offset The offset to start reading from
+ * @param length The number of bytes to read
+ * @returns The ASCII string
+ */
+export function readAscii(u8: Uint8Array, offset = 0, length = u8.length): string {
+  let result = '';
+  for (let i = offset; i < length; i++) {
+    // eslint-disable-next-line unicorn/prefer-code-point
+    result += String.fromCharCode(u8[i]);
+  }
+  return result;
+}
+
+export class BitReader {
+  private buffer: Uint8Array;
+  private byteOffset: number = 0;
+  private bitOffset: number = 0;
+
+  constructor(buffer: Uint8Array) {
+    this.buffer = buffer;
+  }
+
+  getByteOffset(): number {
+    return this.byteOffset;
+  }
+
+  getBitOffset(): number {
+    return this.bitOffset;
+  }
+
+  readBit(): number {
+    if (this.byteOffset >= this.buffer.length) {
+      throw new Error('End of stream');
+    }
+    const bit = (this.buffer[this.byteOffset] >> (7 - this.bitOffset)) & 1;
+    this.bitOffset++;
+    if (this.bitOffset === 8) {
+      this.byteOffset++;
+      this.bitOffset = 0;
+    }
+    return bit;
+  }
+
+  readBits(n: number): number {
+    let res = 0;
+    for (let i = 0; i < n; i++) {
+      res = (res << 1) | this.readBit();
+    }
+    return res;
+  }
+
+  readUE(): number {
+    let leadingZeros = 0;
+    while (this.readBit() === 0 && leadingZeros < 32) {
+      leadingZeros++;
+    }
+    return (1 << leadingZeros) - 1 + this.readBits(leadingZeros);
+  }
+
+  readSE(): number {
+    const val = this.readUE();
+    const sign = val & 1 ? 1 : -1;
+    return sign * ((val + 1) >> 1);
+  }
 }

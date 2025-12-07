@@ -1,6 +1,6 @@
 import { AudioStreamInfo } from '../media-info';
 import { UnsupportedFormatError } from '../utils';
-import { toHexString } from './binary';
+import { BitReader, toHexString } from './binary';
 
 /**
  * Mapping table between AAC audio object types and profile names
@@ -192,3 +192,63 @@ export function createADTSFrame(
 
   return frame;
 }
+
+/**
+ * Parses an AudioSpecificConfig (ASC) from a BitReader.
+ * It works for AAC-LC, HE-AAC, HE-AACv2.
+ * @param br The BitReader to read from
+ * @returns An object containing the parsed AudioSpecificConfig
+ */
+export function parseAudioSpecificConfig(
+  br: BitReader,
+): Pick<AudioStreamInfo, 'sampleRate' | 'channelCount' | 'codecDetail'> & { audioObjectType: number } {
+  let audioObjectType = br.readBits(5);
+
+  if (audioObjectType === 31) {
+    audioObjectType = 32 + br.readBits(6);
+  }
+
+  let samplingFreqIndex = br.readBits(4);
+  let sampleRate: number;
+
+  if (samplingFreqIndex === 0xf) {
+    sampleRate = br.readBits(24);
+  } else {
+    const samplingFreqTable = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350];
+    sampleRate = samplingFreqTable[samplingFreqIndex];
+  }
+
+  const channelConfig = br.readBits(4);
+
+  // -----------------------------------------
+  // AAC profile detection
+  // -----------------------------------------
+  let codecDetail = 'aac-latm';
+
+  switch (audioObjectType) {
+    case 2: {
+      codecDetail = 'aac-lc';
+      break;
+    }
+    case 5: {
+      codecDetail = 'he-aac'; // SBR
+      break;
+    }
+    case 29: {
+      codecDetail = 'he-aacv2'; // SBR + PS
+      break;
+    }
+    default: {
+      codecDetail = `object type: ${audioObjectType}`; // throw new UnsupportedFormatError(`Unknown audio object type: ${audioObjectType}`);
+    }
+  }
+
+  return {
+    sampleRate,
+    channelCount: CHANNEL_COUNT[channelConfig],
+    codecDetail,
+    audioObjectType,
+  };
+}
+
+const CHANNEL_COUNT = [0, 1, 2, 3, 4, 5, 6, 8, undefined, undefined, undefined, 7, 8, 24, 8];

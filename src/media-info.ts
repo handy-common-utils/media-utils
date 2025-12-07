@@ -159,11 +159,13 @@ export interface VideoStreamInfo {
    * Parser-specific codec information
    */
   codecDetail?: string;
-  width: number;
-  height: number;
+  width?: number;
+  height?: number;
   bitrate?: number;
   durationInSeconds?: number;
   fps?: number;
+  profile?: string;
+  level?: string;
 }
 
 export interface AudioStreamInfo {
@@ -179,6 +181,20 @@ export interface AudioStreamInfo {
   bitrate?: number;
   durationInSeconds?: number;
   profile?: string;
+  level?: string;
+  /**
+   * Usually it is ISO-639 string
+   */
+  language?: string;
+  /**
+   * Such like Music, Effects, Visual impaired / Audio description, Hearing impaired
+   */
+  audioType?: string;
+  /**
+   * DTS surround mode
+   */
+  surroundMode?: string;
+
   /**
    * Codec-specific details (stream-level properties)
    *
@@ -244,6 +260,12 @@ export interface AudioStreamInfo {
      */
     layer?: number;
     padding?: number;
+
+    // AC-3 / E-AC-3
+    componentType?: number;
+    bsmod?: number;
+    mainId?: number;
+    asvc?: number;
   };
 }
 

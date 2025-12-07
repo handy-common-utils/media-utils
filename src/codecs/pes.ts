@@ -87,9 +87,10 @@ export function parseAudioFrame(
 export class PesPayloadHandler {
   private buffer: Uint8Array = new Uint8Array(0);
   private audioType: AudioCodecType;
-  private onFramesCallback: (frames: FrameInfo[]) => void;
+  private onFramesCallback: (frames: FrameInfo[]) => Promise<void>;
+  private totalFramesProcessed = 0;
 
-  constructor(audioType: AudioCodecType, onFrames: (frames: FrameInfo[]) => void) {
+  constructor(audioType: AudioCodecType, onFrames: (frames: FrameInfo[]) => Promise<void>) {
     this.audioType = audioType;
     this.onFramesCallback = onFrames;
   }
@@ -107,7 +108,6 @@ export class PesPayloadHandler {
     combined.set(this.buffer);
     combined.set(data, this.buffer.length);
     this.buffer = combined;
-    // console.error('buffer', this.buffer.length);
 
     const frames: FrameInfo[] = [];
     let processedUpTo = 0; // Track how much data we've successfully processed
@@ -163,7 +163,8 @@ export class PesPayloadHandler {
     // Flush complete frames
     if (frames.length > 0) {
       // console.error('Got frames:', frames.length, processedUpTo, this.buffer.length, payloadData.byteLength);
-      this.onFramesCallback(frames);
+      await this.onFramesCallback(frames);
+      this.totalFramesProcessed += frames.length;
     }
 
     // Keep only unprocessed data (incomplete frame at the end)
@@ -171,7 +172,7 @@ export class PesPayloadHandler {
     // to ensure we discard any junk data we skipped over
     if (processedUpTo > 0) {
       // console.error('Keep only unprocessed data', processedUpTo, this.buffer.length);
-      this.buffer = this.buffer.subarray(processedUpTo);
+      this.buffer = this.buffer.slice(processedUpTo);
     }
 
     // Safety check: if buffer is growing too large without finding valid frames,
@@ -179,7 +180,7 @@ export class PesPayloadHandler {
     if (this.buffer.length > 100000) {
       console.error('buffer length too large', this.buffer.length);
       // Keep only last 10KB
-      this.buffer = this.buffer.subarray(-10000);
+      this.buffer = this.buffer.slice(-10000);
     }
     // console.error('buffer length check', this.buffer.length);
   }

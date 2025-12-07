@@ -1,6 +1,5 @@
 import { AudioStreamInfo, toAudioCodec } from '../media-info';
 import { UnsupportedFormatError } from '../utils';
-import { toHexString } from './binary';
 
 /**
  * MP3 bitrate table (in kbps) indexed by [version][layer][bitrate_index]
