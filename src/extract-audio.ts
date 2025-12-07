@@ -7,7 +7,7 @@ import { extractFromMp4 } from './extractors/mp4-extractor';
 import { extractFromMpegTs } from './extractors/mpegts-extractor';
 import { getMediaInfo } from './get-media-info';
 import { AsfMediaInfo } from './parsers/asf';
-import { createReadableStreamFromFile, ParserRelatedOptions, UnsupportedFormatError } from './utils';
+import { createReadableStreamFromFile, ParserRelatedOptions, setupGlobalLogger, UnsupportedFormatError } from './utils';
 
 export interface ExtractAudioOptions extends ParserRelatedOptions {
   /**
@@ -30,6 +30,11 @@ export interface ExtractAudioOptions extends ParserRelatedOptions {
    */
   quiet?: boolean;
   /**
+   * Whether to enable debug logging.
+   * Default value is false.
+   */
+  debug?: boolean;
+  /**
    * Optional callback to receive progress updates (0-100).
    */
   onProgress?: (progress: number) => void;
@@ -49,8 +54,10 @@ export async function extractAudio(
 ): Promise<void> {
   const options = {
     quiet: true,
+    debug: false,
     ...optionsInput,
   };
+  const logger = setupGlobalLogger(options);
 
   if (options.onProgress) {
     options.onProgress(0);
@@ -71,6 +78,10 @@ export async function extractAudio(
       originalOnProgress(8 + Math.round(progress * 0.92));
     };
   }
+  if (logger.isDebug)
+    logger.debug(
+      `Detected input media info by ${mediaInfo.parser}: ${mediaInfo.container}[${mediaInfo.videoStreams.map((s) => s.codec).join(',')}][${mediaInfo.audioStreams.map((s) => s.codec).join(',')}]`,
+    );
 
   const container = mediaInfo.container;
 

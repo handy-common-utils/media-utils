@@ -13,6 +13,7 @@
     "preversion": "generate-api-docs-and-update-readme && git add README.md"
   },
   "dependencies": {
+    "@handy-common-utils/misc-utils": "^1.11.1",
     "@handy-common-utils/promise-utils": "^1.7.1"
   },
   "devDependencies": {
