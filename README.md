@@ -40,7 +40,9 @@ This library provides a unified interface to extract media information (duration
 | **WMV**             | WMV2 / WMAv2         |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
 | **AVI**             | MJPEG / PCM          |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
 | **AVI**             | H.264 / PCM          |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
-| **M2TS**            | MPEG2 / MP2          |   ❌   |      ❌       |    ❌    |     ❌     |     ❌     |
+| **MPEG TS**         | MPEG2 / MP2          |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
+| **MPEG TS**         | MPEG2 / MP3          |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
+| **MPEG TS**         | MPEG2 / AAC          |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
 | **AAC**             | AAC                  |   ✅   |      ✅       |    ❌    |     ❌     |     ✅     |
 | **MP3**             | MP3                  |   ✅   |      ✅       |    ❌    |     ❌     |     ✅     |
 | **OGG**             | Opus                 |   ✅   |      ✅       |    ❌    |     ❌     |     ❌     |
@@ -78,7 +80,7 @@ const infoMp4Box = await getMediaInfoFromFile('path/to/video.mp4', { useParser: 
 
 ## Extracting Audio Stream
 
-You can extract audio streams from video files (MP4, MOV, MKV/WebM, ASF/WMV, AVI) without re-encoding. This is fast and preserves original quality.
+You can extract audio streams from video files (MP4, MOV, MKV/WebM, ASF/WMV, AVI, MPEG-TS) without re-encoding. This is fast and preserves original quality.
 
 ### Verified Combinations for extractAudio
 
@@ -95,6 +97,9 @@ You can extract audio streams from video files (MP4, MOV, MKV/WebM, ASF/WMV, AVI
 | **AVI**       | MJPEG / PCM                 | WAV              |    ✅     |
 | **AVI**       | H.264 / PCM                 | WAV              |    ✅     |
 | **WMV**       | WMV2 / WMAv2                | WMA              |    ✅     |
+| **MPEG TS**   | MPEG2 / MP2                 | MP2              |    ✅     |
+| **MPEG TS**   | MPEG2 / MP3                 | MP3              |    ✅     |
+| **MPEG TS**   | MPEG2 / AAC                 | AAC              |    ✅     |
 
 ### Dependencies
 
