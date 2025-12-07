@@ -219,7 +219,7 @@ const DTS_SURROUND_TABLE: Record<number, string> = {
  * @param streamInfo The AudioStreamInfo object that will be updated with parsed data
  */
 export function guessAudioHeaderInPES(data: Uint8Array, streamInfo: Partial<AudioStreamInfo> & { streamTypeCategory?: string }) {
-  console.error('guessAudioHeaderInPES', toHexString(data.subarray(0, 80)));
+  // console.error('guessAudioHeaderInPES', toHexString(data.subarray(0, 80)));
 
   if (data.length < 4) {
     throw new UnsupportedFormatError('Private PES payload too small');
@@ -229,22 +229,22 @@ export function guessAudioHeaderInPES(data: Uint8Array, streamInfo: Partial<Audi
   try {
     const br = new BitReader(data);
     const info = parseAudioMuxElement(br, [1, 0]);
-    console.error('private stream is ffmpeg packaged', info);
+    // console.error('private stream is ffmpeg packaged', info);
 
     if (info.sampleRate) streamInfo.sampleRate = info.sampleRate;
     if (info.channelCount) streamInfo.channelCount = info.channelCount;
     if (info.codecDetail) streamInfo.codecDetail = info.codecDetail;
 
-    const framesOffset = br.getByteOffset() + 4;
+    const framesOffset = br.getByteOffset();
     try {
-      parseMp2OrMp3HeaderInPES(data.subarray(framesOffset), streamInfo);
+      parseMp2OrMp3HeaderInPES(data.subarray(framesOffset), streamInfo, 20);
       streamInfo.streamTypeCategory = 'audio';
-      console.error('private stream is ffmpeg packaged MP2/MP3', streamInfo);
+      // console.error('private stream is ffmpeg packaged MP2/MP3', streamInfo);
       return;
     } catch {
-      parseAacHeaderInPES(data.subarray(framesOffset), streamInfo);
+      parseAacHeaderInPES(data.subarray(framesOffset), streamInfo, 20, false);
       streamInfo.streamTypeCategory = 'audio';
-      console.error('private stream is ffmpeg packaged AAC', streamInfo);
+      // console.error('private stream is ffmpeg packaged AAC', streamInfo);
       return;
     }
   } catch {
@@ -278,61 +278,55 @@ export function parseDtsDescriptorTagBody(body: Uint8Array, info: Partial<AudioS
  * Detects ADTS / LOAS(LATM) / RAW AAC formats.
  * @param data ES Descriptor tag body
  * @param streamInfo The AudioStreamInfo object that will be updated with parsed data
+ * @param searchRange Number of bytes to scan for frame sync
  * @throws UnsupportedFormatError if the data is not a valid AAC header
  */
-export function parseAacHeaderInPES(data: Uint8Array, streamInfo: Partial<AudioStreamInfo>) {
-  console.error('parseAacHeaderInPES', toHexString(data.subarray(0, 80)));
+export function parseAacHeaderInPES(data: Uint8Array, streamInfo: Partial<AudioStreamInfo>, searchRange = 20, fallbackToRawAAC = false) {
+  // console.error('parseAacHeaderInPES', toHexString(data.subarray(0, 80)));
 
   if (data.length < 4) {
     throw new UnsupportedFormatError('AAC PES payload too small');
   }
 
-  const b0 = data[0];
-  const b1 = data[1];
+  const limit = Math.min(data.length - 2, searchRange);
 
-  // ------------------------------------------------------------
-  // 1. ADTS detection (0xFFF)
-  // ------------------------------------------------------------
-  const isADTS = b0 === 0xff && (b1 & 0xf0) === 0xf0;
+  // 1. Search for ADTS syncword (0xFFF)
+  for (let i = 0; i < limit; i++) {
+    if (data[i] === 0xff && (data[i + 1] & 0xf0) === 0xf0) {
+      try {
+        const info = parseADTSHeader(data, i);
 
-  if (isADTS) {
-    try {
-      const info = parseADTSHeader(data);
+        if (info.sampleRate) streamInfo.sampleRate = info.sampleRate;
+        if (info.channelCount) streamInfo.channelCount = info.channelCount;
+        if (info.codecDetail) streamInfo.codecDetail = info.codecDetail;
 
-      if (info.sampleRate) streamInfo.sampleRate = info.sampleRate;
-      if (info.channelCount) streamInfo.channelCount = info.channelCount;
-      if (info.codecDetail) streamInfo.codecDetail = info.codecDetail;
-
-      streamInfo.codec = 'aac';
-      streamInfo.codecDetail = 'AAC in ADTS';
-      return;
-    } catch {
-      throw new UnsupportedFormatError('Invalid ADTS header inside AAC PES');
+        streamInfo.codec = 'aac';
+        streamInfo.codecDetail = 'AAC in ADTS';
+        // console.error(`Found ADTS header in PES at ${i}`, toHexString(data.subarray(0, searchRange + 10)));
+        return;
+      } catch {
+        // False positive, continue searching
+      }
     }
   }
 
-  // ------------------------------------------------------------
-  // 2. LOAS / LATM detection (0x56 E0)
-  // LOAS sync word has 11 bits = 0x2B7 → 0x56 E0
-  // ------------------------------------------------------------
-  const isLOAS = b0 === 0x56 && (b1 & 0xe0) === 0xe0;
-  console.error('aac is loas or not', isLOAS);
+  // 2. Search for LOAS syncword (0x2B7 => 0x56 0xE0)
+  for (let i = 0; i < limit; i++) {
+    if (data[i] === 0x56 && (data[i + 1] & 0xe0) === 0xe0) {
+      try {
+        const info = parseLOAS(data.subarray(i));
 
-  if (isLOAS) {
-    try {
-      console.error('aac is loas', data);
-      const info = parseLOAS(data);
-      console.error('aac is loas', info);
+        if (info.sampleRate) streamInfo.sampleRate = info.sampleRate;
+        if (info.channelCount) streamInfo.channelCount = info.channelCount;
+        if (info.codecDetail) streamInfo.codecDetail = info.codecDetail;
 
-      if (info.sampleRate) streamInfo.sampleRate = info.sampleRate;
-      if (info.channelCount) streamInfo.channelCount = info.channelCount;
-      if (info.codecDetail) streamInfo.codecDetail = info.codecDetail;
-
-      streamInfo.codec = 'aac_latm';
-      streamInfo.codecDetail = 'AAC in LOAS/LATM';
-      return;
-    } catch {
-      throw new UnsupportedFormatError('Invalid LOAS header inside AAC PES');
+        streamInfo.codec = 'aac_latm';
+        streamInfo.codecDetail = 'AAC in LOAS/LATM';
+        // console.error(`Found LOAS header in PES at ${i}`, toHexString(data.subarray(0, searchRange + 10)));
+        return;
+      } catch {
+        // False positive, continue searching
+      }
     }
   }
 
@@ -341,11 +335,13 @@ export function parseAacHeaderInPES(data: Uint8Array, streamInfo: Partial<AudioS
   // ------------------------------------------------------------
   // In TS, AAC raw access units are very common (stream_type 0x0F)
   // These rely on AudioSpecificConfig from PMT.
-  streamInfo.codecDetail = 'RAW AAC';
-  streamInfo.codec = 'aac';
+  if (fallbackToRawAAC) {
+    streamInfo.codecDetail = 'RAW AAC';
+    streamInfo.codec = 'aac';
+    return;
+  }
 
-  // No header to parse here. AudioSpecificConfig must come from PMT.
-  return;
+  throw new UnsupportedFormatError('PES payload does not seem to be AAC');
 }
 
 /**
@@ -356,7 +352,7 @@ export function parseAacHeaderInPES(data: Uint8Array, streamInfo: Partial<AudioS
  * @throws UnsupportedFormatError if the data is not a valid MP2/MP3 header
  */
 export function parseMp2OrMp3HeaderInPES(data: Uint8Array, streamInfo: Partial<AudioStreamInfo>, searchRange = 20) {
-  console.error('parseMp2OrMp3HeaderInPES', toHexString(data.subarray(0, 80)));
+  // console.error('parseMp2OrMp3HeaderInPES', toHexString(data.subarray(0, 80)));
   if (data.length < 5) {
     throw new UnsupportedFormatError('MP2/MP3 header expected in PES but insufficient data');
   }
@@ -369,7 +365,7 @@ export function parseMp2OrMp3HeaderInPES(data: Uint8Array, streamInfo: Partial<A
         // 111xxxxx
         const header = data.subarray(i, i + 4);
         const info = parseMP3Header(header); // Reusing MP3 parser which handles Layer I/II/III
-        console.error(`Found MP2/MP3 header in PES at ${i}`, toHexString(data.subarray(0, searchRange + 10)));
+        // console.error(`Found MP2/MP3 header in PES at ${i}`, toHexString(data.subarray(0, searchRange + 10)));
 
         // Update audio stream info
         Object.assign(streamInfo, {

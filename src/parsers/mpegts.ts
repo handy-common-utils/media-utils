@@ -733,7 +733,7 @@ const STREAM_TYPE_MAP: Record<number, { type: 'video' | 'audio' | 'private' | 'o
  */
 export function buildStreamDetails(streamType: number, descriptors: Uint8Array): Omit<StreamDetails, 'programNumber' | 'pid'> {
   const streamTypeInfo = STREAM_TYPE_MAP[streamType];
-  console.error('buildStreamDetails', streamType, streamTypeInfo);
+  // console.error('buildStreamDetails', streamType, streamTypeInfo);
   const info: Omit<StreamDetails, 'programNumber' | 'pid'> = {
     streamType,
     streamTypeCategory: streamTypeInfo?.type ?? 'other',

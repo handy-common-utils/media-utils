@@ -94,13 +94,56 @@ export function parseAudioMuxElement(br: BitReader, assertMuxVersions: [number, 
   // Other fields not strictly needed for config parsing
   const frameLengthType = br.readBits(3);
 
-  if (frameLengthType === 0) {
-    br.readBits(8); // latmBufferFullness
-  } else {
-    // throw new UnsupportedFormatError(`Unsupported LATM frameLengthType: ${frameLengthType}`);
+  switch (frameLengthType) {
+    case 0: {
+      br.readBits(8); // latmBufferFullness
+      break;
+    }
+    case 1: {
+      br.readBits(6); // celpFrameLengthTableIndex
+      break;
+    }
+    case 3: {
+      br.readBits(1); // hvxcFrameLengthTableIndex
+      break;
+    }
+    default: {
+      if (frameLengthType >= 4) {
+        throw new UnsupportedFormatError(`Unsupported LATM frameLengthType: ${frameLengthType}`);
+      }
+      break;
+    }
   }
 
-  br.readBits(2); // otherDataPresent, crcCheckPresent
+  const otherDataPresent = br.readBits(1);
+  if (otherDataPresent) {
+    let otherDataLenBits = 0;
+    if (audioMuxVersion === 1) {
+      // Variable length via 2-bit escLen mechanism
+      let temp: number;
+      do {
+        temp = br.readBits(2);
+        otherDataLenBits += temp;
+      } while (temp === 3);
+    } else {
+      // audioMuxVersion === 0
+      // 8-bit chunks
+      let temp: number;
+      do {
+        temp = br.readBits(8);
+        otherDataLenBits += temp;
+      } while (temp === 255);
+    }
+
+    if (otherDataLenBits > 0) {
+      br.readBits(otherDataLenBits); // Read/Skip
+    }
+  }
+
+  const crcCheckPresent = br.readBits(1);
+  if (crcCheckPresent) {
+    br.readBits(8); // crcCheckSum
+  }
 
   // return parsed info
   return asc;
