@@ -1,5 +1,5 @@
 import { ExtractAudioOptions } from '../extract-audio';
-import { isPCM, MediaInfo } from '../media-info';
+import { AudioStreamInfo, isPCM, MediaInfo } from '../media-info';
 import { parseAvi } from '../parsers/avi';
 import { setupGlobalLogger, UnsupportedFormatError } from '../utils';
 import { findAudioStreamToBeExtracted } from './utils';
@@ -69,6 +69,7 @@ export async function extractFromAvi(
 ): Promise<void> {
   const options = {
     quiet: true,
+    debug: false,
     ...optionsInput,
   };
 
@@ -76,25 +77,26 @@ export async function extractFromAvi(
     options.onProgress(0);
   }
 
-  const writer = output.getWriter();
-
-  let audioStream;
+  let audioStream: AudioStreamInfo;
   try {
     audioStream = findAudioStreamToBeExtracted(mediaInfo, options);
+    // Only PCM and ADPCM are supported for now
+    if (!isPCM(audioStream.codec)) {
+      throw new UnsupportedFormatError(`Unsupported audio codec for AVI extraction: ${audioStream.codec}`);
+    }
   } catch (error: any) {
-    writer.abort(error).catch(() => {});
+    input.cancel().catch(() => {});
+    output
+      .getWriter()
+      .abort(error)
+      .catch(() => {});
     throw error;
   }
 
   const logger = setupGlobalLogger(options);
   if (logger.isDebug) logger.debug(`Extracting audio from AVI. Stream: ${audioStream.id}, Codec: ${audioStream.codec}`);
 
-  // Only PCM and ADPCM are supported for now
-  if (!isPCM(audioStream.codec)) {
-    const error = new UnsupportedFormatError(`Unsupported audio codec for AVI extraction: ${audioStream.codec}`);
-    writer.abort(error).catch(() => {});
-    throw error;
-  }
+  const writer = output.getWriter();
 
   // Initialize WAV writer
   const wavWriter = new WavWriter(writer, audioStream);

@@ -25,25 +25,29 @@ export async function extractFromMkv(
     ...optionsInput,
   };
 
+  let stream: AudioStreamInfo;
+  try {
+    stream = findAudioStreamToBeExtracted(mediaInfo, options);
+  } catch (error: any) {
+    input.cancel().catch(() => {});
+    output
+      .getWriter()
+      .abort(error)
+      .catch(() => {});
+    throw error;
+  }
+
+  const logger = setupGlobalLogger(options);
+  if (logger.isDebug) logger.debug(`Extracting audio from MKV/WebM. Stream: ${stream.id}, Codec: ${stream.codec}`);
+
   if (options.onProgress) {
     options.onProgress(0);
   }
 
   const writer = output.getWriter();
   let processingChain = Promise.resolve();
-  let stream: AudioStreamInfo | undefined;
   let oggMuxer: OggMuxer | undefined;
   let headersWritten = false;
-
-  try {
-    stream = findAudioStreamToBeExtracted(mediaInfo, options);
-  } catch (error: any) {
-    writer.abort(error).catch(() => {});
-    throw error;
-  }
-
-  const logger = setupGlobalLogger(options);
-  if (logger.isDebug) logger.debug(`Extracting audio from MKV. Stream: ${stream.id}, Codec: ${stream.codec}`);
 
   const parser = new MkvParser(input, options, (trackId, samples) => {
     if (!stream || trackId !== stream.id) return;

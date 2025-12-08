@@ -6,11 +6,13 @@
 
 import { readUInt16LE, readUInt32LE } from '../codecs/binary';
 import { ExtractAudioOptions } from '../extract-audio';
-import { AudioStreamInfo } from '../media-info';
+import { AudioCodecType, AudioStreamInfo } from '../media-info';
 import { AsfMediaInfo, parseAsf } from '../parsers/asf';
 import { setupGlobalLogger, UnsupportedFormatError } from '../utils';
 import { findAudioStreamToBeExtracted } from './utils';
 import { PayloadDetails, writeWma } from './wma-writer';
+
+const supportedAudioCodecs = new Set<AudioCodecType>(['wmalossless', 'wmapro', 'wmav1', 'wmav2']);
 
 /**
  * Extract audio from ASF/WMV containers
@@ -29,17 +31,31 @@ export async function extractFromAsf(
 ): Promise<void> {
   const options = {
     quiet: true,
+    debug: false,
     ...optionsInput,
   };
+
+  let stream: AudioStreamInfo;
+  try {
+    stream = findAudioStreamToBeExtracted(mediaInfo, options);
+    if (!supportedAudioCodecs.has(stream.codec)) {
+      throw new UnsupportedFormatError(`Extracting from ASF/WMV: Unsupported audio codec ${stream.codec}`);
+    }
+  } catch (error: any) {
+    input.cancel().catch(() => {});
+    output
+      .getWriter()
+      .abort(error)
+      .catch(() => {});
+    throw error;
+  }
+
+  const logger = setupGlobalLogger(options);
+  if (logger.isDebug) logger.debug(`Extracting audio from ASF. Stream: ${stream.id}, Codec: ${stream.codec}`);
 
   if (options.onProgress) {
     options.onProgress(0);
   }
-  // Find the audio stream to extract
-  const stream: AudioStreamInfo = findAudioStreamToBeExtracted(mediaInfo, options);
-
-  const logger = setupGlobalLogger(options);
-  if (logger.isDebug) logger.debug(`Extracting audio from ASF. Stream: ${stream.id}, Codec: ${stream.codec}`);
 
   const { fileProperties, additionalStreamInfo: extractedStreamInfo } = mediaInfo;
   const additionalStreamInfo = extractedStreamInfo!.get(stream.id)!;

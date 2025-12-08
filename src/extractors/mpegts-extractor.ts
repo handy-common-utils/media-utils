@@ -1,8 +1,10 @@
 import { ExtractAudioOptions } from '../extract-audio';
-import { AudioStreamInfo, MediaInfo } from '../media-info';
+import { AudioCodecType, AudioStreamInfo, MediaInfo } from '../media-info';
 import { parseMpegTs } from '../parsers/mpegts';
 import { setupGlobalLogger, UnsupportedFormatError } from '../utils';
 import { findAudioStreamToBeExtracted } from './utils';
+
+const supportedAudioCodecs = new Set<AudioCodecType>(['aac', 'aac_latm', 'mp2', 'mp3']);
 
 /**
  * Extract audio from MPEG-TS containers (AAC, MP3, MP2)
@@ -20,8 +22,27 @@ export async function extractFromMpegTs(
 ): Promise<void> {
   const options = {
     quiet: true,
+    debug: false,
     ...optionsInput,
   };
+
+  let stream: AudioStreamInfo;
+  try {
+    stream = findAudioStreamToBeExtracted(mediaInfo, options);
+    if (!supportedAudioCodecs.has(stream.codec)) {
+      throw new UnsupportedFormatError(`Unsupported codec for extracting from MPEG-TS: ${stream.codec}`);
+    }
+  } catch (error: any) {
+    input.cancel().catch(() => {});
+    output
+      .getWriter()
+      .abort(error)
+      .catch(() => {});
+    throw error;
+  }
+
+  const logger = setupGlobalLogger(options);
+  if (logger.isDebug) logger.debug(`Extracting audio from MPEG-TS. Stream: ${stream.id}, Codec: ${stream.codec}`);
 
   if (options.onProgress) {
     options.onProgress(0);
@@ -29,24 +50,6 @@ export async function extractFromMpegTs(
 
   const writer = output.getWriter();
   let processingChain = Promise.resolve();
-  let stream: AudioStreamInfo | undefined;
-
-  try {
-    stream = findAudioStreamToBeExtracted(mediaInfo, options);
-  } catch (error: any) {
-    writer.abort(error).catch(() => {});
-    throw error;
-  }
-
-  const logger = setupGlobalLogger(options);
-  if (logger.isDebug) logger.debug(`Extracting audio from MPEG-TS. Stream: ${stream.id}, Codec: ${stream.codec}`);
-
-  // Validate codec support
-  if (stream.codec !== 'aac' && stream.codec !== 'mp3' && stream.codec !== 'mp2') {
-    const error = new UnsupportedFormatError(`Unsupported codec for extracting from MPEG-TS: ${stream.codec}`);
-    writer.abort(error).catch(() => {});
-    throw error;
-  }
 
   try {
     await parseMpegTs(input, options, async (streamId, samples) => {
