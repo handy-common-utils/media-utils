@@ -332,7 +332,7 @@ export class MpegTsParser {
       streamDetails.pesPayloadStartOffsetInPesBuffer < pesStart
     ) {
       // console.error('flushRemainingPESPayload', streamDetails.pesPayloadStartOffsetInPesBuffer, pesStart);
-      await streamDetails.pesPayloadHandler.onData(streamDetails.pesBuffer.subarray(streamDetails.pesPayloadStartOffsetInPesBuffer, pesStart));
+      await streamDetails.pesPayloadHandler.onData(streamDetails.pesBuffer.slice(streamDetails.pesPayloadStartOffsetInPesBuffer, pesStart));
       streamDetails.pesPayloadStartOffsetInPesBuffer = undefined;
     }
   }
