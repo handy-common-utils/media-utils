@@ -19,6 +19,8 @@ export type GetMediaInfoOptions = ParserRelatedOptions & {
   debug?: boolean;
 };
 
+export type GetMediaInfoResult = MediaInfo & { parser: Exclude<GetMediaInfoOptions['useParser'], undefined> };
+
 /**
  * Get media information from a stream
  * @param stream The input Web ReadableStream (not Node Readable).
@@ -26,10 +28,7 @@ export type GetMediaInfoOptions = ParserRelatedOptions & {
  * @param optionsInput Options for the parser
  * @returns The media information
  */
-export async function getMediaInfo(
-  stream: ReadableStream<Uint8Array>,
-  optionsInput?: GetMediaInfoOptions,
-): Promise<MediaInfo & { parser: Exclude<GetMediaInfoOptions['useParser'], undefined> }> {
+export async function getMediaInfo(stream: ReadableStream<Uint8Array>, optionsInput?: GetMediaInfoOptions): Promise<GetMediaInfoResult> {
   const options = {
     useParser: 'auto' as GetMediaInfoOptions['useParser'],
     quiet: true,

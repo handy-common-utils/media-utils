@@ -1,552 +1,504 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect } from '@jest/globals';
 
-import { getMediaInfoFromFile } from '../../src/get-media-info';
+import { GetMediaInfoOptions } from '../../src/get-media-info';
 import { MediaInfo } from '../../src/media-info';
-import { AsfMediaInfo, parseAsf } from '../../src/parsers/asf';
-import { createReadableStreamFromFile } from '../../src/utils';
-import { sampleFile } from '../test-utils';
+import { runGetMediaInfoTestCases } from '../test-utils';
 
 describe('getMediaInfo with media-utils parser', () => {
-  it('should parse engine-start.aac file', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('engine-start.aac'), { useParser: 'media-utils' });
-    expect(info).toEqual({
-      audioStreams: [
-        {
-          id: 0,
-          channelCount: 2,
-          codec: 'aac',
-          codecDetail: 'mp4a.40.2',
-          sampleRate: 44100,
-          profile: 'LC',
-        },
-      ],
-      container: 'aac',
-      containerDetail: 'aac',
-      durationInSeconds: undefined,
-      parser: 'media-utils',
-      videoStreams: [],
-    } as MediaInfo);
-  });
-
-  it('should parse engine-start.mp3 file', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('engine-start.mp3'), { useParser: 'media-utils' });
-    expect(info).toEqual({
-      audioStreams: [
-        {
-          id: 0,
-          bitrate: expect.closeTo(128273, -2) as any, // Average bitrate from VBR header
-          channelCount: 2,
-          codec: 'mp3',
-          codecDetail: 'MPEG-1 Layer III',
-          durationInSeconds: expect.closeTo(6, 0.1),
-          sampleRate: 44100,
-          codecDetails: {
-            layer: 3,
-            padding: 0,
+  runGetMediaInfoTestCases([
+    {
+      filename: 'engine-start.aac',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        audioStreams: [
+          {
+            id: 0,
+            channelCount: 2,
+            codec: 'aac',
+            codecDetail: 'mp4a.40.2',
+            sampleRate: 44100,
+            profile: 'LC',
           },
-        },
-      ],
-      container: 'mp3',
-      containerDetail: 'mp3',
-      durationInSeconds: expect.closeTo(6, 0.1),
-      parser: 'media-utils',
-      videoStreams: [],
-    });
-  });
-
-  it('should parse engine-start.vp9.opus.webm file', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('engine-start.vp9.opus.webm'), { useParser: 'media-utils' });
-    expect(info).toEqual({
-      audioStreams: [
-        {
-          id: 2,
-          channelCount: 2,
-          codec: 'opus',
-          codecDetail: 'A_OPUS',
-          durationInSeconds: 6.008,
-          sampleRate: 48000,
-          bitsPerSample: 32,
-        },
-      ],
-      container: 'webm',
-      containerDetail: 'webm',
-      durationInSeconds: 6.008,
-      parser: 'media-utils',
-      videoStreams: [
-        {
-          id: 1,
-          codec: 'vp9',
-          codecDetail: 'V_VP9',
-          durationInSeconds: 6.008,
-          height: 534,
-          width: 1280,
-        },
-      ],
-    } as MediaInfo);
-  });
-
-  it('should parse engine-start.vp8.vorbis.webm file', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('engine-start.vp8.vorbis.webm'), { useParser: 'media-utils' });
-    expect(info).toEqual({
-      audioStreams: [
-        {
-          id: 2,
-          channelCount: 2,
-          codec: 'vorbis',
-          codecDetail: 'A_VORBIS',
-          durationInSeconds: 6.007,
-          sampleRate: 48000,
-          bitsPerSample: 32,
-        },
-      ],
-      container: 'webm',
-      containerDetail: 'webm',
-      durationInSeconds: 6.007,
-      parser: 'media-utils',
-      videoStreams: [
-        {
-          id: 1,
-          codec: 'vp8',
-          codecDetail: 'V_VP8',
-          durationInSeconds: 6.007,
-          height: 534,
-          width: 1280,
-        },
-      ],
-    } as MediaInfo);
-  });
-
-  it('should parse engine-start.vp9.vorbis.webm file', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('engine-start.vp9.vorbis.webm'), { useParser: 'media-utils' });
-    expect(info).toEqual({
-      audioStreams: [
-        {
-          id: 2,
-          channelCount: 2,
-          codec: 'vorbis',
-          codecDetail: 'A_VORBIS',
-          durationInSeconds: 6.007,
-          sampleRate: 48000,
-          bitsPerSample: 32,
-        },
-      ],
-      container: 'webm',
-      containerDetail: 'webm',
-      durationInSeconds: 6.007,
-      parser: 'media-utils',
-      videoStreams: [
-        {
-          id: 1,
-          codec: 'vp9',
-          codecDetail: 'V_VP9',
-          durationInSeconds: 6.007,
-          height: 534,
-          width: 1280,
-        },
-      ],
-    } as MediaInfo);
-  });
-
-  it('should parse engine-start.av1.opus.webm file', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('engine-start.av1.opus.webm'), { useParser: 'media-utils' });
-    expect(info).toEqual({
-      audioStreams: [
-        {
-          id: 2,
-          channelCount: 2,
-          codec: 'opus',
-          codecDetail: 'A_OPUS',
-          durationInSeconds: 6.008,
-          sampleRate: 48000,
-          bitsPerSample: 32,
-        },
-      ],
-      container: 'webm',
-      containerDetail: 'webm',
-      durationInSeconds: 6.008,
-      parser: 'media-utils',
-      videoStreams: [
-        {
-          id: 1,
-          codec: 'av1',
-          codecDetail: 'V_AV1',
-          durationInSeconds: 6.008,
-          height: 534,
-          width: 1280,
-        },
-      ],
-    } as MediaInfo);
-  });
-
-  it('should parse engine-start.pcms16le.wav file', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('engine-start.pcms16le.wav'), { useParser: 'media-utils' });
-    expect(info).toEqual({
-      audioStreams: [
-        {
-          id: 1,
-          bitrate: 1411200,
-          bitsPerSample: 16,
-          channelCount: 2,
-          codec: 'pcm_s16le',
-          codecDetail: 'pcm_s16le',
-          durationInSeconds: expect.closeTo(6, 1),
-          sampleRate: 44100,
-          codecDetails: {
-            formatTag: 1,
-            blockAlign: 4,
-            samplesPerBlock: undefined,
-          },
-        },
-      ],
-      container: 'wav',
-      containerDetail: 'wav',
-      durationInSeconds: expect.closeTo(6, 1),
-      parser: 'media-utils',
-      videoStreams: [],
-    });
-  });
-
-  it('should parse engine-start.vorbis.ogg file', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('engine-start.vorbis.ogg'), { useParser: 'media-utils' });
-    expect(info).toEqual({
-      audioStreams: [
-        {
-          id: 1,
-          channelCount: 2,
-          codec: 'vorbis',
-          codecDetail: 'vorbis',
-          durationInSeconds: undefined,
-          sampleRate: 48000,
-        },
-      ],
-      container: 'ogg',
-      containerDetail: 'ogg',
-      durationInSeconds: undefined,
-      parser: 'media-utils',
-      videoStreams: [],
-    } as MediaInfo);
-  });
-
-  it('should parse engine-start.opus.ogg file', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('engine-start.opus.ogg'), { useParser: 'media-utils' });
-    expect(info).toEqual({
-      audioStreams: [
-        {
-          id: 1,
-          channelCount: 2,
-          codec: 'opus',
-          codecDetail: 'opus',
-          durationInSeconds: undefined,
-          sampleRate: 48000,
-        },
-      ],
-      container: 'ogg',
-      containerDetail: 'ogg',
-      durationInSeconds: undefined,
-      parser: 'media-utils',
-      videoStreams: [],
-    } as MediaInfo);
-  });
-
-  it('should parse engine-start.wmav2.wma file', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('engine-start.wmav2.wma'), { useParser: 'media-utils' });
-    expect(info).toEqual({
-      audioStreams: [
-        {
-          id: 1,
-          channelCount: 2,
-          codec: 'wmav2',
-          codecDetail: 'WMAv2',
-          bitrate: 128000,
-          durationInSeconds: 6,
-          sampleRate: 44100,
-          bitsPerSample: 16,
-        },
-      ],
-      container: 'asf',
-      containerDetail: 'wma',
-      durationInSeconds: 6,
-      parser: 'media-utils',
-      videoStreams: [],
-      fileProperties: {
-        playDuration: 91360000,
-        sendDuration: 60360000,
-        preroll: 3100,
-        packetSize: 3200,
+        ],
+        container: 'aac',
+        containerDetail: 'aac',
+        durationInSeconds: undefined,
+        parser: 'media-utils',
+        videoStreams: [],
       },
-      additionalStreamInfo: expect.any(Map) as any,
-    } as AsfMediaInfo);
-  });
-
-  it('should parse engine-start.wmv2.wmav2.wmv file', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('engine-start.wmv2.wmav2.wmv'), { useParser: 'media-utils' });
-    expect(info).toEqual({
-      audioStreams: [
-        {
-          id: 2,
-          channelCount: 2,
-          codec: 'wmav2',
-          codecDetail: 'WMAv2',
-          bitrate: 128000,
-          durationInSeconds: 6,
-          sampleRate: 44100,
-          bitsPerSample: 16,
-        },
-      ],
-      container: 'asf',
-      containerDetail: 'wmv',
-      durationInSeconds: 6,
-      parser: 'media-utils',
-      videoStreams: [
-        {
-          id: 1,
-          codec: 'wmv2',
-          codecDetail: 'WMV2',
-          width: 1280,
-          height: 534,
-          durationInSeconds: 6,
-          fps: undefined,
-        },
-      ],
-      fileProperties: {
-        playDuration: 91460000,
-        sendDuration: 60460000,
-        preroll: 3100,
-        packetSize: 3200,
+    },
+    {
+      filename: 'engine-start.mp3',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        audioStreams: [
+          {
+            id: 0,
+            bitrate: expect.closeTo(128273, -2) as any,
+            channelCount: 2,
+            codec: 'mp3',
+            codecDetail: 'MPEG-1 Layer III',
+            durationInSeconds: expect.closeTo(6, 0.1) as any,
+            sampleRate: 44100,
+            codecDetails: {
+              layer: 3,
+              padding: 0,
+            },
+          },
+        ],
+        container: 'mp3',
+        containerDetail: 'mp3',
+        durationInSeconds: expect.closeTo(6, 0.1) as any,
+        parser: 'media-utils',
+        videoStreams: [],
       },
-      additionalStreamInfo: expect.any(Map) as any,
-    } as AsfMediaInfo);
-  });
-
-  it('should parse engine-start.wmv2.wmav2.wmv file and return additional information', async () => {
-    const webStream = await createReadableStreamFromFile(sampleFile('engine-start.wmv2.wmav2.wmv'));
-    const info = await parseAsf(webStream, { extractStreams: [2] });
-    expect(info).toEqual({
-      audioStreams: [
-        {
-          id: 2,
-          channelCount: 2,
-          codec: 'wmav2',
-          codecDetail: 'WMAv2',
-          bitrate: 128000,
-          durationInSeconds: 6,
-          sampleRate: 44100,
-          bitsPerSample: 16,
-        },
-      ],
-      container: 'asf',
-      containerDetail: 'wmv',
-      durationInSeconds: 6,
-      videoStreams: [
-        {
-          id: 1,
-          codec: 'wmv2',
-          codecDetail: 'WMV2',
-          width: 1280,
-          height: 534,
-          durationInSeconds: 6,
-          fps: undefined,
-        },
-      ],
-      fileProperties: {
-        playDuration: 91460000,
-        sendDuration: 60460000,
-        preroll: 3100,
-        packetSize: 3200,
+    },
+    {
+      filename: 'engine-start.vp9.opus.webm',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        audioStreams: [
+          {
+            id: 2,
+            channelCount: 2,
+            codec: 'opus',
+            codecDetail: 'A_OPUS',
+            durationInSeconds: 6.008,
+            sampleRate: 48000,
+            bitsPerSample: 32,
+          },
+        ],
+        container: 'webm',
+        containerDetail: 'webm',
+        durationInSeconds: 6.008,
+        parser: 'media-utils',
+        videoStreams: [
+          {
+            id: 1,
+            codec: 'vp9',
+            codecDetail: 'V_VP9',
+            durationInSeconds: 6.008,
+            height: 534,
+            width: 1280,
+          },
+        ],
       },
-      additionalStreamInfo: expect.any(Map) as any,
-    } as AsfMediaInfo);
-    const { additionalStreamInfo: extractedStreamInfo } = info;
-    expect(extractedStreamInfo).toBeDefined();
-    expect(extractedStreamInfo?.size).toEqual(2);
-    expect(extractedStreamInfo?.get(1)).toEqual({
-      codecPrivate: expect.any(Uint8Array),
-      extendedStreamPropertiesObject: expect.any(Uint8Array),
-    });
-    expect(extractedStreamInfo?.get(2)).toEqual({
-      codecPrivate: expect.any(Uint8Array),
-      extendedStreamPropertiesObject: expect.any(Uint8Array),
-    });
-  });
-
-  it('should parse engine-start.mjpeg.pcms16le.avi file', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('engine-start.mjpeg.pcms16le.avi'), { useParser: 'media-utils' });
-    expect(info).toEqual({
-      audioStreams: [
-        {
-          id: 2,
-          channelCount: 2,
-          codec: 'pcm_s16le',
-          codecDetail: 'pcm_s16le',
-          durationInSeconds: 6,
-          sampleRate: 44100,
-          bitsPerSample: 16,
-          bitrate: expect.closeTo(1411200, -3) as any,
-          codecDetails: {
-            formatTag: 1,
-            blockAlign: 4,
-            samplesPerBlock: undefined,
+    },
+    {
+      filename: 'engine-start.vp8.vorbis.webm',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        audioStreams: [
+          {
+            id: 2,
+            channelCount: 2,
+            codec: 'vorbis',
+            codecDetail: 'A_VORBIS',
+            durationInSeconds: 6.007,
+            sampleRate: 48000,
+            bitsPerSample: 32,
           },
-        },
-      ],
-      container: 'avi',
-      containerDetail: 'avi',
-      durationInSeconds: expect.closeTo(6, 0) as any,
-      parser: 'media-utils',
-      videoStreams: [
-        {
-          id: 1,
-          codec: 'mjpeg',
-          codecDetail: 'MJPG',
-          width: 1280,
-          height: 534,
-          durationInSeconds: 6,
-          fps: 24,
-        },
-      ],
-    } as MediaInfo);
-  });
-
-  it('should parse engine-start.h264.pcms16le.avi file', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.pcms16le.avi'), { useParser: 'media-utils' });
-    expect(info).toEqual({
-      audioStreams: [
-        {
-          id: 2,
-          channelCount: 2,
-          codec: 'pcm_s16le',
-          codecDetail: 'pcm_s16le',
-          durationInSeconds: 6,
-          sampleRate: 44100,
-          bitsPerSample: 16,
-          bitrate: expect.closeTo(1411200, -3) as any,
-          codecDetails: {
-            formatTag: 1,
-            blockAlign: 4,
-            samplesPerBlock: undefined,
+        ],
+        container: 'webm',
+        containerDetail: 'webm',
+        durationInSeconds: 6.007,
+        parser: 'media-utils',
+        videoStreams: [
+          {
+            id: 1,
+            codec: 'vp8',
+            codecDetail: 'V_VP8',
+            durationInSeconds: 6.007,
+            height: 534,
+            width: 1280,
           },
-        },
-      ],
-      container: 'avi',
-      containerDetail: 'avi',
-      durationInSeconds: expect.closeTo(6, 0) as any,
-      parser: 'media-utils',
-      videoStreams: [
-        {
-          id: 1,
-          codec: 'h264',
-          codecDetail: 'H264',
-          width: 1280,
-          height: 534,
-          durationInSeconds: 6,
-          fps: 24,
-        },
-      ],
-    } as MediaInfo);
-  });
-
-  it('should parse engine-start.mpeg2video.mp2.m2ts file', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('engine-start.mpeg2video.mp2.m2ts'), { useParser: 'media-utils' });
-    expect(info).toEqual({
-      audioStreams: [
-        {
-          id: 257,
-          codec: 'mp2',
-          codecDetail: 'MPEG-1 Layer II',
-          sampleRate: 44100,
-          channelCount: 2,
-          bitrate: 384000,
-          language: 'eng',
-          codecDetails: {
-            layer: 2,
-            padding: 0,
+        ],
+      },
+    },
+    {
+      filename: 'engine-start.vp9.vorbis.webm',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        audioStreams: [
+          {
+            id: 2,
+            channelCount: 2,
+            codec: 'vorbis',
+            codecDetail: 'A_VORBIS',
+            durationInSeconds: 6.007,
+            sampleRate: 48000,
+            bitsPerSample: 32,
           },
-        },
-      ],
-      container: 'mpegts',
-      containerDetail: 'mpegts',
-      parser: 'media-utils',
-      videoStreams: [
-        {
-          id: 256,
-          codec: 'mpeg2video',
-          width: 1280,
-          height: 534,
-          fps: 24,
-        },
-      ],
-    } as MediaInfo);
-  });
-
-  it('should parse MPEG-TS file with H.264 video and AAC audio', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.aac.m2ts'), { useParser: 'media-utils' });
-    expect(info).toEqual({
-      container: 'mpegts',
-      containerDetail: 'mpegts',
-      parser: 'media-utils',
-      audioStreams: [
-        {
-          id: 4352,
-          codec: 'aac',
-          codecDetail: 'AAC in ADTS',
-          sampleRate: 44100,
-          language: 'eng',
-          channelCount: 2,
-        },
-      ],
-      videoStreams: [
-        {
-          id: 4113,
-          codec: 'h264',
-          codecDetail: 'avc1.64001f',
-          width: 1280,
-          height: 534,
-        },
-      ],
-    } as MediaInfo);
-  });
-
-  it('should parse MPEG-TS file with H.264 video and MP3 audio', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('engine-start.h264.mp3.m2ts'), { useParser: 'media-utils' });
-    expect(info).toEqual({
-      container: 'mpegts',
-      containerDetail: 'mpegts',
-      parser: 'media-utils',
-      audioStreams: [
-        {
-          id: 4352,
-          codec: 'mp3',
-          codecDetail: 'MPEG-1 Layer III',
-          sampleRate: 44100,
-          channelCount: 2,
-          bitrate: 128000,
-          durationInSeconds: undefined,
-          language: 'eng',
-          codecDetails: {
-            layer: 3,
-            padding: 0,
+        ],
+        container: 'webm',
+        containerDetail: 'webm',
+        durationInSeconds: 6.007,
+        parser: 'media-utils',
+        videoStreams: [
+          {
+            id: 1,
+            codec: 'vp9',
+            codecDetail: 'V_VP9',
+            durationInSeconds: 6.007,
+            height: 534,
+            width: 1280,
           },
+        ],
+      },
+    },
+    {
+      filename: 'engine-start.av1.opus.webm',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        audioStreams: [
+          {
+            id: 2,
+            channelCount: 2,
+            codec: 'opus',
+            codecDetail: 'A_OPUS',
+            durationInSeconds: 6.008,
+            sampleRate: 48000,
+            bitsPerSample: 32,
+          },
+        ],
+        container: 'webm',
+        containerDetail: 'webm',
+        durationInSeconds: 6.008,
+        parser: 'media-utils',
+        videoStreams: [
+          {
+            id: 1,
+            codec: 'av1',
+            codecDetail: 'V_AV1',
+            durationInSeconds: 6.008,
+            height: 534,
+            width: 1280,
+          },
+        ],
+      },
+    },
+    {
+      filename: 'engine-start.pcms16le.wav',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        audioStreams: [
+          {
+            id: 1,
+            bitrate: 1411200,
+            bitsPerSample: 16,
+            channelCount: 2,
+            codec: 'pcm_s16le',
+            codecDetail: 'pcm_s16le',
+            durationInSeconds: expect.closeTo(6, 1) as any,
+            sampleRate: 44100,
+            codecDetails: {
+              formatTag: 1,
+              blockAlign: 4,
+              samplesPerBlock: undefined,
+            },
+          },
+        ],
+        container: 'wav',
+        containerDetail: 'wav',
+        durationInSeconds: expect.closeTo(6, 1) as any,
+        parser: 'media-utils',
+        videoStreams: [],
+      },
+    },
+    {
+      filename: 'engine-start.vorbis.ogg',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        audioStreams: [
+          {
+            id: 1,
+            channelCount: 2,
+            codec: 'vorbis',
+            codecDetail: 'vorbis',
+            durationInSeconds: undefined,
+            sampleRate: 48000,
+          },
+        ],
+        container: 'ogg',
+        containerDetail: 'ogg',
+        durationInSeconds: undefined,
+        parser: 'media-utils',
+        videoStreams: [],
+      },
+    },
+    {
+      filename: 'engine-start.opus.ogg',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        audioStreams: [
+          {
+            id: 1,
+            channelCount: 2,
+            codec: 'opus',
+            codecDetail: 'opus',
+            durationInSeconds: undefined,
+            sampleRate: 48000,
+          },
+        ],
+        container: 'ogg',
+        containerDetail: 'ogg',
+        durationInSeconds: undefined,
+        parser: 'media-utils',
+        videoStreams: [],
+      },
+    },
+    {
+      filename: 'engine-start.wmav2.wma',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        audioStreams: [
+          {
+            id: 1,
+            channelCount: 2,
+            codec: 'wmav2',
+            codecDetail: 'WMAv2',
+            bitrate: 128000,
+            durationInSeconds: 6,
+            sampleRate: 44100,
+            bitsPerSample: 16,
+          },
+        ],
+        container: 'asf',
+        containerDetail: 'wma',
+        durationInSeconds: 6,
+        parser: 'media-utils',
+        videoStreams: [],
+        fileProperties: {
+          playDuration: 91360000,
+          sendDuration: 60360000,
+          preroll: 3100,
+          packetSize: 3200,
         },
-      ],
-      videoStreams: [
-        {
-          id: 4113,
-          codec: 'h264',
-          codecDetail: 'avc1.64001f',
-          width: 1280,
-          height: 534,
+        additionalStreamInfo: expect.any(Map) as any,
+      },
+    },
+    {
+      filename: 'engine-start.wmv2.wmav2.wmv',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        audioStreams: [
+          {
+            id: 2,
+            channelCount: 2,
+            codec: 'wmav2',
+            codecDetail: 'WMAv2',
+            bitrate: 128000,
+            durationInSeconds: 6,
+            sampleRate: 44100,
+            bitsPerSample: 16,
+          },
+        ],
+        container: 'asf',
+        containerDetail: 'wmv',
+        durationInSeconds: 6,
+        parser: 'media-utils',
+        videoStreams: [
+          {
+            id: 1,
+            codec: 'wmv2',
+            codecDetail: 'WMV2',
+            width: 1280,
+            height: 534,
+            durationInSeconds: 6,
+            fps: undefined,
+          },
+        ],
+        fileProperties: {
+          playDuration: 91460000,
+          sendDuration: 60460000,
+          preroll: 3100,
+          packetSize: 3200,
         },
-      ],
-    } as MediaInfo);
-  });
-
-  it.each(['engine-start.h264.aac.mp4', 'engine-start.h264.aac.mov', 'engine-start.h264.mp3.mov'])('should fail to parse %s', async (filename) => {
-    try {
-      await getMediaInfoFromFile(sampleFile(filename), { useParser: 'media-utils' });
-      expect('').toBe('should fail to parse');
-    } catch (error) {
-      expect(error).toBeInstanceOf(Error);
-      expect(error).toHaveProperty('isUnsupportedFormatError', true);
-    }
-  });
+        additionalStreamInfo: expect.any(Map) as any,
+      },
+    },
+    {
+      filename: 'engine-start.mjpeg.pcms16le.avi',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        audioStreams: [
+          {
+            id: 2,
+            channelCount: 2,
+            codec: 'pcm_s16le',
+            codecDetail: 'pcm_s16le',
+            durationInSeconds: 6,
+            sampleRate: 44100,
+            bitsPerSample: 16,
+            bitrate: expect.closeTo(1411200, -3) as any,
+            codecDetails: {
+              formatTag: 1,
+              blockAlign: 4,
+              samplesPerBlock: undefined,
+            },
+          },
+        ],
+        container: 'avi',
+        containerDetail: 'avi',
+        durationInSeconds: expect.closeTo(6, 0) as any,
+        parser: 'media-utils',
+        videoStreams: [
+          {
+            id: 1,
+            codec: 'mjpeg',
+            codecDetail: 'MJPG',
+            width: 1280,
+            height: 534,
+            durationInSeconds: 6,
+            fps: 24,
+          },
+        ],
+      },
+    },
+    {
+      filename: 'engine-start.h264.pcms16le.avi',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        audioStreams: [
+          {
+            id: 2,
+            channelCount: 2,
+            codec: 'pcm_s16le',
+            codecDetail: 'pcm_s16le',
+            durationInSeconds: 6,
+            sampleRate: 44100,
+            bitsPerSample: 16,
+            bitrate: expect.closeTo(1411200, -3) as any,
+            codecDetails: {
+              formatTag: 1,
+              blockAlign: 4,
+              samplesPerBlock: undefined,
+            },
+          },
+        ],
+        container: 'avi',
+        containerDetail: 'avi',
+        durationInSeconds: expect.closeTo(6, 0) as any,
+        parser: 'media-utils',
+        videoStreams: [
+          {
+            id: 1,
+            codec: 'h264',
+            codecDetail: 'H264',
+            width: 1280,
+            height: 534,
+            durationInSeconds: 6,
+            fps: 24,
+          },
+        ],
+      },
+    },
+    {
+      filename: 'engine-start.mpeg2video.mp2.m2ts',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        audioStreams: [
+          {
+            id: 257,
+            codec: 'mp2',
+            codecDetail: 'MPEG-1 Layer II',
+            sampleRate: 44100,
+            channelCount: 2,
+            bitrate: 384000,
+            language: 'eng',
+            codecDetails: {
+              layer: 2,
+              padding: 0,
+            },
+          },
+        ],
+        container: 'mpegts',
+        containerDetail: 'mpegts',
+        parser: 'media-utils',
+        videoStreams: [
+          {
+            id: 256,
+            codec: 'mpeg2video',
+            width: 1280,
+            height: 534,
+            fps: 24,
+          },
+        ],
+      },
+    },
+    {
+      filename: 'engine-start.h264.aac.m2ts',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        container: 'mpegts',
+        containerDetail: 'mpegts',
+        parser: 'media-utils',
+        audioStreams: [
+          {
+            id: 4352,
+            codec: 'aac',
+            codecDetail: 'AAC in ADTS',
+            sampleRate: 44100,
+            language: 'eng',
+            channelCount: 2,
+          },
+        ],
+        videoStreams: [
+          {
+            id: 4113,
+            codec: 'h264',
+            codecDetail: 'avc1.64001f',
+            width: 1280,
+            height: 534,
+          },
+        ],
+      },
+    },
+    {
+      filename: 'engine-start.h264.mp3.m2ts',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        container: 'mpegts',
+        containerDetail: 'mpegts',
+        parser: 'media-utils',
+        audioStreams: [
+          {
+            id: 4352,
+            codec: 'mp3',
+            codecDetail: 'MPEG-1 Layer III',
+            sampleRate: 44100,
+            channelCount: 2,
+            bitrate: 128000,
+            durationInSeconds: undefined,
+            language: 'eng',
+            codecDetails: {
+              layer: 3,
+              padding: 0,
+            },
+          },
+        ],
+        videoStreams: [
+          {
+            id: 4113,
+            codec: 'h264',
+            codecDetail: 'avc1.64001f',
+            width: 1280,
+            height: 534,
+          },
+        ],
+      },
+    },
+    // Failure cases
+    ...['engine-start.h264.aac.mp4', 'engine-start.h264.aac.mov', 'engine-start.h264.mp3.mov'].map((filename) => ({
+      filename,
+      options: { useParser: 'media-utils' } as GetMediaInfoOptions,
+      expectedMediaInfo: {
+        audioStreams: [],
+        videoStreams: [],
+        container: 'mp4',
+        parser: 'media-utils',
+      } as MediaInfo,
+      shouldFail: true,
+    })),
+  ]);
 });

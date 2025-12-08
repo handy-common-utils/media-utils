@@ -280,6 +280,13 @@ export interface MediaInfo {
   videoStreams: VideoStreamInfo[];
   audioStreams: AudioStreamInfo[];
   mimeType?: string;
+  fileProperties?: {
+    playDuration?: number;
+    sendDuration?: number;
+    preroll?: number;
+    packetSize?: number;
+  };
+  additionalStreamInfo?: Map<number, any>;
 }
 
 /**
