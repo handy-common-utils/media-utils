@@ -417,6 +417,8 @@ export class MpegTsParser {
       return { shouldBreakNotContinue: false, nextIndex: pesStart + 2 };
     };
 
+    const pesPayloadDataChunks = new Array<Uint8Array>();
+
     let parsedPESHeader = false;
 
     let pesStart = 0;
@@ -520,7 +522,8 @@ export class MpegTsParser {
             frameDataOffset: frameOffset,
             onKnownLengthData: async (start, end) => {
               // console.error('onKnownLengthData', start, end, end-start, streamDetails.pesBuffer.length);
-              await streamDetails.pesPayloadHandler?.onData(streamDetails.pesBuffer.subarray(start, end));
+              // Queue them and send later before processStreamPacket function exits
+              pesPayloadDataChunks.push(streamDetails.pesBuffer.subarray(start, end));
             },
           });
           if (shouldBreakNotContinue) break;
@@ -565,6 +568,13 @@ export class MpegTsParser {
       }
       streamDetails.pesBuffer = streamDetails.pesBuffer.slice(pesStart);
     }
+
+    // Send all of them after streamDetails.pesBuffer.slice(pesStart) because the frontend could transfer the ownership of those chunks to the web worker.
+    // Once the ownership is lost, streamDetails.pesBuffer.slice(pesStart) would fail.
+    for (const chunk of pesPayloadDataChunks) {
+      await streamDetails.pesPayloadHandler?.onData(chunk);
+    }
+
     return parsedPESHeader;
   }
 
