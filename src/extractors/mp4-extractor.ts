@@ -28,19 +28,27 @@ export async function extractFromMp4(
     options.onProgress(0);
   }
 
-  const stream = findAudioStreamToBeExtracted(mediaInfo, options) as Mp4AudioStreamInfo;
+  let stream: Mp4AudioStreamInfo;
+  try {
+    stream = findAudioStreamToBeExtracted(mediaInfo, options);
+    if (stream.codec !== 'aac' && stream.codec !== 'mp3') {
+      throw new UnsupportedFormatError(`Unsupported codec for extracting from MP4/MOV: ${stream.codec}`);
+    }
+    // Require sample tables for extraction
+    if (!stream.sampleTableInfo) {
+      throw new Error('MP4 sample table information not found in media info.');
+    }
+  } catch (error: any) {
+    input.cancel().catch(() => {});
+    output
+      .getWriter()
+      .abort(error)
+      .catch(() => {});
+    throw error;
+  }
+
   const logger = setupGlobalLogger(options);
-
   if (logger.isDebug) logger.debug(`Extracting audio from MP4. Stream: ${stream.id}, Codec: ${stream.codec}`);
-
-  if (stream.codec !== 'aac' && stream.codec !== 'mp3') {
-    throw new UnsupportedFormatError(`Unsupported codec for extracting from MP4/MOV: ${stream.codec}`);
-  }
-
-  // Require sample tables for extraction
-  if (!stream.sampleTableInfo) {
-    throw new Error('MP4 sample table information not found in media info.');
-  }
 
   const { chunkOffsets, sampleSizes, sampleToChunk, mdatStart } = stream.sampleTableInfo;
   const writer = output.getWriter();
