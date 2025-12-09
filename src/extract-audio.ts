@@ -5,8 +5,9 @@ import { extractFromAvi } from './extractors/avi-extractor';
 import { extractFromMkv } from './extractors/mkv-extractor';
 import { extractFromMp4 } from './extractors/mp4-extractor';
 import { extractFromMpegTs } from './extractors/mpegts-extractor';
-import { getMediaInfo } from './get-media-info';
+import { getMediaInfo, GetMediaInfoOptions } from './get-media-info';
 import { AsfMediaInfo } from './parsers/asf';
+import { Mp4MediaInfo, ParseMp4Options } from './parsers/mp4';
 import { createReadableStreamFromFile, ParserRelatedOptions, setupGlobalLogger, UnsupportedFormatError } from './utils';
 
 export interface ExtractAudioOptions extends ParserRelatedOptions {
@@ -70,7 +71,11 @@ export async function extractAudio(
   }
 
   // Detect container type
-  const mediaInfo = await getMediaInfo(detectStream, options);
+  const mediaInfo = await getMediaInfo(detectStream, {
+    ...options,
+    useParser: 'media-utils',
+    sampleTableInfo: true, // Always enable for MP4/MOV (will be ignored for other formats)
+  } as GetMediaInfoOptions | ParseMp4Options);
   if (options.onProgress) {
     options.onProgress(8);
     const originalOnProgress = options.onProgress;
@@ -89,7 +94,7 @@ export async function extractAudio(
   switch (container) {
     case 'mp4':
     case 'mov': {
-      return extractFromMp4(extractStream, output, mediaInfo, options);
+      return extractFromMp4(extractStream, output, mediaInfo as unknown as Mp4MediaInfo, options);
     }
     case 'mkv':
     case 'webm': {

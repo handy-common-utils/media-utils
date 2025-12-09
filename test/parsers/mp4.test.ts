@@ -21,7 +21,6 @@ describe('MP4 Parser', () => {
       container: 'mp4',
       containerDetail: 'isom, isom, iso2, avc1, mp41',
       durationInSeconds: expect.closeTo(6, 0),
-      parser: 'media-utils',
       videoStreams: [
         {
           codec: 'h264',

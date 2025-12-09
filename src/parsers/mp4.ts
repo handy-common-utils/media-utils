@@ -1,7 +1,7 @@
 /* eslint-disable max-depth */
 import { toHexString } from '../codecs/binary';
 import { GetMediaInfoOptions } from '../get-media-info';
-import { findAudioCodec, findVideoCodec, MediaInfo } from '../media-info';
+import { AudioCodecType, AudioStreamInfo, findAudioCodec, findVideoCodec, MediaInfo } from '../media-info';
 import { ensureBufferData, setupGlobalLogger, UnsupportedFormatError } from '../utils';
 
 // Constants for Atom Types
@@ -28,8 +28,64 @@ const ATOM_ESDS = 'esds';
 export type OnMp4SamplesCallback = (trackId: number, samples: Uint8Array[]) => void | Promise<void>;
 
 export interface ParseMp4Options extends GetMediaInfoOptions {
+  /**
+   * Callback to receive extracted samples during parsing.
+   * Used for audio extraction - called with trackId and sample data.
+   */
   onSamples?: OnMp4SamplesCallback;
+
+  /**
+   * Whether to keep and return sample table information in MediaInfo.
+   * When true, populates mp4SampleTableInfo in AudioStreamInfo for later extraction use.
+   * Default: false (sample tables are not returned to save memory)
+   */
+  sampleTableInfo?: boolean;
 }
+
+export type Mp4AudioStreamInfo = AudioStreamInfo & {
+  /**
+   * Parsed MP4 sample table information (from the 'stbl' box) plus MDAT start and size.
+   *
+   * Contains the minimal set of sample table data required to extract samples
+   * from the 'mdat' box. Only populated when parseMp4 is called with
+   * sampleTables: true.
+   */
+  sampleTableInfo?: {
+    /** Chunk offsets from 'stco' or 'co64' (absolute file offsets for each chunk) */
+    chunkOffsets: number[];
+
+    /** Sample sizes from 'stsz' (size of each sample in bytes, one entry per sample) */
+    sampleSizes: number[];
+
+    /** Sample-to-chunk mapping from 'stsc' */
+    sampleToChunk: Array<{
+      /** First chunk number where this mapping applies (1-based) */
+      firstChunk: number;
+      /** Number of samples per chunk for the affected chunk range */
+      samplesPerChunk: number;
+      /** Index into the sample description table ('stsd') */
+      sampleDescriptionIndex: number;
+    }>;
+
+    /** Time-to-sample entries from 'stts' */
+    timeToSample: Array<{
+      /** Number of consecutive samples with this duration */
+      sampleCount: number;
+      /** Duration of each sample in timescale units */
+      sampleDelta: number;
+    }>;
+
+    /** Byte offset in the file where the 'mdat' payload starts */
+    mdatStart: number;
+
+    /** Size of the 'mdat' box in bytes */
+    mdatSize: number;
+  };
+};
+
+export type Mp4MediaInfo = Omit<MediaInfo, 'parser' | 'audioStreams'> & {
+  audioStreams: Mp4AudioStreamInfo[];
+};
 
 interface TrackContext {
   id: number;
@@ -44,7 +100,7 @@ interface TrackContext {
   channelCount?: number;
 
   // Sample Tables for Audio Extraction
-  stts?: { count: number; delta: number }[];
+  stts?: { sampleCount: number; sampleDelta: number }[];
   stsc?: { firstChunk: number; samplesPerChunk: number; sampleDescriptionIndex: number }[];
   stsz?: { sampleSize: number; sampleCount: number; entries: number[] };
   stco?: number[];
@@ -72,7 +128,7 @@ interface ChunkInfo {
  * @param options - Optional options for the parser
  * @returns Promise resolving to MediaInfo
  */
-export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: ParseMp4Options): Promise<MediaInfo> {
+export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: ParseMp4Options): Promise<Mp4MediaInfo> {
   const logger = setupGlobalLogger(options);
   if (logger.isDebug) logger.debug('Starting parsing MP4');
 
@@ -171,16 +227,17 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
   }
 
   try {
-    const mediaInfo: MediaInfo = {
-      parser: 'media-utils',
+    const mediaInfo: Mp4MediaInfo = {
       container: 'mp4',
       containerDetail: '',
       videoStreams: [],
       audioStreams: [],
     };
 
-    let currentTrack: TrackContext | null = null;
+    let currentTrack: TrackContext | undefined;
     const tracks: TrackContext[] = [];
+    let mdatStart = 0;
+    let mdatSize = 0;
 
     let isAtVeryBeginning = true;
 
@@ -241,6 +298,12 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
         }
 
         case ATOM_MDAT: {
+          // Track MDAT position for sample table data
+          if (mdatStart === 0) {
+            mdatStart = atomStart;
+            mdatSize = atomSize;
+          }
+
           const extractableTracks = tracks.filter((t) => (t.stco || t.co64) && t.stsz && t.stsc && t.stts && t.type === 'audio');
 
           if (extractableTracks.length > 0 && options?.onSamples) {
@@ -422,7 +485,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
         }
 
         case ATOM_STTS: {
-          if (currentTrack && options?.onSamples) {
+          if (currentTrack && (options?.onSamples || options?.sampleTableInfo)) {
             await skip(4); // version, flags
             if (!(await ensureBytes(4))) throw new UnsupportedFormatError('EOF');
             const count = readUInt32BE();
@@ -430,8 +493,8 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
             for (let i = 0; i < count; i++) {
               if (await ensureBytes(8)) {
                 currentTrack.stts.push({
-                  count: readUInt32BE(),
-                  delta: readUInt32BE(),
+                  sampleCount: readUInt32BE(),
+                  sampleDelta: readUInt32BE(),
                 });
               }
             }
@@ -442,7 +505,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
         }
 
         case ATOM_STSC: {
-          if (currentTrack && options?.onSamples) {
+          if (currentTrack && (options?.onSamples || options?.sampleTableInfo)) {
             await skip(4); // version, flags
             if (!(await ensureBytes(4))) throw new UnsupportedFormatError('EOF');
             const count = readUInt32BE();
@@ -471,16 +534,16 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
             currentTrack.sampleCount = sampleCount;
             if (sampleSize > 0) {
               currentTrack.totalBytes = sampleSize * sampleCount;
-              if (options?.onSamples) {
+              if (options?.onSamples || options?.sampleTableInfo) {
                 currentTrack.stsz = { sampleSize, sampleCount, entries: [] };
               }
             } else {
               // Read entries if we need them for samples OR if we need to calculate bitrate
-              const needSizes = options?.onSamples || !currentTrack.bitrate;
+              const needSizes = options?.onSamples || options?.sampleTableInfo || !currentTrack.bitrate;
 
               if (needSizes) {
                 let totalBytes = 0;
-                const entries: number[] | undefined = options?.onSamples ? [] : undefined;
+                const entries: number[] | undefined = options?.onSamples || options?.sampleTableInfo ? [] : undefined;
 
                 for (let i = 0; i < sampleCount; i++) {
                   if (await ensureBytes(4)) {
@@ -504,7 +567,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
         }
 
         case ATOM_STCO: {
-          if (currentTrack && options?.onSamples) {
+          if (currentTrack && (options?.onSamples || options?.sampleTableInfo)) {
             await skip(4); // version, flags
             if (!(await ensureBytes(4))) throw new UnsupportedFormatError('EOF');
             const count = readUInt32BE();
@@ -521,7 +584,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
         }
 
         case ATOM_CO64: {
-          if (currentTrack && options?.onSamples) {
+          if (currentTrack && (options?.onSamples || options?.sampleTableInfo)) {
             await skip(4); // version, flags
             if (!(await ensureBytes(4))) throw new UnsupportedFormatError('EOF');
             const count = readUInt32BE();
@@ -837,16 +900,35 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
 
     mediaInfo.audioStreams = tracks
       .filter((t) => t.type === 'audio')
-      .map((t) => ({
-        id: t.id,
-        codec: t.codec as any,
-        codecDetail: t.codecDetail,
-        channelCount: t.channelCount || undefined,
-        sampleRate: t.sampleRate || undefined,
-        bitrate: t.bitrate || (t.totalBytes && t.duration ? Math.round((t.totalBytes * 8) / t.duration) : undefined),
-        durationInSeconds: t.duration || mediaInfo.durationInSeconds,
-        ...(t.profile ? { profile: t.profile } : {}),
-      }));
+      .map((t) => {
+        const audioStream: Mp4AudioStreamInfo = {
+          id: t.id,
+          codec: t.codec as AudioCodecType,
+          codecDetail: t.codecDetail,
+          channelCount: t.channelCount || undefined,
+          sampleRate: t.sampleRate || undefined,
+          bitrate: t.bitrate || (t.totalBytes && t.duration ? Math.round((t.totalBytes * 8) / t.duration) : undefined),
+          durationInSeconds: t.duration || mediaInfo.durationInSeconds,
+          ...(t.profile ? { profile: t.profile } : {}),
+        };
+
+        // Include sample tables if requested
+        if (options?.sampleTableInfo && (t.stco || t.co64) && t.stsz && t.stsc && t.stts) {
+          const chunkOffsets = (t.stco || t.co64)!;
+          const sampleSizes = t.stsz!.sampleSize === 0 ? t.stsz!.entries : Array.from({ length: t.stsz!.sampleCount }, () => t.stsz!.sampleSize);
+
+          audioStream.sampleTableInfo = {
+            chunkOffsets,
+            sampleSizes,
+            sampleToChunk: t.stsc,
+            timeToSample: t.stts,
+            mdatStart,
+            mdatSize,
+          };
+        }
+
+        return audioStream;
+      });
 
     return mediaInfo;
   } catch (error) {

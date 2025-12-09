@@ -1,5 +1,20 @@
 {
-  "cSpell.words": ["Inhouse", "isoboxer", "latm", "mpegts", "preroll", "wmalossless", "wmapro", "wmav"],
+  "cSpell.words": [
+    "Inhouse",
+    "isoboxer",
+    "latm",
+    "MDAT",
+    "MOOV",
+    "mpegts",
+    "preroll",
+    "stco",
+    "stsc",
+    "stsz",
+    "stts",
+    "wmalossless",
+    "wmapro",
+    "wmav"
+  ],
   "eslint.options": {
     "flags": ["v10_config_lookup_from_file"]
   },
