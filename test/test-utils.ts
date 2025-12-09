@@ -5,6 +5,8 @@ import path from 'node:path';
 import { extractAudioFromFileToFile, ExtractAudioOptions } from '../src/extract-audio';
 import { getMediaInfoFromFile, GetMediaInfoOptions, GetMediaInfoResult } from '../src/get-media-info';
 import { MediaInfo, toContainer } from '../src/media-info';
+import { AsfMediaInfo } from '../src/parsers/asf';
+import { Mp4MediaInfo } from '../src/parsers/mp4';
 
 // eslint-disable-next-line unicorn/prefer-module
 const SAMPLE_DIR = path.join(__dirname, 'sample-media-files');
@@ -69,6 +71,7 @@ export function setupCleanup(): void {
 }
 
 export interface GetMediaInfoTestReportItem {
+  parser: GetMediaInfoResult['parser'];
   filename: string;
   container: string;
   videoCodec?: string;
@@ -78,10 +81,10 @@ export interface GetMediaInfoTestReportItem {
   testRemark?: string;
 }
 
-export interface ExtractAudioTestReportItem extends GetMediaInfoTestReportItem {
+export type ExtractAudioTestReportItem = Omit<GetMediaInfoTestReportItem, 'parser'> & {
   extractedAudioCodec?: string;
   extractedAudioContainer?: string;
-}
+};
 
 export interface TestReportData {
   getMediaInfo: GetMediaInfoTestReportItem[];
@@ -102,8 +105,8 @@ export function cleanupTestReportData() {
  * @param mediaInfo The media information about the file
  */
 export function addGetMediaInfoTestReportItem(
-  item: Pick<GetMediaInfoTestReportItem, 'filename' | 'succeeded' | 'fileRemark' | 'testRemark'>,
-  mediaInfo: MediaInfo,
+  item: Pick<GetMediaInfoTestReportItem, 'parser' | 'filename' | 'succeeded' | 'fileRemark' | 'testRemark'>,
+  mediaInfo: MediaInfo | AsfMediaInfo | Mp4MediaInfo,
 ) {
   const reportFile = outputFile('test-report.json');
   if (!fs.existsSync(reportFile)) {
@@ -162,32 +165,74 @@ export interface GetMediaInfoTestCase {
   /**
    * Expected media information result
    */
-  expectedMediaInfo: GetMediaInfoResult;
+  expectedMediaInfo: GetMediaInfoResult | AsfMediaInfo | Mp4MediaInfo;
   shouldFail?: boolean;
   fileRemark?: string;
   testRemark?: string;
 }
 
 /**
+ * Find and return a test case by filename
+ * @param testCases Array of test cases to search
+ * @param filename The filename to find in the test cases
+ * @returns The test case matching the filename
+ * @throws Error if no test case with the given filename is found
+ */
+export function getGetMediaInfoTestCase(testCases: GetMediaInfoTestCase[], filename: string): GetMediaInfoTestCase {
+  const result = testCases.find((tc) => tc.filename === filename);
+  if (!result) {
+    throw new Error(`Test case with filename ${filename} not found`);
+  }
+  return result;
+}
+
+/**
+ * Get all test cases matching the given filenames
+ * @param testCases Array of test cases to search
+ * @param filenames Array of filenames to find in the test cases
+ * @returns Array of test cases matching the given filenames
+ * @throws Error if any filename does not have a matching test case
+ */
+export function getGetMediaInfoTestCases(testCases: GetMediaInfoTestCase[], ...filenames: string[]): GetMediaInfoTestCase[] {
+  const results: GetMediaInfoTestCase[] = [];
+  for (const filename of filenames) {
+    const result = testCases.find((tc) => tc.filename === filename);
+    if (!result) {
+      throw new Error(`Test case with filename ${filename} not found`);
+    }
+    results.push(result);
+  }
+  return results;
+}
+
+/**
  * Run multiple test cases for getMediaInfo function
  * @param testCases Array of test case configurations
+ * @param useParser The useParser option that overrides test case configurations
  */
-export function runGetMediaInfoTestCases(testCases: GetMediaInfoTestCase[]) {
+export function runGetMediaInfoTestCases(testCases: GetMediaInfoTestCase[], useParser?: GetMediaInfoOptions['useParser']) {
   for (const { shouldFail, filename, options, expectedMediaInfo, fileRemark, testRemark } of testCases) {
+    const optionsWithUseParser = { ...options, useParser };
     it(`should getMediaInfo ${shouldFail ? 'fail' : 'work'} with ${filename}${fileRemark ? ` (${fileRemark})` : ''}${testRemark ? ` - ${testRemark}` : ''}`, async () => {
       if (shouldFail) {
         try {
-          await getMediaInfoFromFile(sampleFile(filename), options);
+          await getMediaInfoFromFile(sampleFile(filename), optionsWithUseParser);
           expect('').toEqual('getMediaInfoFromFile is expected to fail');
         } catch (error) {
           expect(error).toBeInstanceOf(Error);
           expect(error).toHaveProperty('isUnsupportedFormatError', true);
-          addGetMediaInfoTestReportItem({ succeeded: false, filename, fileRemark, testRemark }, expectedMediaInfo);
+          addGetMediaInfoTestReportItem(
+            { succeeded: false, filename, fileRemark, testRemark, parser: optionsWithUseParser.useParser ?? 'auto' },
+            expectedMediaInfo,
+          );
         }
       } else {
-        const info = await getMediaInfoFromFile(sampleFile(filename), options);
+        const info = await getMediaInfoFromFile(sampleFile(filename), optionsWithUseParser);
         expect(info).toEqual(expectedMediaInfo);
-        addGetMediaInfoTestReportItem({ succeeded: true, filename, fileRemark, testRemark }, expectedMediaInfo);
+        addGetMediaInfoTestReportItem(
+          { succeeded: true, filename, fileRemark, testRemark, parser: optionsWithUseParser.useParser ?? 'auto' },
+          expectedMediaInfo,
+        );
       }
     });
   }
