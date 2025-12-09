@@ -1,5 +1,3 @@
-import { AudioStreamInfo, MediaInfo } from '../media-info';
-
 /**
  * Find the audio stream to be extracted in the media information based on the options
  * @param mediaInfo Media information
@@ -9,11 +7,11 @@ import { AudioStreamInfo, MediaInfo } from '../media-info';
  * @returns Audio stream to be extracted
  * @throws Error if the audio stream to be extracted is not found
  */
-export function findAudioStreamToBeExtracted(
-  mediaInfo: Pick<MediaInfo, 'audioStreams'>,
+export function findAudioStreamToBeExtracted<S extends { id: number }, M extends { audioStreams: Array<S> }>(
+  mediaInfo: M,
   options: { trackId?: number; streamIndex?: number },
-): AudioStreamInfo {
-  let stream: AudioStreamInfo;
+): M['audioStreams'][number] {
+  let stream: M['audioStreams'][number];
 
   if (!Array.isArray(mediaInfo?.audioStreams) || mediaInfo.audioStreams.length === 0) {
     throw new Error('No audio streams/tracks found');

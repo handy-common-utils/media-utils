@@ -1,42 +1,8 @@
-import { describe, expect, it } from '@jest/globals';
+import { describe } from '@jest/globals';
 
-import { getMediaInfoFromFile } from '../../src/get-media-info';
-import { MediaInfo } from '../../src/media-info';
-import { sampleFile } from '../test-utils';
+import { runGetMediaInfoTestCases } from '../test-utils';
+import { largeMovTestCases } from './large-mov.config';
 
 describe('getMediaInfo with large MOV files', () => {
-  it('should parse large_TearsOfSteel.mov with h264 video and mp3 audio', async () => {
-    const info = await getMediaInfoFromFile(sampleFile('large_TearsOfSteel.mov'));
-
-    expect(info).toEqual({
-      parser: 'mp4box',
-      container: 'mov',
-      containerDetail: 'qt  , qt  ',
-      durationInSeconds: expect.closeTo(734, 0) as any,
-      mimeType: 'video/mp4; codecs="avc1.4d4028,mp3"; profiles="qt  "',
-      videoStreams: [
-        {
-          id: 1,
-          codec: 'h264',
-          codecDetail: 'avc1.4d4028',
-          width: 1920,
-          height: 800,
-          fps: 24,
-          bitrate: expect.closeTo(6162664, -4) as any,
-          durationInSeconds: expect.closeTo(734, 0) as any,
-        },
-      ],
-      audioStreams: [
-        {
-          id: 2,
-          codec: 'mp3',
-          codecDetail: 'mp3',
-          channelCount: undefined, // mp3 in MOV doesn't provide channel count via mp4box
-          sampleRate: undefined, // mp3 in MOV doesn't provide sample rate via mp4box
-          bitrate: expect.closeTo(192000, -3) as any,
-          durationInSeconds: expect.closeTo(734, 0) as any,
-        },
-      ],
-    } as MediaInfo);
-  }, 10000);
+  runGetMediaInfoTestCases(largeMovTestCases, 'media-utils');
 });
