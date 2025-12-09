@@ -1,93 +1,60 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import fs from 'node:fs';
 import { TransformStream } from 'node:stream/web';
 
 import { extractAudio, extractAudioFromFileToFile } from '../../src/extract-audio';
-import { getMediaInfoFromFile } from '../../src/get-media-info';
 import { createReadableStreamFromFile } from '../../src/utils';
-import { outputFile, sampleFile, setupCleanup, trackFileForCleanup } from '../test-utils';
+import { outputFile, runExtractAudioTestCases, sampleFile, setupCleanup, trackFileForCleanup } from '../test-utils';
 
 setupCleanup();
 
 describe('Extract audio from MP4', () => {
-  it('should extract AAC audio from MP4 file with AAC codec', async () => {
-    const inputFile = sampleFile('engine-start.h264.aac.mp4');
-    const outputFilePath = outputFile('extracted-aac-from-mp4.aac');
-
-    // Extract audio to file (first audio track, index 0)
-    await extractAudioFromFileToFile(inputFile, outputFilePath);
-
-    // Verify the file was created and has content
-    expect(fs.existsSync(outputFilePath)).toBe(true);
-    const stats = fs.statSync(outputFilePath);
-    expect(stats.size).toBeGreaterThan(0);
-
-    // Verify the extracted audio can be parsed by remotion
-    const extractedAudioInfo = await getMediaInfoFromFile(outputFilePath);
-
-    // Verify it's recognized as AAC
-    expect(extractedAudioInfo).toEqual({
-      container: 'aac',
-      containerDetail: 'aac',
-      parser: 'media-utils',
-      durationInSeconds: undefined,
-      videoStreams: [],
-      audioStreams: [
-        {
-          id: 0,
-          codec: 'aac',
-          codecDetail: 'mp4a.40.2',
-          profile: 'LC',
-          channelCount: 2,
-          sampleRate: 44100,
-        },
-      ],
-    });
-
-    trackFileForCleanup(outputFilePath);
-  });
-
-  it('should extract MP3 audio from MP4 file with MP3 codec', async () => {
-    const inputFile = sampleFile('engine-start.h264.mp3.mp4');
-    const outputFilePath = outputFile('extracted-mp3-from-mp4.mp3');
-
-    // Extract audio to file (first audio track, index 0)
-    await extractAudioFromFileToFile(inputFile, outputFilePath);
-
-    // Verify the file was created and has content
-    expect(fs.existsSync(outputFilePath)).toBe(true);
-    const stats = fs.statSync(outputFilePath);
-    expect(stats.size).toBeGreaterThan(0);
-
-    // Verify the extracted audio can be parsed by remotion
-    const extractedAudioInfo = await getMediaInfoFromFile(outputFilePath);
-
-    // Verify it's recognized as MP3
-    expect(extractedAudioInfo).toEqual({
-      container: 'mp3',
-      containerDetail: 'mp3',
-      parser: 'media-utils',
-      durationInSeconds: undefined,
-      videoStreams: [],
-      audioStreams: [
-        {
-          id: 0,
-          codec: 'mp3',
-          codecDetail: 'MPEG-1 Layer III',
-          channelCount: 2,
-          sampleRate: 44100,
-          bitrate: 128000,
-          durationInSeconds: undefined,
-          codecDetails: {
-            layer: 3,
-            padding: 0,
+  runExtractAudioTestCases([
+    {
+      filename: 'engine-start.h264.aac.mp4',
+      expectedMediaInfo: {
+        container: 'aac',
+        containerDetail: 'aac',
+        parser: 'media-utils',
+        durationInSeconds: undefined,
+        videoStreams: [],
+        audioStreams: [
+          {
+            id: 0,
+            codec: 'aac',
+            codecDetail: 'mp4a.40.2',
+            profile: 'LC',
+            channelCount: 2,
+            sampleRate: 44100,
           },
-        },
-      ],
-    });
-
-    trackFileForCleanup(outputFilePath);
-  });
+        ],
+      },
+    },
+    {
+      filename: 'engine-start.h264.mp3.mp4',
+      expectedMediaInfo: {
+        container: 'mp3',
+        containerDetail: 'mp3',
+        parser: 'media-utils',
+        durationInSeconds: undefined,
+        videoStreams: [],
+        audioStreams: [
+          {
+            id: 0,
+            codec: 'mp3',
+            codecDetail: 'MPEG-1 Layer III',
+            channelCount: 2,
+            sampleRate: 44100,
+            bitrate: 128000,
+            durationInSeconds: undefined,
+            codecDetails: {
+              layer: 3,
+              padding: 0,
+            },
+          },
+        ],
+      },
+    },
+  ]);
 
   it('should report progress when extracting from MP4', async () => {
     const inputFile = sampleFile('engine-start.h264.aac.mp4');

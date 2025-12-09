@@ -6,6 +6,7 @@
     "download-sample-media-files": "bash test/download-sample-media-files.sh",
     "pretest": "eslint . --ext .ts && npm run download-sample-media-files",
     "test": "rm -rf test/output/test-report.json &&NODE_OPTIONS='--experimental-vm-modules' jest",
+    "doc": "generate-api-docs-and-update-readme && ts-node test/report.ts",
     "compile": "shx rm -rf dist && tsc",
     "prepare": "husky",
     "prepack": "npm run compile",
@@ -17,12 +18,11 @@
     "@handy-common-utils/promise-utils": "^1.7.1"
   },
   "devDependencies": {
-    "@handy-common-utils/dev-dependencies-jest": "^1.8.0"
-  },
-  "optionalDependencies": {
-    "@remotion/media-parser": "^4.0.377",
+    "@handy-common-utils/dev-dependencies-jest": "^1.8.0",
+    "@handy-common-utils/fs-utils": "^1.1.2",
+    "@remotion/media-parser": "^4.0.383",
     "codem-isoboxer": "^0.3.10",
-    "mp4box": "^2.2.0"
+    "mp4box": "^2.3.0"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { extractAudioFromFileToFile, ExtractAudioOptions } from '../src/extract-audio';
 import { getMediaInfoFromFile, GetMediaInfoOptions, GetMediaInfoResult } from '../src/get-media-info';
-import { MediaInfo, toContainer } from '../src/media-info';
+import { MediaInfo, toAudioCodec, toContainer } from '../src/media-info';
 import { AsfMediaInfo } from '../src/parsers/asf';
 import { Mp4MediaInfo } from '../src/parsers/mp4';
 
@@ -133,7 +133,7 @@ export function addGetMediaInfoTestReportItem(
 export function addExtractAudioTestReportItem(
   item: Pick<ExtractAudioTestReportItem, 'filename' | 'succeeded' | 'fileRemark' | 'testRemark'>,
   sourceMediaInfo: MediaInfo,
-  audioMediaInfo?: MediaInfo,
+  audioMediaInfo?: MediaInfo | AsfMediaInfo | Mp4MediaInfo,
 ) {
   const reportFile = outputFile('test-report.json');
   if (!fs.existsSync(reportFile)) {
@@ -250,7 +250,7 @@ export interface ExtractAudioTestCase {
   /**
    * Expected media information of the extracted audio
    */
-  expectedMediaInfo: GetMediaInfoResult;
+  expectedMediaInfo: GetMediaInfoResult | AsfMediaInfo | Mp4MediaInfo;
   shouldFail?: boolean;
   fileRemark?: string;
   testRemark?: string;
@@ -277,8 +277,8 @@ export function runExtractAudioTestCases(testCases: ExtractAudioTestCase[]) {
           videoStreams: [],
         };
       }
-      const outputFilename = `extracted-from-${path.basename(filename, path.extname(filename))}.audio`;
-      if (expectedMediaInfo === null) {
+      const outputFilename = `extracted-from-${filename}.audio`;
+      if (shouldFail) {
         try {
           await extractAudioFromFileToFile(sampleFile(filename), outputFile(outputFilename), options);
           expect('').toEqual('extractAudio is expected to fail');
@@ -292,7 +292,10 @@ export function runExtractAudioTestCases(testCases: ExtractAudioTestCase[]) {
         assertFileSize(outputFile(outputFilename), minSizeKB, maxSizeKB);
         const info = await getMediaInfoFromFile(outputFile(outputFilename));
         expect(info).toEqual(expectedMediaInfo);
-        fs.renameSync(outputFile(outputFilename), outputFile(outputFilename.replace(/\.audio$/, `.${toContainer(info.container).fileExtension}`)));
+        fs.renameSync(
+          outputFile(outputFilename),
+          outputFile(outputFilename.replace(/\.audio$/, `.${toContainer(toAudioCodec(info.audioStreams[0].codec).defaultContainer).fileExtension}`)),
+        );
         addExtractAudioTestReportItem({ succeeded: true, filename, fileRemark, testRemark }, sourceMediaInfo, expectedMediaInfo);
       }
     });
