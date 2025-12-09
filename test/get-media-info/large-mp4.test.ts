@@ -9,11 +9,10 @@ describe('getMediaInfo with large MP4 files', () => {
     const info = await getMediaInfoFromFile(sampleFile('large_TearsOfSteel.mp4'));
 
     expect(info).toEqual({
-      parser: 'mp4box',
+      parser: 'media-utils',
       container: 'mp4',
       containerDetail: 'mp42, isom, mp42',
       durationInSeconds: expect.closeTo(734, 0) as any,
-      mimeType: 'video/mp4; codecs="avc1.64001f,mp4a.40.2"; profiles="isom,mp42"',
       videoStreams: [
         {
           id: 1,
@@ -30,7 +29,7 @@ describe('getMediaInfo with large MP4 files', () => {
         {
           id: 2,
           codec: 'aac',
-          codecDetail: 'mp4a.40.2',
+          codecDetail: 'mp4a.40.02',
           profile: 'LC',
           channelCount: 2,
           sampleRate: 44100,

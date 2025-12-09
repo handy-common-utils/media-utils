@@ -9,11 +9,10 @@ describe('getMediaInfo with large MOV files', () => {
     const info = await getMediaInfoFromFile(sampleFile('large_TearsOfSteel.mov'));
 
     expect(info).toEqual({
-      parser: 'mp4box',
+      parser: 'media-utils',
       container: 'mov',
       containerDetail: 'qt  , qt  ',
       durationInSeconds: expect.closeTo(734, 0) as any,
-      mimeType: 'video/mp4; codecs="avc1.4d4028,mp3"; profiles="qt  "',
       videoStreams: [
         {
           id: 1,
@@ -30,9 +29,9 @@ describe('getMediaInfo with large MOV files', () => {
         {
           id: 2,
           codec: 'mp3',
-          codecDetail: 'mp3',
-          channelCount: undefined, // mp3 in MOV doesn't provide channel count via mp4box
-          sampleRate: undefined, // mp3 in MOV doesn't provide sample rate via mp4box
+          codecDetail: '.mp3',
+          channelCount: 2,
+          sampleRate: 44100,
           bitrate: expect.closeTo(192000, -3) as any,
           durationInSeconds: expect.closeTo(734, 0) as any,
         },

@@ -25,21 +25,25 @@ describe('MP4 Parser', () => {
       videoStreams: [
         {
           codec: 'h264',
-          codecDetail: 'avc1',
+          codecDetail: 'avc1.64001f',
           durationInSeconds: expect.closeTo(6, 0),
           id: 1,
           width: 1280,
           height: 534,
+          fps: 24,
+          bitrate: 349083,
         },
       ],
       audioStreams: [
         {
           codec: 'aac',
-          codecDetail: 'mp4a.40',
+          codecDetail: 'mp4a.40.02',
           durationInSeconds: expect.closeTo(6, 0),
           id: 2,
           sampleRate: 44100,
+          bitrate: expect.closeTo(127930, -3) as any,
           channelCount: 2,
+          profile: 'LC',
         },
       ],
     });
@@ -56,11 +60,13 @@ describe('MP4 Parser', () => {
       videoStreams: [
         {
           codec: 'h264',
-          codecDetail: 'avc1',
+          codecDetail: 'avc1.64001f',
           durationInSeconds: expect.closeTo(6, 0),
           id: 1,
           width: 1280,
           height: 534,
+          fps: 24,
+          bitrate: 349083,
         },
       ],
       audioStreams: [
@@ -70,6 +76,7 @@ describe('MP4 Parser', () => {
           durationInSeconds: expect.closeTo(6, 0),
           id: 2,
           sampleRate: 44100,
+          bitrate: expect.closeTo(128452, -3) as any,
           channelCount: 2,
         },
       ],
@@ -83,8 +90,29 @@ describe('MP4 Parser', () => {
       container: 'mov',
       containerDetail: 'qt  , qt  ',
       durationInSeconds: expect.closeTo(6, 0),
-      videoStreams: [{ codec: 'h264', width: 1280, height: 534, id: 1, codecDetail: 'avc1', durationInSeconds: expect.closeTo(6, 0) }],
-      audioStreams: [{ codec: 'aac', id: 2, codecDetail: 'mp4a', channelCount: 2, sampleRate: 44100, durationInSeconds: expect.closeTo(6, 0) }],
+      videoStreams: [
+        {
+          codec: 'h264',
+          width: 1280,
+          height: 534,
+          id: 1,
+          codecDetail: 'avc1.4d401f',
+          durationInSeconds: expect.closeTo(6, 0),
+          fps: expect.closeTo(22.1, 1),
+          bitrate: 939149,
+        },
+      ],
+      audioStreams: [
+        {
+          codec: 'aac',
+          id: 2,
+          codecDetail: 'mp4a',
+          channelCount: 2,
+          sampleRate: 44100,
+          bitrate: expect.closeTo(131692, -3) as any,
+          durationInSeconds: expect.closeTo(6, 0),
+        },
+      ],
     });
   });
 

@@ -1,3 +1,4 @@
+/* eslint-disable max-depth */
 import { toHexString } from '../codecs/binary';
 import { GetMediaInfoOptions } from '../get-media-info';
 import { findAudioCodec, findVideoCodec, MediaInfo } from '../media-info';
@@ -48,6 +49,12 @@ interface TrackContext {
   stsz?: { sampleSize: number; sampleCount: number; entries: number[] };
   stco?: number[];
   co64?: number[];
+
+  // New metadata
+  sampleCount?: number;
+  bitrate?: number;
+  totalBytes?: number;
+  profile?: string;
 }
 
 interface ChunkInfo {
@@ -78,7 +85,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
   async function ensureBytes(needed: number): Promise<boolean> {
     while (buffer.length - bufferOffset < needed) {
       const result = await ensureBufferData(reader, buffer, bufferOffset, needed);
-      buffer = result.buffer;
+      buffer = result.buffer as Uint8Array;
       bufferOffset = result.bufferOffset;
       if (result.done) {
         return false;
@@ -117,6 +124,21 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
     bufferOffset += length;
     offset += length;
     return str;
+  }
+
+  function readDescriptorHeader(): { tag: number; length: number; headerSize: number } {
+    const tag = readUInt8();
+    let length = 0;
+    let headerSize = 1;
+    let byte = readUInt8();
+    headerSize++;
+    while (byte & 0x80) {
+      length = (length << 7) | (byte & 0x7f);
+      byte = readUInt8();
+      headerSize++;
+    }
+    length = (length << 7) | (byte & 0x7f);
+    return { tag, length, headerSize };
   }
 
   // Skip bytes, either from buffer or by refilling
@@ -441,20 +463,41 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
         }
 
         case ATOM_STSZ: {
-          if (currentTrack && options?.onSamples) {
+          if (currentTrack) {
             await skip(4); // version, flags
             if (!(await ensureBytes(8))) throw new UnsupportedFormatError('EOF');
             const sampleSize = readUInt32BE();
             const sampleCount = readUInt32BE();
-            currentTrack.stsz = { sampleSize, sampleCount, entries: [] };
-            if (sampleSize === 0) {
-              for (let i = 0; i < sampleCount; i++) {
-                if (await ensureBytes(4)) {
-                  currentTrack.stsz.entries.push(readUInt32BE());
+            currentTrack.sampleCount = sampleCount;
+            if (sampleSize > 0) {
+              currentTrack.totalBytes = sampleSize * sampleCount;
+              if (options?.onSamples) {
+                currentTrack.stsz = { sampleSize, sampleCount, entries: [] };
+              }
+            } else {
+              // Read entries if we need them for samples OR if we need to calculate bitrate
+              const needSizes = options?.onSamples || !currentTrack.bitrate;
+
+              if (needSizes) {
+                let totalBytes = 0;
+                const entries: number[] | undefined = options?.onSamples ? [] : undefined;
+
+                for (let i = 0; i < sampleCount; i++) {
+                  if (await ensureBytes(4)) {
+                    const size = readUInt32BE();
+                    totalBytes += size;
+                    if (entries) entries.push(size);
+                  }
+                }
+                currentTrack.totalBytes = totalBytes;
+
+                if (entries) {
+                  currentTrack.stsz = { sampleSize, sampleCount, entries };
                 }
               }
             }
           }
+
           const parsedSoFar = offset - atomStart;
           if (parsedSoFar < atomSize) await skip(atomSize - parsedSoFar);
           break;
@@ -521,7 +564,53 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
 
               if (!currentTrack.width) currentTrack.width = width;
               if (!currentTrack.height) currentTrack.height = height;
+
+              // Skip remaining visual sample entry fields:
+              // horiz res (4), vert res (4), reserved (4), frame count (2), compressor (32), depth (2), pre_defined (2)
+              await skip(50);
+
+              // Children parsing for codec details and bitrate
+              const consumed = offset - entryStart;
+              let remaining = entrySize - consumed;
+
+              while (remaining >= 8) {
+                if (!(await ensureBytes(8))) break;
+                // Don't read subAtomStart from offset here as ensureBytes might have refilled buffer and offset is logical
+                // actually offset is tracked correctly.
+                const subAtomSize = readUInt32BE();
+                const subAtomType = readString(4);
+
+                if (subAtomSize < 8 || subAtomSize > remaining) break;
+
+                if (subAtomType === 'avcC') {
+                  // AVC Configuration Box
+                  if (await ensureBytes(4)) {
+                    await skip(1); // config version
+                    const profile = readUInt8();
+                    const compatibility = readUInt8();
+                    const level = readUInt8();
+                    if (currentTrack.codecDetail && !currentTrack.codecDetail.includes('.')) {
+                      currentTrack.codecDetail += `.${toHexString(profile)}${toHexString(compatibility)}${toHexString(level)}`;
+                    }
+                    // skip remaining avcC data: subAtomSize - 8 (atom header) - 4 (read bytes) = subAtomSize - 12
+                    await skip(subAtomSize - 12);
+                  }
+                } else if (subAtomType === 'bitr') {
+                  // BitRate Box
+                  if (await ensureBytes(12)) {
+                    await skip(4); // bufferSizeDB
+                    const maxBitrate = readUInt32BE();
+                    const avgBitrate = readUInt32BE();
+                    currentTrack.bitrate = avgBitrate > 0 ? avgBitrate : maxBitrate;
+                    await skip(subAtomSize - 8 - 12);
+                  }
+                } else {
+                  await skip(subAtomSize - 8);
+                }
+                remaining -= subAtomSize;
+              }
             } else if (currentTrack?.type === 'audio') {
+              const track = currentTrack; // Capture non-null reference
               let detailedFormat = format;
               await skip(8); // reserved
               if (!(await ensureBytes(12))) throw new UnsupportedFormatError('EOF'); // channel(2), size(2), pre(2), res(2), rate(4)
@@ -530,12 +619,111 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
               await skip(4); // pre_defined, reserved
               const sampleRate = readUInt32BE() / 65536;
 
-              currentTrack.channelCount = channelCount;
-              currentTrack.sampleRate = sampleRate;
+              track.channelCount = channelCount;
+              track.sampleRate = sampleRate;
 
               // Parse children for esds
               const consumed = offset - entryStart;
               let remainingInMp4a = entrySize - consumed;
+
+              // Helper to parse ESDS atom content
+              const parseEsds = async (_atomSize: number) => {
+                await skip(4); // version/flags
+
+                if (await ensureBytes(20)) {
+                  const esDesc = readDescriptorHeader();
+                  if (esDesc.tag === 0x03) {
+                    // Object Descriptor
+                    await skip(2); // ES_ID
+                    const flags = readUInt8();
+                    if (flags & 0x80) await skip(2);
+                    if (flags & 0x40) {
+                      const urlLen = readUInt8();
+                      await skip(urlLen);
+                    }
+                    if (flags & 0x20) await skip(2);
+
+                    const decConfig = readDescriptorHeader();
+                    if (decConfig.tag === 0x04) {
+                      // ES Descriptor
+                      // Header is 13 bytes: objectTypeIndication(1) + streamType(1) + bufferSizeDb(3) + maxBitrate(4) + avgBitrate(4)
+                      if (await ensureBytes(13)) {
+                        const objectTypeIndication = readUInt8();
+                        const _streamType = readUInt8();
+                        const _bufferSizeDb = (readUInt8() << 16) | readUInt16BE();
+                        const maxBitrate = readUInt32BE();
+                        const avgBitrate = readUInt32BE();
+                        track.bitrate = avgBitrate > 0 ? avgBitrate : maxBitrate;
+
+                        detailedFormat = `mp4a.${toHexString(objectTypeIndication)}`;
+
+                        let remainingInDecConfig = decConfig.length - 13;
+
+                        while (remainingInDecConfig > 0) {
+                          const childDesc = readDescriptorHeader();
+                          remainingInDecConfig -= childDesc.headerSize + childDesc.length;
+
+                          if (childDesc.tag === 0x05) {
+                            // DecoderSpecificInfo
+                            if (await ensureBytes(childDesc.length)) {
+                              const startAsc = offset; // offset is tracked by read helper
+
+                              // Parse AudioSpecificConfig (bits)
+                              const byte0 = readUInt8();
+                              let audioObjectType = (byte0 >> 3) & 0x1f;
+                              if (audioObjectType === 31) {
+                                const byte1 = readUInt8();
+                                audioObjectType = 32 + ((byte1 >> 2) & 0x3f);
+                              }
+
+                              detailedFormat += `.${toHexString(audioObjectType)}`;
+
+                              switch (audioObjectType) {
+                                case 1: {
+                                  track.profile = 'Main';
+                                  break;
+                                }
+                                case 2: {
+                                  track.profile = 'LC';
+                                  break;
+                                }
+                                case 3: {
+                                  track.profile = 'SSR';
+                                  break;
+                                }
+                                case 4: {
+                                  track.profile = 'LTP';
+                                  break;
+                                }
+                                case 5: {
+                                  track.profile = 'SBR';
+                                  break;
+                                }
+                                default: {
+                                  break;
+                                }
+                              }
+
+                              const readSoFar = offset - startAsc;
+                              if (readSoFar < childDesc.length) {
+                                await skip(childDesc.length - readSoFar);
+                              }
+                            }
+                          } else {
+                            await skip(childDesc.length);
+                          }
+                        }
+                      } else {
+                        await skip(decConfig.length);
+                      }
+                    } else {
+                      await skip(decConfig.length);
+                    }
+                  } else {
+                    await skip(esDesc.length);
+                  }
+                }
+              };
 
               while (remainingInMp4a >= 8) {
                 if (!(await ensureBytes(8))) break;
@@ -546,60 +734,25 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
                 if (subAtomSize < 8 || subAtomSize > remainingInMp4a) break;
 
                 if (subAtomType === ATOM_ESDS) {
-                  await skip(4); // version/flags
+                  await parseEsds(subAtomSize);
+                } else if (subAtomType === 'wave') {
+                  // recurse into wave atom
+                  let remainingInWave = subAtomSize - 8;
+                  while (remainingInWave >= 8) {
+                    if (!(await ensureBytes(8))) break;
+                    const waveSubStart = offset;
+                    const waveSubSize = readUInt32BE();
+                    const waveSubType = readString(4);
 
-                  const readDescriptorHeader = (): { tag: number; length: number; headerSize: number } => {
-                    const tag = readUInt8();
-                    let length = 0;
-                    let headerSize = 1;
-                    let byte = readUInt8();
-                    headerSize++;
-                    while (byte & 0x80) {
-                      length = (length << 7) | (byte & 0x7f);
-                      byte = readUInt8();
-                      headerSize++;
-                    }
-                    length = (length << 7) | (byte & 0x7f);
-                    return { tag, length, headerSize };
-                  };
+                    if (waveSubSize < 8 || waveSubSize > remainingInWave) break;
 
-                  if (await ensureBytes(20)) {
-                    //... esds box data ...
-                    // 03 (TAG 03 - Object Descriptor)
-                    //   [length of data]
-                    //   [ES_ID]
-                    //   04 (TAG 04 - ES Descriptor)
-                    //     [length of data]
-                    //     [Codec type/stream type info, bitrates, etc.]
-                    //     05 (TAG 05 - Audio Specific Config / Decoder Config Descriptor)
-                    //       [length of data]
-                    //       [Specific config data like sample rate, channels for AAC]
-                    //     06 (TAG 06 - SL Config Descriptor)
-                    //       ...
-                    const esDesc = readDescriptorHeader();
-                    if (esDesc.tag === 0x03) {
-                      // Object Descriptor
-                      await skip(2); // ES_ID
-                      const flags = readUInt8();
-                      if (flags & 0x80) await skip(2);
-                      if (flags & 0x40) {
-                        const urlLen = readUInt8();
-                        await skip(urlLen);
-                      }
-                      if (flags & 0x20) await skip(2);
-
-                      const decConfig = readDescriptorHeader();
-                      if (decConfig.tag === 0x04) {
-                        // ES Descriptor
-                        const objectTypeIndication = readUInt8();
-                        detailedFormat += `.${toHexString(objectTypeIndication)}`;
-                        await skip(decConfig.length - 1);
-                      } else {
-                        await skip(decConfig.length);
-                      }
+                    if (waveSubType === ATOM_ESDS) {
+                      await parseEsds(waveSubSize);
                     } else {
-                      await skip(esDesc.length);
+                      const parsedWaveSub = offset - waveSubStart;
+                      if (parsedWaveSub < waveSubSize) await skip(waveSubSize - parsedWaveSub);
                     }
+                    remainingInWave -= waveSubSize;
                   }
                 }
 
@@ -610,8 +763,8 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
                 remainingInMp4a -= subAtomSize;
               }
               const audioCodec = findAudioCodec(detailedFormat);
-              currentTrack.codec = audioCodec ? audioCodec.code : detailedFormat;
-              currentTrack.codecDetail = detailedFormat;
+              track.codec = audioCodec ? audioCodec.code : detailedFormat;
+              track.codecDetail = detailedFormat;
             }
 
             const parsedEntry = offset - entryStart;
@@ -675,8 +828,10 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
         id: t.id,
         codec: t.codec as any,
         codecDetail: t.codecDetail,
-        width: t.width || 0,
-        height: t.height || 0,
+        width: t.width || undefined,
+        height: t.height || undefined,
+        bitrate: t.bitrate || (t.totalBytes && t.duration ? Math.round((t.totalBytes * 8) / t.duration) : undefined),
+        fps: t.sampleCount && t.duration ? t.sampleCount / t.duration : undefined,
         durationInSeconds: t.duration || mediaInfo.durationInSeconds,
       }));
 
@@ -686,9 +841,11 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
         id: t.id,
         codec: t.codec as any,
         codecDetail: t.codecDetail,
-        channelCount: t.channelCount || 0,
-        sampleRate: t.sampleRate || 0,
+        channelCount: t.channelCount || undefined,
+        sampleRate: t.sampleRate || undefined,
+        bitrate: t.bitrate || (t.totalBytes && t.duration ? Math.round((t.totalBytes * 8) / t.duration) : undefined),
         durationInSeconds: t.duration || mediaInfo.durationInSeconds,
+        ...(t.profile ? { profile: t.profile } : {}),
       }));
 
     return mediaInfo;

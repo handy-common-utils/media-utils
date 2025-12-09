@@ -1,7 +1,5 @@
 import { describe, expect } from '@jest/globals';
 
-import { GetMediaInfoOptions } from '../../src/get-media-info';
-import { MediaInfo } from '../../src/media-info';
 import { runGetMediaInfoTestCases } from '../test-utils';
 
 describe('getMediaInfo with media-utils parser', () => {
@@ -488,17 +486,105 @@ describe('getMediaInfo with media-utils parser', () => {
         ],
       },
     },
-    // Failure cases
-    ...['engine-start.h264.aac.mp4', 'engine-start.h264.aac.mov', 'engine-start.h264.mp3.mov'].map((filename) => ({
-      filename,
-      options: { useParser: 'media-utils' } as GetMediaInfoOptions,
+    {
+      filename: 'engine-start.h264.aac.mp4',
+      options: { useParser: 'media-utils' },
       expectedMediaInfo: {
-        audioStreams: [],
-        videoStreams: [],
         container: 'mp4',
+        containerDetail: 'isom, isom, iso2, avc1, mp41',
         parser: 'media-utils',
-      } as MediaInfo,
-      shouldFail: true,
-    })),
+        durationInSeconds: 6,
+        audioStreams: [
+          {
+            id: 2,
+            codec: 'aac',
+            codecDetail: 'mp4a.40.02',
+            sampleRate: 44100,
+            channelCount: 2,
+            bitrate: 127930,
+            profile: 'LC',
+            durationInSeconds: 6,
+          },
+        ],
+        videoStreams: [
+          {
+            id: 1,
+            codec: 'h264',
+            codecDetail: 'avc1.64001f',
+            width: 1280,
+            height: 534,
+            durationInSeconds: 6,
+            bitrate: 349083,
+            fps: 24,
+          },
+        ],
+      },
+    },
+    {
+      filename: 'engine-start.h264.aac.mov',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        container: 'mov',
+        containerDetail: 'qt  , qt  ',
+        parser: 'media-utils',
+        durationInSeconds: 6.02,
+        audioStreams: [
+          {
+            id: 2,
+            codec: 'aac',
+            codecDetail: 'mp4a',
+            sampleRate: 44100,
+            channelCount: 2,
+            bitrate: 131692,
+            durationInSeconds: 5.98204081632653,
+          },
+        ],
+        videoStreams: [
+          {
+            id: 1,
+            codec: 'h264',
+            codecDetail: 'avc1.4d401f',
+            width: 1280,
+            height: 534,
+            bitrate: 939149,
+            durationInSeconds: 6.019694010416667,
+            fps: 22.0941462755171,
+          },
+        ],
+      },
+    },
+    {
+      filename: 'engine-start.h264.mp3.mov',
+      options: { useParser: 'media-utils' },
+      expectedMediaInfo: {
+        container: 'mov',
+        containerDetail: 'qt  , qt  ',
+        parser: 'media-utils',
+        durationInSeconds: 6.042,
+        audioStreams: [
+          {
+            id: 2,
+            codec: 'mp3',
+            codecDetail: '.mp3',
+            sampleRate: 44100,
+            channelCount: 2,
+            bitrate: 191269,
+            durationInSeconds: 6.0048979591836735,
+          },
+        ],
+        videoStreams: [
+          {
+            id: 1,
+            codec: 'h264',
+            codecDetail: 'avc1.4d401f',
+            width: 1280,
+            height: 534,
+            bitrate: 935734,
+            durationInSeconds: 6.041666666666667,
+            fps: 22.013793103448275,
+          },
+        ],
+      },
+    },
   ]);
 });

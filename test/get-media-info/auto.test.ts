@@ -5,10 +5,10 @@ import { sampleFile } from '../test-utils';
 
 describe('getMediaInfo with auto parser (default)', () => {
   const fixtures: Record<string, 'mp4box' | 'isoboxer' | 'remotion' | 'media-utils'> = {
-    'engine-start.h264.aac.mp4': 'mp4box',
-    'engine-start.h264.mp3.mp4': 'mp4box',
-    'engine-start.h264.aac.mov': 'mp4box',
-    'engine-start.h264.mp3.mov': 'mp4box',
+    'engine-start.h264.aac.mp4': 'media-utils',
+    'engine-start.h264.mp3.mp4': 'media-utils',
+    'engine-start.h264.aac.mov': 'media-utils',
+    'engine-start.h264.mp3.mov': 'media-utils',
     'engine-start.vp9.opus.webm': 'media-utils',
     'engine-start.wmv2.wmav2.wmv': 'media-utils',
     'engine-start.mjpeg.pcms16le.avi': 'media-utils',

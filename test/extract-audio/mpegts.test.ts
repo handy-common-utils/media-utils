@@ -2,7 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import { extractAudioFromFileToFile } from '../../src/extract-audio';
 import { getMediaInfoFromFile } from '../../src/get-media-info';
-import { assertFileSizeGreaterThanZero, outputFile, sampleFile } from '../test-utils';
+import { assertFileSize, outputFile, sampleFile } from '../test-utils';
 
 describe('Extract Audio from MPEG-TS', () => {
   it('should extract MP2 audio from MPEG-TS file', async () => {
@@ -10,7 +10,7 @@ describe('Extract Audio from MPEG-TS', () => {
     const outputPath = outputFile('extracted-mp2-from-mpegts.mp2');
 
     await extractAudioFromFileToFile(inputFile, outputPath, { useParser: 'media-utils' });
-    assertFileSizeGreaterThanZero(outputPath);
+    assertFileSize(outputPath);
 
     // Verify the extracted file
     const info = await getMediaInfoFromFile(outputPath, { useParser: 'media-utils' });
@@ -43,7 +43,7 @@ describe('Extract Audio from MPEG-TS', () => {
     const outputPath = outputFile('extracted-aac-from-mpegts.aac');
 
     await extractAudioFromFileToFile(inputFile, outputPath, { useParser: 'media-utils' });
-    assertFileSizeGreaterThanZero(outputPath);
+    assertFileSize(outputPath);
 
     // Verify the extracted file
     const info = await getMediaInfoFromFile(outputPath, { useParser: 'media-utils' });
@@ -71,7 +71,7 @@ describe('Extract Audio from MPEG-TS', () => {
     const outputPath = outputFile('extracted-mp3-from-mpegts.mp3');
 
     await extractAudioFromFileToFile(inputFile, outputPath, { useParser: 'media-utils' });
-    assertFileSizeGreaterThanZero(outputPath);
+    assertFileSize(outputPath);
 
     // Verify the extracted file exists and has content
     const info = await getMediaInfoFromFile(outputPath, { useParser: 'media-utils' });
