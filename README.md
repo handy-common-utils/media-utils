@@ -192,9 +192,16 @@ await extractAudio(inputStream, outputStream, {
 });
 ```
 
+## Errors
+
+In case the input is corrupted or the format or codec is not recognisable, `UnsupportedFormatError` would be thrown.
+
 ## Logging Control
 
-The verbosity of the library can be controlled through function options and environment variables.
+Log messages are single line text strings printed to console.
+The verbosity of the logging can be controlled through function options and environment variables.
+
+Unless explicitly configured, nothing would be logged (`quiet` is `true` by default).
 
 ### Options
 
