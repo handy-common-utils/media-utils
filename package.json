@@ -6,7 +6,7 @@
     "download-sample-media-files": "bash test/download-sample-media-files.sh",
     "pretest": "eslint . --ext .ts && npm run download-sample-media-files",
     "test": "rm -rf test/output/test-report*.json && NODE_OPTIONS='--experimental-vm-modules' jest",
-    "doc": "generate-api-docs-and-update-readme && ts-node test/report.ts",
+    "doc": "generate-api-docs-and-update-readme && ts-node test/report.ts && prettier README.md --write",
     "compile": "shx rm -rf dist && tsc",
     "prepare": "husky",
     "prepack": "npm run compile",

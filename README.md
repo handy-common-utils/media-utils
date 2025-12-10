@@ -78,8 +78,8 @@ This table lists the combinations verified by our test suite.
 | Format/Container | Video Codec | Audio Codec(s) | File Remark | Supported |
 | :--------------- | :---------- | :------------- | :---------- | :-------: |
 | **aac**          |             | aac            |             |    ✅     |
-| **asf**          |             | wmav2          |             |    ✅     |
-| **asf**          | wmv2        | wmav2          |             |    ✅     |
+| **asf/wma**      |             | wmav2          |             |    ✅     |
+| **asf/wmv**      | wmv2        | wmav2          |             |    ✅     |
 | **avi**          | h264        | pcm_s16le      |             |    ✅     |
 | **avi**          | mjpeg       | pcm_s16le      |             |    ✅     |
 | **avi**          | mpeg4       | ac3            | 5 channels  |    ✅     |
@@ -153,7 +153,7 @@ await extractAudioFromFileToFile('input-video.mp4', 'output-audio.aac');
 
 | Format/Container | Video Codec | Audio Codec(s) | File Remark | Supported | Extracted Audio          |
 | :--------------- | :---------- | :------------- | :---------- | :-------: | :----------------------- |
-| **asf**          | wmv2        | wmav2          |             |    ✅     | **wmav2** in **asf**     |
+| **asf/wmv**      | wmv2        | wmav2          |             |    ✅     | **wmav2** in **asf**     |
 | **avi**          | h264        | adpcm_ms       |             |    ✅     | **adpcm_ms** in **wav**  |
 | **avi**          | h264        | pcm_s16le      |             |    ✅     | **pcm_s16le** in **wav** |
 | **avi**          | h264        | pcm_u8         |             |    ✅     | **pcm_u8** in **wav**    |

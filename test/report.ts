@@ -41,8 +41,12 @@ function generateGetMediaInfoMarkdownTable(data: Map<string, GetMediaInfoTestRep
   lines.push('| Format/Container | Video Codec | Audio Codec(s) | File Remark | Supported |', '| :--- | :--- | :--- | :--- | :---: |');
 
   for (const [_, entry] of data) {
+    let containerLabel = entry.container;
+    if (containerLabel === 'asf') {
+      containerLabel = entry.videoCodec ? 'asf/wmv' : 'asf/wma';
+    }
     const supportedMark = entry.succeeded ? '✅' : '❌';
-    const row = `| **${entry.container}** | ${entry.videoCodec || ''} | ${entry.audioCodec || ''} | ${entry.fileRemark || ''} | ${supportedMark} |`;
+    const row = `| **${containerLabel}** | ${entry.videoCodec || ''} | ${entry.audioCodec || ''} | ${entry.fileRemark || ''} | ${supportedMark} |`;
     lines.push(row);
   }
   return lines.join('\n');
@@ -70,8 +74,12 @@ function generateExtractAudioMarkdownTable(data: Map<string, ExtractAudioTestRep
   );
 
   for (const [_, entry] of data) {
+    let containerLabel = entry.container;
+    if (containerLabel === 'asf') {
+      containerLabel = entry.videoCodec ? 'asf/wmv' : 'asf/wma';
+    }
     const supportedMark = entry.succeeded ? '✅' : '❌';
-    const row = `| **${entry.container}** | ${entry.videoCodec || ''} | ${entry.audioCodec || ''} | ${entry.fileRemark || ''} | ${supportedMark} | ${entry.succeeded ? `**${entry.extractedAudioCodec}** in **${entry.extractedAudioContainer}**` : ''} |`;
+    const row = `| **${containerLabel}** | ${entry.videoCodec || ''} | ${entry.audioCodec || ''} | ${entry.fileRemark || ''} | ${supportedMark} | ${entry.succeeded ? `**${entry.extractedAudioCodec}** in **${entry.extractedAudioContainer}**` : ''} |`;
     lines.push(row);
   }
   return lines.join('\n');
