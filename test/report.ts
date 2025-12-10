@@ -1,6 +1,8 @@
 /* eslint-disable unicorn/prefer-module */
 import { replaceInFile } from '@handy-common-utils/fs-utils';
-import fs from 'node:fs';
+import { merge } from '@handy-common-utils/misc-utils';
+import { withConcurrency } from '@handy-common-utils/promise-utils';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { ExtractAudioTestReportItem, GetMediaInfoTestReportItem, TestReportData } from './test-utils';
@@ -40,7 +42,7 @@ function generateGetMediaInfoMarkdownTable(data: Map<string, GetMediaInfoTestRep
 
   for (const [_, entry] of data) {
     const supportedMark = entry.succeeded ? '✅' : '❌';
-    const row = `| __${entry.container}__ | ${entry.videoCodec || ''} | ${entry.audioCodec || ''} | ${entry.fileRemark || ''} | ${supportedMark} |`;
+    const row = `| **${entry.container}** | ${entry.videoCodec || ''} | ${entry.audioCodec || ''} | ${entry.fileRemark || ''} | ${supportedMark} |`;
     lines.push(row);
   }
   return lines.join('\n');
@@ -69,20 +71,36 @@ function generateExtractAudioMarkdownTable(data: Map<string, ExtractAudioTestRep
 
   for (const [_, entry] of data) {
     const supportedMark = entry.succeeded ? '✅' : '❌';
-    const row = `| __${entry.container}__ | ${entry.videoCodec || ''} | ${entry.audioCodec || ''} | ${entry.fileRemark || ''} | ${supportedMark} | ${entry.succeeded ? `__${entry.extractedAudioCodec}__ in __${entry.extractedAudioContainer}__` : ''} |`;
+    const row = `| **${entry.container}** | ${entry.videoCodec || ''} | ${entry.audioCodec || ''} | ${entry.fileRemark || ''} | ${supportedMark} | ${entry.succeeded ? `**${entry.extractedAudioCodec}** in **${entry.extractedAudioContainer}**` : ''} |`;
     lines.push(row);
   }
   return lines.join('\n');
+}
+
+async function readTestReportData(): Promise<TestReportData> {
+  const reportsDir = path.resolve(__dirname, 'output');
+  const files = await fs.readdir(reportsDir);
+  const dataArray = await withConcurrency(
+    4,
+    files.filter((file) => file.startsWith('test-report_') && file.endsWith('.json')),
+    async (file) => {
+      const filePath = path.join(reportsDir, file);
+      const content = await fs.readFile(filePath, 'utf8');
+      return JSON.parse(content) as TestReportData;
+    },
+  );
+
+  const allData: TestReportData = merge({ array: 'append' }, {}, ...dataArray);
+
+  await fs.writeFile(path.join(reportsDir, 'test-report.json'), JSON.stringify(allData, null, 2), 'utf8');
+  return allData;
 }
 
 /**
  * Main function to read the file, process data, and generate the table.
  */
 async function main() {
-  const dataFilePath = path.resolve(__dirname, 'output/test-report.json');
-
-  const dataFileContent = fs.readFileSync(dataFilePath, 'utf8');
-  const reportData = JSON.parse(dataFileContent) as TestReportData;
+  const reportData = await readTestReportData();
 
   const getMediaInfoSummary = summariseGetMediaInfo(reportData.getMediaInfo, 'media-utils');
   const getMediaInfoMarkdownTable = generateGetMediaInfoMarkdownTable(getMediaInfoSummary);

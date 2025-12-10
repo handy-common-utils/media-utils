@@ -1,24 +1,77 @@
 # @handy-common-utils/media-utils
 
-A pure-JS, no-FFmpeg media info parser and audio stream extractor which works with popular formats and codecs.
-It runs well in both browser and Node.js environments.
+A **pure-JavaScript** library for efficiently parsing media information and extracting audio streams.
+It works with **all popular formats and codecs** directly in the **browser and Node.js**,
+without relying on external binaries like FFmpeg or WASM.
 
 [![Version](https://img.shields.io/npm/v/@handy-common-utils/media-utils.svg)](https://npmjs.org/package/@handy-common-utils/media-utils)
 [![Downloads/week](https://img.shields.io/npm/dw/@handy-common-utils/media-utils.svg)](https://npmjs.org/package/@handy-common-utils/media-utils)
 [![CI](https://github.com/handy-common-utils/media-utils/actions/workflows/ci.yml/badge.svg)](https://github.com/handy-common-utils/media-utils/actions/workflows/ci.yml)
 
-### Key Features
+## Why Use @handy-common-utils/media-utils?
 
-- **Browser & Node.js**: Works in both environments (file system helpers are Node.js only).
-- **Wide range of supported formats/codecs**: All popular container formats and audio/video codecs are supported.
-- **Pure Javascript**: There is no need for any executable binary or WASM.
-- **Convenient API**: Ready to use functions for operating on web streams, browser streams, and file paths.
+- **Pure JavaScript**: No reliance on FFmpeg, WASM, or any 3rd party media parsing or processing tools or packages.
+- **Universal Compatibility**: Runs flawlessly in both Node.js and Browser environments.
+- **Wide Format Support**: Supports all popular container formats (MP4, MKV, WebM, MOV, AVI, WMV, MPEG-TS, etc.) and audio/video codecs.
+- **Convenient API**: Easily process data from Web Streams, Node.js Streams, and Node.js file systems.
+- **Fast Audio Extraction**: Extract audio streams from video files without re-encoding to preserve quality and speed.
+
+## Installation
+
+```shell
+npm install @handy-common-utils/media-utils
+```
 
 ## Getting Media Information
 
-This library provides a unified interface to extract media information (duration, video/audio streams, codecs, etc.) from various media formats. All popular container formats and audio/video codecs are supported.
+Use `getMediaInfo()` to extract crucial metadata like duration, stream details (video/audio), and codec information from any supported media format. All popular container formats and audio/video codecs are supported.
 
-### Verified Combinations supported by getMediaInfo() function
+`getMediaInfo()` works with Web Streams. If you'd like to use Node.js Stream or Node.js file system, try `Readable.toWeb()` or `getMediaInfoFromFile()`.
+
+### Example: Quick Start
+
+```typescript
+import { getMediaInfoFromFile } from '@handy-common-utils/media-utils';
+
+// Read from a file path (Node.js only)
+const info = await getMediaInfoFromFile('path/to/video.mp4');
+
+console.log(JSON.stringify(info, null, 2));
+//   {
+//     parser: 'media-utils',
+//     container: 'mp4',
+//     containerDetail: 'mp42, isom, mp42',
+//     durationInSeconds: 734,
+//     videoStreams: [
+//       {
+//         id: 1,
+//         codec: 'h264',
+//         codecDetail: 'avc1.64001f',
+//         width: 1280,
+//         height: 534,
+//         fps: 24,
+//         bitrate: 1830000,
+//         durationInSeconds: 734,
+//       },
+//     ],
+//     audioStreams: [
+//       {
+//         id: 2,
+//         codec: 'aac',
+//         codecDetail: 'mp4a.40.02',
+//         profile: 'LC',
+//         channelCount: 2,
+//         sampleRate: 44100,
+//         bitrate: 192000,
+//         durationInSeconds: 734,
+//       },
+//     ],
+//   }
+```
+
+### Verified Combinations
+
+This table lists the combinations verified by our test suite.
 
 <!-- getMediaInfo table start -->
 
@@ -26,6 +79,7 @@ This library provides a unified interface to extract media information (duration
 | :--------------- | :---------- | :------------- | :---------- | :-------: |
 | **aac**          |             | aac            |             |    ✅     |
 | **asf**          |             | wmav2          |             |    ✅     |
+| **asf**          | wmv2        | wmav2          |             |    ✅     |
 | **avi**          | h264        | pcm_s16le      |             |    ✅     |
 | **avi**          | mjpeg       | pcm_s16le      |             |    ✅     |
 | **avi**          | mpeg4       | ac3            | 5 channels  |    ✅     |
@@ -40,6 +94,7 @@ This library provides a unified interface to extract media information (duration
 | **mp4**          | h264        | aac            |             |    ✅     |
 | **mp4**          | h264        | mp3            |             |    ✅     |
 | **mpegts**       | mpeg2video  | mp2            |             |    ✅     |
+| **ogg**          |             | opus           |             |    ✅     |
 | **ogg**          |             | vorbis         |             |    ✅     |
 | **wav**          |             | pcm_s16le      |             |    ✅     |
 | **webm**         | av1         | opus           |             |    ✅     |
@@ -51,42 +106,48 @@ This library provides a unified interface to extract media information (duration
 
 Note: For streaming MKV, no stream details are available.
 
-### 3rd party parsers
+### Integration with Third-Party Parsers (Optional)
 
-There is no need to use any 3rd party parsers, this library supports all popular container formats and audio/video codecs.
+While `@handy-common-utils/media-utils` provides built-in support for all popular formats,
+it can also automatically integrate with other well-known Javascript parsers as a fallback or for specific needs.
 
-However, if you really want to try 3rd party parsers, below are the parsers supported:
-
+- `media-utils` (built-in): This is the recommended default, all popular formats are supported.
 - `mp4box`: [mp4box](https://www.npmjs.com/package/mp4box), handles only MP4/MOV containers.
 - `isoboxer`: [codem-isoboxer](https://www.npmjs.com/package/codem-isoboxer), handles only MP4/MOV containers.
 - `remotion`: [@remotion/media-parser](https://www.npmjs.com/package/@remotion/media-parser), handles more formats
 
-This library will pick them up automatically if they are installed.
+If you install any of these packages, `getMediaInfo()` will use them as a fallback mechanism.
 
-To specify which parser to use, set the `useParser` property in the options object passed to `getMediaInfo()`.
-`auto`
-
-### Example
+To force a specific parser, use the `useParser` option:
 
 ```typescript
-import { getMediaInfoFromFile } from '@handy-common-utils/media-utils';
-
-// Automatically choose the parser that works (media-utils -> mp4box -> remotion)
-// This is recommended because this library supports more formats/codecs.
-const info = await getMediaInfoFromFile('path/to/video.mp4');
-console.log(`Duration: ${info.durationInSeconds}s`);
-console.log(`Video: ${info.videoStreams[0]?.codec}`);
-console.log(`Audio: ${info.audioStreams[0]?.codec}`);
-
-// Force a specific parser
+// Force mp4box parser (must be installed separately)
 const infoMp4Box = await getMediaInfoFromFile('path/to/video.mp4', { useParser: 'mp4box' });
+
+// Use built-in parser and fall back to others ('auto' is the default if not specified)
+const infoAuto = await getMediaInfoFromFile('path/to/video.mp4', { useParser: 'auto' });
 ```
 
 ## Extracting Audio Stream
 
-You can extract audio streams from video files (MP4, MOV, MKV/WebM, ASF/WMV, AVI, MPEG-TS) without re-encoding. This is fast and preserves original quality.
+The `extractAudio()` function allows you to extract an audio stream from a video container
+(MP4, MOV, MKV, AVI, etc.) without re-encoding.
+This process is extremely fast and preserves the original audio quality and codec.
 
-### Verified Combinations for extractAudio
+`extractAudio()` works with Web Streams. If you'd like to use Node.js Stream or Node.js file system,
+try `Readable.toWeb()`, `Writable.toWeb`, `extractAudioFromFile()` or `extractAudioFromFileToFile()`.
+
+### Example: Extracting to File
+
+```typescript
+import { extractAudioFromFileToFile } from '@handy-common-utils/media-utils';
+
+// Extracts the first audio stream and writes it to a new file.
+// The output format is automatically determined by the extracted audio codec.
+await extractAudioFromFileToFile('input-video.mp4', 'output-audio.aac');
+```
+
+### Verified Extraction Combinations
 
 <!-- extractAudio table start -->
 
@@ -111,59 +172,47 @@ You can extract audio streams from video files (MP4, MOV, MKV/WebM, ASF/WMV, AVI
 
 <!-- extractAudio table end -->
 
-### Dependencies
+### Advanced Usage: Stream-to-Stream
 
-`extractAudio` requires `mp4box` to be installed.
-
-```shell
-npm install @handy-common-utils/media-utils mp4box
-```
-
-### Example
+You can use the core `extractAudio()` function for greater control over input and output streams:
 
 ```typescript
-import { extractAudioFromFileToFile } from '@handy-common-utils/media-utils';
-
-// Extract the first audio track to a new file
-// If neither trackId nor streamIndex is specified, the first audio stream/track will be extracted
-await extractAudioFromFileToFile('input-video.mp4', 'output-audio.aac');
-
-// Advanced usage with streams and options
 import { extractAudio, createReadableStreamFromFile } from '@handy-common-utils/media-utils';
 import fs from 'node:fs';
 import { Writable } from 'node:stream';
 
 const inputStream = await createReadableStreamFromFile('input.mov');
+// Use a Node.js Writable Stream, converted to a Web WritableStream
 const outputStream = Writable.toWeb(fs.createWriteStream('output.mp3'));
 
 await extractAudio(inputStream, outputStream, {
-  trackId: 2, // Optional: specify track ID (takes precedence over streamIndex)
-  // streamIndex: 0, // Optional: specify the index in all audio streams (0-based)
+  // Optional: Specify which track to extract (trackId takes precedence)
+  trackId: 2,
+  // streamIndex: 0,
 });
 ```
 
-## Logging
+## Logging Control
 
-This library supports logging control via options and environment variables.
+The verbosity of the library can be controlled through function options and environment variables.
 
 ### Options
 
-Both `getMediaInfo` and `extractAudio` accept options to control logging:
+Both `getMediaInfo` and `extractAudio` accept logging options:
 
-- `quiet`: (boolean) If `true`, suppresses all console output. Defaults to `true`.
-- `debug`: (boolean) If `true`, enables debug logging. Defaults to `false`.
-
-This example shows how debug logging can be enabled:
+- `quiet` (boolean): Suppresses all console output. Default: `true`.
+- `debug` (boolean): Enables detailed debug logging. Default: `false`.
 
 ```typescript
+// Enable debug logs for troubleshooting
 await getMediaInfoFromFile('video.mp4', { quiet: false, debug: true });
 ```
 
-Please note that if `quiet` is `true`, debug logging is always disabled even if `debug` is set to `true`.
+**Note**: If `quiet` is `true`, debug logging is automatically disabled.
 
 ### Environment Variables
 
-You can override the logging behavior using environment variables. These variables take precedence over the options passed to functions.
+Environment variables take precedence over function options.
 
 - `MEDIA_UTILS_LOG_QUIET`: Set to 'true' or 'false' to control quiet mode.
 - `MEDIA_UTILS_LOG_DEBUG`: Set to 'true' or 'false' to control debug logging.
@@ -172,30 +221,29 @@ You can override the logging behavior using environment variables. These variabl
 MEDIA_UTILS_LOG_QUIET=false MEDIA_UTILS_LOG_DEBUG=true node my-script.js
 ```
 
-## Utility Functions
+## Utility Functions (Node.js Only)
 
-This library exports several utility functions to help you work with media streams in Node.js environments.
+These functions are provided to help integrate Node.js filesystem operations with the library's Web Stream-based API.
 
 ### `createReadableStreamFromFile(filePath: string)`
 
-Creates a Web `ReadableStream` from a Node.js file path. This is useful when you need to convert a file into a stream for processing.
-
-**Note**: This function only works in Node.js, not in browsers.
+Creates a Web `ReadableStream` from a Node.js file path.
 
 ```typescript
 import { createReadableStreamFromFile } from '@handy-common-utils/media-utils';
 
 const stream = await createReadableStreamFromFile('path/to/media.mp4');
-// Use the stream with getMediaInfo or extractAudio
+// Now the stream can be passed to getMediaInfo or extractAudio
 ```
 
-**Important**: The caller is responsible for properly consuming or cancelling the returned stream to ensure the underlying file handle is released. If the stream is not fully consumed, call `stream.cancel()` to clean up resources.
+**Important**: The caller is responsible for consuming or explicitly cancelling the stream (`stream.cancel()`)
+to release the underlying file handle if the stream is not fully consumed.
+The good news is, `getMediaInfo` and `extractAudio` always does that.
 
 ### `readFromStreamToFile(stream: ReadableStream<Uint8Array>, filePath: string)`
 
-Reads a Web `ReadableStream` and writes it to a file. This is useful for saving processed streams back to disk.
-
-**Note**: This function only works in Node.js, not in browsers.
+Reads a Web `ReadableStream` and writes its content to a file.
+The output directory is automatically created if it doesn't exist.
 
 ```typescript
 import { readFromStreamToFile } from '@handy-common-utils/media-utils';
@@ -203,8 +251,6 @@ import { readFromStreamToFile } from '@handy-common-utils/media-utils';
 // Assuming you have a ReadableStream from some processing
 await readFromStreamToFile(myStream, 'path/to/output.mp4');
 ```
-
-The function automatically creates the output directory if it doesn't exist.
 
 # API
 

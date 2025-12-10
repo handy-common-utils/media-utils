@@ -1,3 +1,4 @@
+import { generateRandomStringQuickly } from '@handy-common-utils/misc-utils';
 import { afterAll, expect, it } from '@jest/globals';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -91,11 +92,13 @@ export interface TestReportData {
   extractAudio: ExtractAudioTestReportItem[];
 }
 
+const TEST_REPORT_DATA_FILE = outputFile(`test-report_${generateRandomStringQuickly(4)}.json`);
+
 /**
  * Cleanup the test report data file
  */
 export function cleanupTestReportData() {
-  const reportFile = outputFile('test-report.json');
+  const reportFile = TEST_REPORT_DATA_FILE;
   fs.writeFileSync(reportFile, JSON.stringify({ getMediaInfo: [], extractAudio: [] }, null, 2), 'utf8');
 }
 
@@ -108,7 +111,7 @@ export function addGetMediaInfoTestReportItem(
   item: Pick<GetMediaInfoTestReportItem, 'parser' | 'filename' | 'succeeded' | 'fileRemark' | 'testRemark'>,
   mediaInfo: MediaInfo | AsfMediaInfo | Mp4MediaInfo,
 ) {
-  const reportFile = outputFile('test-report.json');
+  const reportFile = TEST_REPORT_DATA_FILE;
   if (!fs.existsSync(reportFile)) {
     cleanupTestReportData();
   }
@@ -135,7 +138,7 @@ export function addExtractAudioTestReportItem(
   sourceMediaInfo: MediaInfo,
   audioMediaInfo?: MediaInfo | AsfMediaInfo | Mp4MediaInfo,
 ) {
-  const reportFile = outputFile('test-report.json');
+  const reportFile = TEST_REPORT_DATA_FILE;
   if (!fs.existsSync(reportFile)) {
     cleanupTestReportData();
   }
