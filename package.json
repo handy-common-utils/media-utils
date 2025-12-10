@@ -11,7 +11,7 @@
     "prepare": "husky",
     "prepack": "npm run compile",
     "prepublish": "npm run compile",
-    "preversion": "generate-api-docs-and-update-readme && git add README.md"
+    "preversion": "generate-api-docs-and-update-readme && prettier README.md --write && git add README.md"
   },
   "dependencies": {
     "@handy-common-utils/misc-utils": "^1.11.1",
