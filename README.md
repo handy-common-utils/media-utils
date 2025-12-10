@@ -11,7 +11,7 @@ without relying on external binaries like FFmpeg or WASM.
 ## Why Use @handy-common-utils/media-utils?
 
 - **Pure JavaScript**: No reliance on FFmpeg, WASM, or any 3rd party media parsing or processing tools or packages.
-- **Universal Compatibility**: Runs flawlessly in both Node.js and Browser environments.
+- **Universal Compatibility**: Fully compatible with both Node.js and Browser environments.
 - **Wide Format Support**: Supports all popular container formats (MP4, MKV, WebM, MOV, AVI, WMV, MPEG-TS, etc.) and audio/video codecs.
 - **Convenient API**: Easily process data from Web Streams, Node.js Streams, and Node.js file systems.
 - **Fast Audio Extraction**: Extract audio streams from video files without re-encoding to preserve quality and speed.
