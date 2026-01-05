@@ -1,7 +1,6 @@
 import { withRetry } from '@handy-common-utils/promise-utils';
 
 import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
-import { MediaInfo } from '../media-info';
 import { ParsingError } from '../utils';
 
 /**

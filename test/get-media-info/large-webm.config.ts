@@ -6,6 +6,7 @@ export const largeWebmTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'large_TearsOfSteel.webm',
     expectedMediaInfo: {
+      bytesRead: 12094,
       parser: 'media-utils',
       container: 'webm',
       containerDetail: 'webm',

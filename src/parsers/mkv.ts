@@ -1,5 +1,5 @@
-import { GetMediaInfoOptions } from '../get-media-info';
-import { AudioCodecType, AudioStreamInfo, findAudioCodec, findVideoCodec, MediaInfo, VideoCodecType, VideoStreamInfo } from '../media-info';
+import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
+import { AudioCodecType, AudioStreamInfo, findAudioCodec, findVideoCodec, VideoCodecType, VideoStreamInfo } from '../media-info';
 import { ensureBufferData, setupGlobalLogger, UnsupportedFormatError } from '../utils';
 
 // EBML Element IDs
@@ -69,7 +69,7 @@ export class MkvParser {
   private docType: string | undefined;
 
   private isReady = false;
-  private generatedMediaInfo?: Omit<MediaInfo, 'parser'>;
+  private generatedMediaInfo?: Omit<GetMediaInfoResult, 'parser'>;
 
   private currentTrack: Partial<TrackInfo> = {};
 
@@ -81,7 +81,7 @@ export class MkvParser {
     this.reader = stream.getReader();
   }
 
-  async parse(): Promise<Omit<MediaInfo, 'parser'>> {
+  async parse(): Promise<Omit<GetMediaInfoResult, 'parser'>> {
     const logger = setupGlobalLogger(this.options);
     if (logger.isDebug) logger.debug('Starting parsing MKV/WebM');
     let requiredSize = 64 * 1024;
@@ -189,7 +189,7 @@ export class MkvParser {
 
         // Check if we are done parsing metadata
         if (this.isReady && !this.onSamples && this.generatedMediaInfo) {
-          return this.generatedMediaInfo;
+          return { ...this.generatedMediaInfo, bytesRead: this.offset };
         }
       }
     } finally {
@@ -200,7 +200,7 @@ export class MkvParser {
     }
 
     if (this.generatedMediaInfo) {
-      return this.generatedMediaInfo;
+      return { ...this.generatedMediaInfo, bytesRead: this.offset };
     }
 
     throw new UnsupportedFormatError('Stream ended before MKV/WebM info was found');
@@ -556,7 +556,7 @@ export class MkvParser {
           sampleRate: codecMetadata.sampleRate ?? track.audio.samplingFrequency,
           channelCount: codecMetadata.channelCount ?? track.audio.channels,
           bitsPerSample: codecMetadata.bitsPerSample ?? track.audio.bitDepth,
-          bitrate: codecMetadata.bitrate,
+          ...(codecMetadata.bitrate ? { bitrate: codecMetadata.bitrate } : undefined),
           durationInSeconds: (this.duration * this.timecodeScale) / 1000000000,
         });
       } else if (track.type === 1 && track.video) {
@@ -876,7 +876,7 @@ export class MkvParser {
  * @param options Optional options for the parser
  * @returns Media information without the parser field
  */
-export async function parseMkv(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
+export async function parseMkv(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<Omit<GetMediaInfoResult, 'parser'>> {
   const parser = new MkvParser(stream, options);
   return parser.parse();
 }

@@ -1,7 +1,7 @@
 /* eslint-disable max-depth */
 import { toHexString } from '../codecs/binary';
-import { GetMediaInfoOptions } from '../get-media-info';
-import { AudioCodecType, AudioStreamInfo, findAudioCodec, findVideoCodec, MediaInfo } from '../media-info';
+import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
+import { AudioCodecType, AudioStreamInfo, findAudioCodec, findVideoCodec } from '../media-info';
 import { ensureBufferData, setupGlobalLogger, UnsupportedFormatError } from '../utils';
 
 // Constants for Atom Types
@@ -83,7 +83,7 @@ export type Mp4AudioStreamInfo = AudioStreamInfo & {
   };
 };
 
-export type Mp4MediaInfo = Omit<MediaInfo, 'parser' | 'audioStreams'> & {
+export type Mp4MediaInfo = Omit<GetMediaInfoResult, 'parser' | 'audioStreams'> & {
   audioStreams: Mp4AudioStreamInfo[];
 };
 
@@ -240,9 +240,10 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
     let mdatSize = 0;
 
     let isAtVeryBeginning = true;
+    let shouldKeepParsing = true;
 
     // Top level parsing loop: iterating over atoms
-    while (await ensureBytes(8)) {
+    while (shouldKeepParsing && (await ensureBytes(8))) {
       const atomStart = offset;
       let atomSize = readUInt32BE();
       const atomType = readString(4);
@@ -298,10 +299,18 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
         }
 
         case ATOM_MDAT: {
+          if (logger.isDebug) logger.debug(`Found MDAT at ${atomStart}`);
+
           // Track MDAT position for sample table data
           if (mdatStart === 0) {
             mdatStart = atomStart;
             mdatSize = atomSize;
+          }
+
+          if (!options?.onSamples && !options?.sampleTableInfo && tracks.length > 0) {
+            if (logger.isDebug) logger.debug(`Stop parsing when having ${tracks.length} tracks and seeing MDAT at ${atomStart}`);
+            shouldKeepParsing = false;
+            break;
           }
 
           const extractableTracks = tracks.filter((t) => (t.stco || t.co64) && t.stsz && t.stsc && t.stts && t.type === 'audio');
@@ -930,7 +939,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
         return audioStream;
       });
 
-    return mediaInfo;
+    return { ...mediaInfo, bytesRead: offset };
   } catch (error) {
     if (reader) reader.releaseLock();
     throw error;

@@ -7,6 +7,7 @@ describe('Extract audio from AVI', () => {
     {
       filename: 'engine-start.mjpeg.pcms16le.avi',
       expectedMediaInfo: {
+        bytesRead: 65536,
         audioStreams: [
           {
             bitrate: 1411200,
@@ -34,6 +35,7 @@ describe('Extract audio from AVI', () => {
     {
       filename: 'engine-start.h264.pcms16le.avi',
       expectedMediaInfo: {
+        bytesRead: 65536,
         audioStreams: [
           {
             bitrate: 1411200,
@@ -61,6 +63,7 @@ describe('Extract audio from AVI', () => {
     {
       filename: 'engine-start.h264.pcm_u8.avi',
       expectedMediaInfo: {
+        bytesRead: 65536,
         audioStreams: [
           {
             bitrate: 705600,
@@ -88,6 +91,7 @@ describe('Extract audio from AVI', () => {
     {
       filename: 'engine-start.h264.adpcm_ms.avi',
       expectedMediaInfo: {
+        bytesRead: 65536,
         audioStreams: [
           {
             bitrate: expect.closeTo(356976, -3) as any,

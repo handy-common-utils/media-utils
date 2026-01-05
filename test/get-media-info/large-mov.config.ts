@@ -6,6 +6,7 @@ export const largeMovTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'large_TearsOfSteel.mov',
     expectedMediaInfo: {
+      bytesRead: 583774083, // moov after [mdat] size=583171118
       parser: 'media-utils',
       container: 'mov',
       containerDetail: 'qt  , qt  ',

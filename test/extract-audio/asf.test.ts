@@ -8,6 +8,7 @@ describe('Extract audio from ASF/WMV', () => {
     {
       filename: 'engine-start.wmv2.wmav2.wmv',
       expectedMediaInfo: {
+        bytesRead: 65536,
         parser: 'media-utils',
         container: 'asf',
         containerDetail: 'wma',

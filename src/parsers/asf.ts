@@ -1,8 +1,8 @@
 import { AsfGuid, calculateFieldSizes, matchesGuid, readVarLengthField } from '../codecs/asf';
 import { readUInt16LE, readUInt32LE, readUInt64LE } from '../codecs/binary';
 import { mapWaveFormatTagToCodec, parseWaveFormatEx } from '../codecs/waveformatex';
-import { GetMediaInfoOptions } from '../get-media-info';
-import { AudioStreamInfo, MediaInfo, toVideoCodec, VideoStreamInfo } from '../media-info';
+import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
+import { AudioStreamInfo, toVideoCodec, VideoStreamInfo } from '../media-info';
 import { setupGlobalLogger, UnsupportedFormatError } from '../utils';
 
 /**
@@ -80,7 +80,7 @@ export interface AdditionalStreamInfo {
   extendedStreamPropertiesObject: Uint8Array;
 }
 
-export type AsfMediaInfo = Omit<MediaInfo, 'parser'> & {
+export type AsfMediaInfo = Omit<GetMediaInfoResult, 'parser'> & {
   fileProperties: FileProperties;
   additionalStreamInfo: Map<number, AdditionalStreamInfo>;
 };
@@ -97,6 +97,7 @@ export type AsfMediaInfo = Omit<MediaInfo, 'parser'> & {
 export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: ParseAsfOptions): Promise<AsfMediaInfo> {
   const logger = setupGlobalLogger(options);
   if (logger.isDebug) logger.debug('Starting parsing ASF');
+  let bytesRead = 0;
   const shouldExtractPayload = options?.extractStreams && options?.extractStreams.length > 0 && options?.onPayload;
   const extractStreamSet = new Set(options?.extractStreams);
 
@@ -162,6 +163,7 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
   if (firstDone || !firstValue || firstValue.length < 50) {
     throw new UnsupportedFormatError('Not an ASF file: insufficient data');
   }
+  bytesRead += firstValue.length;
 
   const data = firstValue;
 
@@ -471,6 +473,7 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
         const { done, value } = await reader.read();
         if (done) break;
         if (!value) continue;
+        bytesRead += value.length;
 
         // Append new data to packet buffer
         const newBuffer = new Uint8Array(packetBuffer.length + value.length);
@@ -511,6 +514,7 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
       preroll: filePreroll!,
       packetSize: filePacketSize!,
     },
+    bytesRead,
   };
 }
 

@@ -1,6 +1,6 @@
 import { mapWaveFormatTagToCodec, parseWaveFormatEx } from '../codecs/waveformatex';
-import { GetMediaInfoOptions } from '../get-media-info';
-import { AudioStreamInfo, MediaInfo } from '../media-info';
+import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
+import { AudioStreamInfo } from '../media-info';
 import { readBeginning, setupGlobalLogger, UnsupportedFormatError } from '../utils';
 
 /**
@@ -12,7 +12,7 @@ import { readBeginning, setupGlobalLogger, UnsupportedFormatError } from '../uti
  * @returns Media information without the parser field
  * @throws UnsupportedFormatError if the stream is not a valid WAV file
  */
-export async function parseWav(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
+export async function parseWav(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<Omit<GetMediaInfoResult, 'parser'>> {
   const logger = setupGlobalLogger(options);
   if (logger.isDebug) logger.debug('Starting parsing WAV');
   const reader = stream.getReader();
@@ -117,5 +117,6 @@ export async function parseWav(stream: ReadableStream<Uint8Array>, options?: Get
     durationInSeconds,
     videoStreams: [],
     audioStreams: [audioStream],
+    bytesRead: buffer.length,
   };
 }

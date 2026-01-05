@@ -7,6 +7,7 @@ describe('Extract audio from MOV', () => {
     {
       filename: 'engine-start.h264.aac.mov',
       expectedMediaInfo: {
+        bytesRead: 65536,
         container: 'aac',
         containerDetail: 'aac',
         parser: 'media-utils',
@@ -27,6 +28,7 @@ describe('Extract audio from MOV', () => {
     {
       filename: 'engine-start.h264.mp3.mov',
       expectedMediaInfo: {
+        bytesRead: 65536,
         container: 'mp3',
         containerDetail: 'mp3',
         parser: 'media-utils',

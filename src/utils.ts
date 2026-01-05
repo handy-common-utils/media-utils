@@ -2,8 +2,6 @@
 
 import { ConsoleLineLogger, LineLogger } from '@handy-common-utils/misc-utils';
 
-import { MediaInfo } from './media-info';
-
 function env(): Record<string, string | undefined> {
   if (typeof process !== 'undefined') {
     return process.env;
@@ -89,7 +87,7 @@ export interface ParserRelatedOptions {
    * Which parser library/package to use
    * The default is 'auto', which will try to use mp4box first and fallback to remotion if mp4box fails.
    */
-  useParser?: MediaInfo['parser'];
+  useParser?: 'auto' | 'mp4box' | 'remotion' | 'isoboxer' | 'media-utils';
 }
 
 /**
@@ -169,15 +167,15 @@ export async function ensureBufferData(
   buffer?: Uint8Array,
   bufferOffset?: number,
   size: number = 64 * 1024,
-): Promise<{ buffer: Uint8Array; bufferOffset: number; done: boolean }> {
+): Promise<{ buffer: Uint8Array; bufferOffset: number; done: boolean; bytesRead: number }> {
   let currentBuffer = buffer ?? new Uint8Array(0);
   let currentOffset = bufferOffset ?? 0;
+  let bytesRead = 0;
 
-  if (currentBuffer.length - currentOffset < size) {
+  while (currentBuffer.length - currentOffset < size) {
     const { done, value } = await reader.read();
-    if (done) {
-      return { buffer: currentBuffer, bufferOffset: currentOffset, done: true };
-    } else if (value) {
+    if (value) {
+      bytesRead += value.length;
       if (currentOffset > 0) {
         // Compact buffer
         currentBuffer = currentBuffer.subarray(currentOffset);
@@ -187,10 +185,12 @@ export async function ensureBufferData(
       newBuffer.set(currentBuffer);
       newBuffer.set(value, currentBuffer.length);
       currentBuffer = newBuffer;
-      return { buffer: currentBuffer, bufferOffset: currentOffset, done: false };
+    }
+    if (done) {
+      return { buffer: currentBuffer, bufferOffset: currentOffset, done: true, bytesRead };
     }
   }
-  return { buffer: currentBuffer, bufferOffset: currentOffset, done: false };
+  return { buffer: currentBuffer, bufferOffset: currentOffset, done: false, bytesRead };
 }
 
 /**

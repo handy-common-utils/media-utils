@@ -8,6 +8,7 @@ describe('Extract audio from WebM', () => {
     {
       filename: 'engine-start.vp9.opus.webm',
       expectedMediaInfo: {
+        bytesRead: 65536,
         container: 'ogg',
         containerDetail: 'ogg',
         parser: 'media-utils',
@@ -28,6 +29,7 @@ describe('Extract audio from WebM', () => {
     {
       filename: 'engine-start.vp9.vorbis.webm',
       expectedMediaInfo: {
+        bytesRead: 65536,
         container: 'ogg',
         containerDetail: 'ogg',
         parser: 'media-utils',

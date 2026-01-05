@@ -6,6 +6,7 @@ export const largeMp4TestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'large_TearsOfSteel.mp4',
     expectedMediaInfo: {
+      bytesRead: 223084,
       parser: 'media-utils',
       container: 'mp4',
       containerDetail: 'mp42, isom, mp42',

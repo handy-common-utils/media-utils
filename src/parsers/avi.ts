@@ -1,7 +1,7 @@
 /* eslint-disable max-depth */
 import { mapWaveFormatTagToCodec, parseWaveFormatEx } from '../codecs/waveformatex';
-import { GetMediaInfoOptions } from '../get-media-info';
-import { findVideoCodec, MediaInfo } from '../media-info';
+import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
+import { findVideoCodec } from '../media-info';
 import { ensureBufferData, setupGlobalLogger, UnsupportedFormatError } from '../utils';
 
 interface AviMainHeader {
@@ -62,7 +62,7 @@ export interface ParseAviOptions extends GetMediaInfoOptions {
  * @param options - Optional options for the parser
  * @returns Promise resolving to MediaInfo
  */
-export async function parseAvi(stream: ReadableStream<Uint8Array>, options?: ParseAviOptions): Promise<MediaInfo> {
+export async function parseAvi(stream: ReadableStream<Uint8Array>, options?: ParseAviOptions): Promise<Omit<GetMediaInfoResult, 'parser'>> {
   const logger = setupGlobalLogger(options);
   if (logger.isDebug) logger.debug('Starting parsing AVI');
   const reader = stream.getReader();
@@ -297,8 +297,7 @@ export async function parseAvi(stream: ReadableStream<Uint8Array>, options?: Par
     }
 
     // Build MediaInfo
-    const mediaInfo: MediaInfo = {
-      parser: 'media-utils',
+    const mediaInfo: Omit<GetMediaInfoResult, 'parser'> = {
       container: 'avi',
       containerDetail: 'avi',
       videoStreams: [],
@@ -364,7 +363,7 @@ export async function parseAvi(stream: ReadableStream<Uint8Array>, options?: Par
     }
 
     reader.releaseLock();
-    return mediaInfo;
+    return { ...mediaInfo, bytesRead: offset };
   } catch (error) {
     reader.releaseLock();
     throw error;

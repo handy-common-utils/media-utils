@@ -7,6 +7,7 @@ describe('Extract Audio from MPEG-TS', () => {
     {
       filename: 'engine-start.mpeg2video.mp2.m2ts',
       expectedMediaInfo: {
+        bytesRead: 65536,
         container: 'mp3',
         containerDetail: 'mp3',
         durationInSeconds: undefined,
@@ -32,6 +33,7 @@ describe('Extract Audio from MPEG-TS', () => {
     {
       filename: 'engine-start.h264.aac.m2ts',
       expectedMediaInfo: {
+        bytesRead: 65536,
         container: 'aac',
         containerDetail: 'aac',
         durationInSeconds: undefined,
@@ -52,6 +54,7 @@ describe('Extract Audio from MPEG-TS', () => {
     {
       filename: 'engine-start.h264.mp3.m2ts',
       expectedMediaInfo: {
+        bytesRead: 65536,
         container: 'mp3',
         containerDetail: 'mp3',
         durationInSeconds: undefined,

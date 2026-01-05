@@ -1,6 +1,5 @@
 import { parseADTSHeader } from '../codecs/aac';
-import { GetMediaInfoOptions } from '../get-media-info';
-import { MediaInfo } from '../media-info';
+import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
 import { readBeginning, setupGlobalLogger, UnsupportedFormatError } from '../utils';
 
 /**
@@ -13,7 +12,7 @@ import { readBeginning, setupGlobalLogger, UnsupportedFormatError } from '../uti
  * @returns Media information without the parser field
  * @throws UnsupportedFormatError if the stream is not a valid AAC file
  */
-export async function parseAac(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
+export async function parseAac(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<Omit<GetMediaInfoResult, 'parser'>> {
   // Read the first chunk to parse the ADTS header
   const logger = setupGlobalLogger(options);
   if (logger.isDebug) logger.debug('Starting parsing AAC');
@@ -39,5 +38,6 @@ export async function parseAac(stream: ReadableStream<Uint8Array>, options?: Get
         id: 0,
       },
     ],
+    bytesRead: buffer.length,
   };
 }

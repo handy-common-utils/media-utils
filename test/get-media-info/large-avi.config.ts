@@ -7,6 +7,7 @@ export const largeAviTestCases: GetMediaInfoTestCase[] = [
     filename: 'large_BigBuckBunny_surround.avi',
     fileRemark: '5 channels',
     expectedMediaInfo: {
+      bytesRead: 65454,
       parser: 'media-utils',
       container: 'avi',
       containerDetail: 'avi',

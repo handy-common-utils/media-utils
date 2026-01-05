@@ -113,7 +113,7 @@ export async function getMediaInfo(stream: ReadableStream<Uint8Array>, optionsIn
  * @param options Options for the parser
  * @returns The media information
  */
-export async function getMediaInfoFromFile(filePath: string, options?: GetMediaInfoOptions): Promise<MediaInfo> {
+export async function getMediaInfoFromFile(filePath: string, options?: GetMediaInfoOptions): Promise<GetMediaInfoResult> {
   const webStream = await createReadableStreamFromFile(filePath);
   return getMediaInfo(webStream, options);
 }

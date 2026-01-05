@@ -7,6 +7,7 @@ describe('Extract audio from MKV', () => {
     {
       filename: 'large_matroska-test-files1.mkv',
       expectedMediaInfo: {
+        bytesRead: 65536,
         audioStreams: [
           {
             id: 0,
@@ -32,6 +33,7 @@ describe('Extract audio from MKV', () => {
     {
       filename: 'large_matroska-test-files2.mkv',
       expectedMediaInfo: {
+        bytesRead: 65536,
         audioStreams: [
           {
             id: 0,

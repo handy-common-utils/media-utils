@@ -1,5 +1,5 @@
-import { GetMediaInfoOptions } from '../get-media-info';
-import { AudioStreamInfo, MediaInfo } from '../media-info';
+import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
+import { AudioStreamInfo } from '../media-info';
 import { readBeginning, UnsupportedFormatError } from '../utils';
 
 /**
@@ -11,7 +11,7 @@ import { readBeginning, UnsupportedFormatError } from '../utils';
  * @returns Media information without the parser field
  * @throws UnsupportedFormatError if the stream is not a valid OGG file
  */
-export async function parseOgg(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
+export async function parseOgg(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<GetMediaInfoResult, 'parser'>> {
   const reader = stream.getReader();
   const buffer = await readBeginning(reader);
 
@@ -119,5 +119,6 @@ export async function parseOgg(stream: ReadableStream<Uint8Array>, _options?: Ge
     durationInSeconds: undefined,
     videoStreams: [],
     audioStreams: [audioStream],
+    bytesRead: buffer.length,
   };
 }

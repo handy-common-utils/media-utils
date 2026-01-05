@@ -6,6 +6,7 @@ export const largeMkvTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'large_matroska-test-files1.mkv',
     expectedMediaInfo: {
+      bytesRead: 5824,
       parser: 'media-utils',
       container: 'mkv',
       containerDetail: 'matroska',
@@ -36,6 +37,7 @@ export const largeMkvTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'large_matroska-test-files2.mkv',
     expectedMediaInfo: {
+      bytesRead: 5312,
       parser: 'media-utils',
       container: 'mkv',
       containerDetail: 'matroska',
@@ -66,6 +68,7 @@ export const largeMkvTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'large_matroska-test-files3.mkv',
     expectedMediaInfo: {
+      bytesRead: 5460,
       parser: 'media-utils',
       container: 'mkv',
       containerDetail: 'matroska',
@@ -97,6 +100,7 @@ export const largeMkvTestCases: GetMediaInfoTestCase[] = [
     filename: 'large_matroska-test-files4.mkv',
     fileRemark: 'streaming',
     expectedMediaInfo: {
+      bytesRead: 34,
       parser: 'media-utils',
       container: 'mkv',
       containerDetail: 'matroska',
@@ -108,6 +112,7 @@ export const largeMkvTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'large_matroska-test-files5.mkv',
     expectedMediaInfo: {
+      bytesRead: 91703,
       parser: 'media-utils',
       container: 'mkv',
       containerDetail: 'matroska',
@@ -147,6 +152,7 @@ export const largeMkvTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'large_matroska-test-files6.mkv',
     expectedMediaInfo: {
+      bytesRead: 5684,
       parser: 'media-utils',
       container: 'mkv',
       containerDetail: 'matroska',
@@ -177,6 +183,7 @@ export const largeMkvTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'large_matroska-test-files7.mkv',
     expectedMediaInfo: {
+      bytesRead: 5832,
       parser: 'media-utils',
       container: 'mkv',
       containerDetail: 'matroska',
@@ -207,6 +214,7 @@ export const largeMkvTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'large_matroska-test-files8.mkv',
     expectedMediaInfo: {
+      bytesRead: 5480,
       parser: 'media-utils',
       container: 'mkv',
       containerDetail: 'matroska',

@@ -8,8 +8,8 @@ import {
   parseMpeg2VideoHeaderInPES,
 } from '../codecs/mpegts';
 import { PesPayloadHandler } from '../codecs/pes';
-import { GetMediaInfoOptions } from '../get-media-info';
-import { AudioCodecType, AudioStreamInfo, MediaInfo, VideoCodecType, VideoStreamInfo } from '../media-info';
+import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
+import { AudioCodecType, AudioStreamInfo, VideoCodecType, VideoStreamInfo } from '../media-info';
 import { ensureBufferData, setupGlobalLogger, UnsupportedFormatError } from '../utils';
 
 // Constants
@@ -93,15 +93,21 @@ export class MpegTsParser {
     this.reader = stream.getReader();
   }
 
-  async parse(): Promise<Omit<MediaInfo, 'parser'>> {
+  async parse(): Promise<Omit<GetMediaInfoResult, 'parser'>> {
     try {
       // eslint-disable-next-line no-constant-condition
       while (true) {
         // Ensure we have at least some data
         const minBufferSize = this.packetSize > 0 ? this.packetSize * 10 : 2000;
-        const { buffer, bufferOffset, done } = await ensureBufferData(this.reader, this.buffer, this.bufferOffset, minBufferSize);
+        const {
+          buffer,
+          bufferOffset,
+          done,
+          bytesRead: newBytesRead,
+        } = await ensureBufferData(this.reader, this.buffer, this.bufferOffset, minBufferSize);
         this.buffer = buffer;
         this.bufferOffset = bufferOffset;
+        this.bytesRead += newBytesRead;
 
         // Detect packet size on first read by finding valid sync bytes
         if (this.packetSize === 0 && this.buffer.length >= 600) {
@@ -161,7 +167,6 @@ export class MpegTsParser {
         this.tsPacketsProcessed++;
 
         this.bufferOffset = syncOffset + this.packetSize;
-        this.bytesRead += this.packetSize;
 
         // Check if we have enough info
         // If we are extracting (onSamples is provided), we read until the end
@@ -182,6 +187,7 @@ export class MpegTsParser {
       videoStreams: [...this.allStreamDetails.values()]
         .filter((s) => s.streamTypeCategory === 'video')
         .map((s) => convertStreamDetailsToStreamInfo(s)),
+      bytesRead: this.bytesRead,
     };
   }
 
@@ -694,12 +700,12 @@ export async function parseMpegTs(
   stream: ReadableStream<Uint8Array>,
   options?: GetMediaInfoOptions,
   onSamples?: (streamId: number, samples: Uint8Array[]) => Promise<void>,
-): Promise<MediaInfo> {
+): Promise<Omit<GetMediaInfoResult, 'parser'>> {
   const logger = setupGlobalLogger(options);
   if (logger.isDebug) logger.debug('Starting parsing MPEG-TS');
   const parser = new MpegTsParser(stream, options, onSamples);
   const info = await parser.parse();
-  return { ...info, parser: 'media-utils' };
+  return info;
 }
 
 // Stream Types Mapping

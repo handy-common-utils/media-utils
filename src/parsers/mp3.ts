@@ -1,6 +1,5 @@
 import { parseMP3Header, parseVBRHeader } from '../codecs/mp3';
-import { GetMediaInfoOptions } from '../get-media-info';
-import { MediaInfo } from '../media-info';
+import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
 import { readBeginning, UnsupportedFormatError } from '../utils';
 
 /**
@@ -13,7 +12,7 @@ import { readBeginning, UnsupportedFormatError } from '../utils';
  * @returns Media information without the parser field
  * @throws UnsupportedFormatError if the stream is not a valid MP3 file
  */
-export async function parseMp3(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<MediaInfo, 'parser'>> {
+export async function parseMp3(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<GetMediaInfoResult, 'parser'>> {
   // Read the first chunk to parse the MP3 frame header
   const reader = stream.getReader();
   const buffer = await readBeginning(reader);
@@ -101,5 +100,6 @@ export async function parseMp3(stream: ReadableStream<Uint8Array>, _options?: Ge
         durationInSeconds,
       },
     ],
+    bytesRead: buffer.length,
   };
 }

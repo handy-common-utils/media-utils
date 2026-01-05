@@ -6,6 +6,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.aac',
     expectedMediaInfo: {
+      bytesRead: 65536,
       audioStreams: [
         {
           id: 0,
@@ -26,6 +27,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.mp3',
     expectedMediaInfo: {
+      bytesRead: 65536,
       parser: 'media-utils',
       audioStreams: [
         {
@@ -51,6 +53,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.vp9.opus.webm',
     expectedMediaInfo: {
+      bytesRead: 1371,
       audioStreams: [
         {
           id: 2,
@@ -81,6 +84,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.vp8.vorbis.webm',
     expectedMediaInfo: {
+      bytesRead: 10489,
       audioStreams: [
         {
           id: 2,
@@ -111,6 +115,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.vp9.vorbis.webm',
     expectedMediaInfo: {
+      bytesRead: 8539,
       audioStreams: [
         {
           id: 2,
@@ -141,6 +146,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.av1.opus.webm',
     expectedMediaInfo: {
+      bytesRead: 4279,
       audioStreams: [
         {
           id: 2,
@@ -171,6 +177,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.h264.aac.mp4',
     expectedMediaInfo: {
+      bytesRead: 6050,
       parser: 'media-utils',
       container: 'mp4',
       containerDetail: 'isom, isom, iso2, avc1, mp41',
@@ -204,6 +211,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.h264.mp3.mp4',
     expectedMediaInfo: {
+      bytesRead: 365336, // Atom mdat @ 40 of size: 358786, ends @ 358826, Atom moov @ 358826 of size: 6510, ends @ 365336
       parser: 'media-utils',
       container: 'mp4',
       containerDetail: 'isom, isom, iso2, avc1, mp41',
@@ -236,6 +244,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.h264.aac.mov',
     expectedMediaInfo: {
+      bytesRead: 810587, // moov after [mdat] size=805155
       parser: 'media-utils',
       container: 'mov',
       containerDetail: 'qt  , qt  ',
@@ -268,6 +277,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.h264.mp3.mov',
     expectedMediaInfo: {
+      bytesRead: 856055, // moov after [mdat] size=850251
       parser: 'media-utils',
       container: 'mov',
       containerDetail: 'qt  , qt  ',
@@ -300,6 +310,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.mjpeg.pcms16le.avi',
     expectedMediaInfo: {
+      bytesRead: 8912,
       parser: 'media-utils',
       container: 'avi',
       containerDetail: 'avi',
@@ -337,6 +348,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.h264.pcms16le.avi',
     expectedMediaInfo: {
+      bytesRead: 8912,
       parser: 'media-utils',
       container: 'avi',
       containerDetail: 'avi',
@@ -374,6 +386,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.mpeg2video.mp2.m2ts',
     expectedMediaInfo: {
+      bytesRead: 65536,
       parser: 'media-utils',
       container: 'mpegts',
       containerDetail: 'mpegts',
@@ -406,6 +419,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.wmv2.wmav2.wmv',
     expectedMediaInfo: {
+      bytesRead: 65536,
       parser: 'media-utils',
       container: 'asf',
       containerDetail: 'wmv',
@@ -440,6 +454,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.opus.ogg',
     expectedMediaInfo: {
+      bytesRead: 65536,
       parser: 'media-utils',
       container: 'ogg',
       containerDetail: 'ogg',
@@ -460,6 +475,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.vorbis.ogg',
     expectedMediaInfo: {
+      bytesRead: 65536,
       parser: 'media-utils',
       container: 'ogg',
       containerDetail: 'ogg',
@@ -480,6 +496,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.wmav2.wma',
     expectedMediaInfo: {
+      bytesRead: 65536,
       parser: 'media-utils',
       container: 'asf',
       containerDetail: 'wma',
@@ -504,6 +521,7 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
   {
     filename: 'engine-start.pcms16le.wav',
     expectedMediaInfo: {
+      bytesRead: 65536,
       parser: 'media-utils',
       container: 'wav',
       containerDetail: 'wav',

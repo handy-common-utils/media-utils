@@ -268,7 +268,7 @@ export interface ExtractAudioTestCase {
 export function runExtractAudioTestCases(testCases: ExtractAudioTestCase[]) {
   for (const { shouldFail, filename, options, expectedMediaInfo, fileRemark, testRemark, minSizeKB, maxSizeKB } of testCases) {
     it(`should extractAudio ${shouldFail ? 'fail' : 'work'} with ${filename}${fileRemark ? ` (${fileRemark})` : ''}${testRemark ? ` - ${testRemark}` : ''}`, async () => {
-      let sourceMediaInfo: MediaInfo;
+      let sourceMediaInfo: GetMediaInfoResult;
       try {
         sourceMediaInfo = await getMediaInfoFromFile(sampleFile(filename));
       } catch (error) {
