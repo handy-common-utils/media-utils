@@ -1,8 +1,8 @@
 import type { ES_Descriptor, ISOFile, Movie } from 'mp4box';
 
 import { getAacProfileName } from '../codecs/aac';
-import { GetMediaInfoOptions } from '../get-media-info';
-import { AudioStreamInfo, MediaInfo, toAudioCodec, toContainer, toVideoCodec, VideoStreamInfo } from '../media-info';
+import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
+import { AudioStreamInfo, toAudioCodec, toContainer, toVideoCodec, VideoStreamInfo } from '../media-info';
 import { ParsingError, setupGlobalLogger, UnsupportedFormatError } from '../utils';
 import { MediaParserAdapter } from './adapter';
 
@@ -14,7 +14,7 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
     return new Mp4BoxAdapter(mp4box as any);
   }
 
-  async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
+  async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<GetMediaInfoResult> {
     try {
       return await this.parseWithoutErrorHandling(stream, options);
     } catch (error) {
@@ -29,14 +29,14 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
     }
   }
 
-  private async parseWithoutErrorHandling(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
+  private async parseWithoutErrorHandling(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<GetMediaInfoResult> {
     const logger = setupGlobalLogger(options);
     if (logger.isDebug) logger.debug('Starting parsing MP4');
     // Modify error logging behaviour only once when entering this function,
     // because restoring it won't be reliable in case of multiple concurrent calls to this function.
     makeMp4BoxQuiet(this.mp4box, options?.quiet);
 
-    return new Promise<MediaInfo>((resolve, reject) => {
+    return new Promise<GetMediaInfoResult>((resolve, reject) => {
       // Sometimes mdat comes before moov (e.g., MOV files, some MP4s), because onReady fires
       // after mdat has been parsed, and without this flag the sample data would be gone.
       const mp4file = this.mp4box.createFile(true);
@@ -101,7 +101,7 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
  * @param mp4file The mp4box file object (ISOFile)
  * @returns MediaInfo
  */
-export function mp4boxInfoToMediaInfo(info: Movie, mp4file?: ISOFile): MediaInfo {
+export function mp4boxInfoToMediaInfo(info: Movie, mp4file?: ISOFile): GetMediaInfoResult {
   // For mp3 in mov, mp4box is unable to put the mp3 track into audioTracks.
   // Here's the patch:
   for (const track of info.otherTracks) {

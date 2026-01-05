@@ -1,7 +1,6 @@
 import { withRetry } from '@handy-common-utils/promise-utils';
 
-import { GetMediaInfoOptions } from '../get-media-info';
-import { MediaInfo } from '../media-info';
+import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
 import { ParsingError } from '../utils';
 import { parseAac } from './aac';
 import { MediaParserAdapter } from './adapter';
@@ -30,7 +29,7 @@ import { parseWav } from './wav';
 export class InhouseParserAdapter implements MediaParserAdapter {
   private readonly parsers = [parseMp4, parseMp3, parseAac, parseMkv, parseWav, parseOgg, parseAvi, parseAsf, parseMpegTs];
 
-  async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
+  async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<GetMediaInfoResult> {
     let i = 0;
     const info = await withRetry(
       () => {

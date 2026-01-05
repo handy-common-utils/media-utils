@@ -19,7 +19,14 @@ export type GetMediaInfoOptions = ParserRelatedOptions & {
   debug?: boolean;
 };
 
-export type GetMediaInfoResult = MediaInfo & { parser: Exclude<GetMediaInfoOptions['useParser'], undefined> };
+export type GetMediaInfoResult = MediaInfo & {
+  parser: Exclude<GetMediaInfoOptions['useParser'], undefined>;
+  /**
+   * Number of bytes read from the stream.
+   * In most cases, the parser does not need to read the whole stream.
+   */
+  bytesRead?: number;
+};
 
 /**
  * Get media information from a stream

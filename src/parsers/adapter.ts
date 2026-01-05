@@ -1,6 +1,6 @@
 import { withRetry } from '@handy-common-utils/promise-utils';
 
-import { GetMediaInfoOptions } from '../get-media-info';
+import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
 import { MediaInfo } from '../media-info';
 import { ParsingError } from '../utils';
 
@@ -17,7 +17,7 @@ export interface MediaParserAdapter {
    * @returns A promise that resolves to the extracted media information.
    * @throws The Error thrown could implement the ParsingError interface to provide more information about the error.
    */
-  parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo>;
+  parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<GetMediaInfoResult>;
 }
 
 /**
@@ -42,7 +42,7 @@ export class FallbackChainParserAdapter implements MediaParserAdapter {
    * @returns The extracted media information.
    * @throws Error from the last paseing attempt.
    */
-  async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
+  async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<GetMediaInfoResult> {
     let i = 0;
     return withRetry(
       () => {

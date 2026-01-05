@@ -1,6 +1,6 @@
 import { EsdsInfo, parseEsds } from '../codecs/mp4';
-import { GetMediaInfoOptions } from '../get-media-info';
-import { AudioStreamInfo, MediaInfo, toAudioCodec, toContainer, toVideoCodec, VideoStreamInfo } from '../media-info';
+import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
+import { AudioStreamInfo, toAudioCodec, toContainer, toVideoCodec, VideoStreamInfo } from '../media-info';
 import { ParsingError, UnsupportedFormatError } from '../utils';
 import { MediaParserAdapter } from './adapter';
 
@@ -13,7 +13,7 @@ export class IsoBoxerAdapter implements MediaParserAdapter {
     return new IsoBoxerAdapter(ISOBoxer);
   }
 
-  async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<MediaInfo> {
+  async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<GetMediaInfoResult> {
     try {
       return await this.parseWithoutErrorHandling(stream, options);
     } catch (error) {
@@ -28,7 +28,7 @@ export class IsoBoxerAdapter implements MediaParserAdapter {
     }
   }
 
-  private async parseWithoutErrorHandling(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<MediaInfo> {
+  private async parseWithoutErrorHandling(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<GetMediaInfoResult> {
     // The first 1MB of the file is read and then fed to the parser
     const MAX_PROBE_SIZE = 1 * 1024 * 1024; // 1MB
     const chunks: Uint8Array[] = [];
