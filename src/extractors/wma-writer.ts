@@ -89,8 +89,11 @@ export async function writeWma(output: WritableStream<Uint8Array>, content: Audi
 
     await writer.write(dataObjectBuffer);
     if (onProgress) onProgress(100);
-  } finally {
-    writer.close();
+
+    await writer.close().catch(() => {});
+  } catch (error) {
+    await writer.abort(error).catch(() => {});
+    throw error;
   }
 }
 

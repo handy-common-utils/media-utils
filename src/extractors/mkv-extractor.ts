@@ -30,7 +30,7 @@ export async function extractFromMkv(
     stream = findAudioStreamToBeExtracted(mediaInfo, options);
   } catch (error: any) {
     input.cancel().catch(() => {});
-    output
+    await output
       .getWriter()
       .abort(error)
       .catch(() => {});
@@ -102,13 +102,13 @@ export async function extractFromMkv(
     await parser.parse();
     // Wait for all samples to be written
     await processingChain;
-    await writer.close();
+    await writer.close().catch(() => {});
     if (options.onProgress) {
       options.onProgress(100);
     }
   } catch (error) {
     // If parsing fails or writing fails
-    writer.abort(error).catch(() => {});
+    await writer.abort(error).catch(() => {});
     throw error;
   }
 }

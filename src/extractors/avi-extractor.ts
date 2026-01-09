@@ -86,7 +86,7 @@ export async function extractFromAvi(
     }
   } catch (error: any) {
     input.cancel().catch(() => {});
-    output
+    await output
       .getWriter()
       .abort(error)
       .catch(() => {});
@@ -152,13 +152,13 @@ export async function extractFromAvi(
     });
 
     await wavWriter.writeAll();
-    await writer.close();
+    await writer.close().catch(() => {});
 
     if (options.onProgress) {
       options.onProgress(100);
     }
   } catch (error) {
-    writer.abort(error).catch(() => {});
+    await writer.abort(error).catch(() => {});
     throw error;
   }
 }

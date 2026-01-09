@@ -40,7 +40,7 @@ export async function extractFromMp4(
     }
   } catch (error: any) {
     input.cancel().catch(() => {});
-    output
+    await output
       .getWriter()
       .abort(error)
       .catch(() => {});
@@ -182,10 +182,6 @@ export async function extractFromMp4(
     await writer.abort(error).catch(() => {});
     throw error;
   } finally {
-    try {
-      await writer.close();
-    } catch {
-      // ignore if already closed/aborted
-    }
+    await writer.close().catch(() => {});
   }
 }

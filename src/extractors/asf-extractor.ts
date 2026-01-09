@@ -43,7 +43,7 @@ export async function extractFromAsf(
     }
   } catch (error: any) {
     input.cancel().catch(() => {});
-    output
+    await output
       .getWriter()
       .abort(error)
       .catch(() => {});
