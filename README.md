@@ -80,7 +80,10 @@ This table lists the combinations verified by our test suite.
 | **aac**          |             | aac            |             |    ✅     |
 | **asf/wma**      |             | wmav2          |             |    ✅     |
 | **asf/wmv**      | wmv2        | wmav2          |             |    ✅     |
+| **avi**          | h264        | adpcm_ms       |             |    ✅     |
+| **avi**          | h264        | mp3            |             |    ✅     |
 | **avi**          | h264        | pcm_s16le      |             |    ✅     |
+| **avi**          | h264        | pcm_u8         |             |    ✅     |
 | **avi**          | mjpeg       | pcm_s16le      |             |    ✅     |
 | **avi**          | mpeg4       | ac3            | 5 channels  |    ✅     |
 | **mkv**          | h264        | aac, aac       |             |    ✅     |
@@ -93,6 +96,7 @@ This table lists the combinations verified by our test suite.
 | **mp3**          |             | mp3            |             |    ✅     |
 | **mp4**          | h264        | aac            |             |    ✅     |
 | **mp4**          | h264        | mp3            |             |    ✅     |
+| **mpegts**       | h264        | aac            |             |    ✅     |
 | **mpegts**       | mpeg2video  | mp2            |             |    ✅     |
 | **ogg**          |             | opus           |             |    ✅     |
 | **ogg**          |             | vorbis         |             |    ✅     |
@@ -155,10 +159,12 @@ await extractAudioFromFileToFile('input-video.mp4', 'output-audio.aac');
 | :--------------- | :---------- | :------------- | :---------- | :-------: | :----------------------- |
 | **asf/wmv**      | wmv2        | wmav2          |             |    ✅     | **wmav2** in **asf**     |
 | **avi**          | h264        | adpcm_ms       |             |    ✅     | **adpcm_ms** in **wav**  |
+| **avi**          | h264        | mp3            |             |    ✅     | **mp3** in **mp3**       |
 | **avi**          | h264        | pcm_s16le      |             |    ✅     | **pcm_s16le** in **wav** |
 | **avi**          | h264        | pcm_u8         |             |    ✅     | **pcm_u8** in **wav**    |
 | **avi**          | mjpeg       | pcm_s16le      |             |    ✅     | **pcm_s16le** in **wav** |
 | **mkv**          | h264        | aac            |             |    ✅     | **aac** in **aac**       |
+| **mkv**          | h264        | mp3            |             |    ✅     | **mp3** in **mp3**       |
 | **mkv**          | msmpeg4v2   | mp3            |             |    ✅     | **mp3** in **mp3**       |
 | **mov**          | h264        | aac            |             |    ✅     | **aac** in **aac**       |
 | **mov**          | h264        | mp3            |             |    ✅     | **mp3** in **mp3**       |
@@ -382,7 +388,7 @@ This function works in Node.js environment but not in browser.
 | <a id="api-quiet"></a> `quiet?`             | `boolean`                                                                 | Whether to suppress console output. Default value is true.                                                                                                                                                            | -                                                                                          |
 | <a id="api-streamindex"></a> `streamIndex?` | `number`                                                                  | The index of the stream/track to extract audio from. If this option is provided, `trackId` is ignored. If `trackId` is not provided and this option is not specified, the first audio stream/track will be extracted. | -                                                                                          |
 | <a id="api-trackid"></a> `trackId?`         | `number`                                                                  | The ID of the track to extract audio from If this option is provided, `streamIndex` is ignored. If both `trackId` and `streamIndex` are not provided, the first audio stream/track will be extracted.                 | -                                                                                          |
-| <a id="api-useparser"></a> `useParser?`     | `"mp4box"` \| `"remotion"` \| `"isoboxer"` \| `"media-utils"` \| `"auto"` | Which parser library/package to use The default is 'auto', which will try to use mp4box first and fallback to remotion if mp4box fails.                                                                               | [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd).[`useParser`](#useparser) |
+| <a id="api-useparser"></a> `useParser?`     | `"auto"` \| `"mp4box"` \| `"remotion"` \| `"isoboxer"` \| `"media-utils"` | Which parser library/package to use The default is 'auto', which will try to use mp4box first and fallback to remotion if mp4box fails.                                                                               | [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd).[`useParser`](#useparser) |
 
 ## Get Media Info
 
@@ -431,7 +437,7 @@ The media information
 
 #### Function: getMediaInfoFromFile()
 
-> **getMediaInfoFromFile**(`filePath`, `options?`): `Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd)\>
+> **getMediaInfoFromFile**(`filePath`, `options?`): `Promise`\<[`GetMediaInfoResult`](#get-media-infotype-aliasesgetmediainforesultmd)\>
 
 Get media information from a file path.
 This function works in Node.js environment but not in browser.
@@ -445,7 +451,7 @@ This function works in Node.js environment but not in browser.
 
 ##### Returns
 
-`Promise`\<[`MediaInfo`](#media-infointerfacesmediainfomd)\>
+`Promise`\<[`GetMediaInfoResult`](#get-media-infotype-aliasesgetmediainforesultmd)\>
 
 The media information
 
@@ -472,9 +478,10 @@ The media information
 
 ##### Type Declaration
 
-| Name     | Type                                                                                                                 |
-| -------- | -------------------------------------------------------------------------------------------------------------------- |
-| `parser` | `Exclude`\<[`GetMediaInfoOptions`](#get-media-infotype-aliasesgetmediainfooptionsmd)\[`"useParser"`\], `undefined`\> |
+| Name         | Type                                                                                                                 | Description                                                                                             |
+| ------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `bytesRead?` | `number`                                                                                                             | Number of bytes read from the stream. In most cases, the parser does not need to read the whole stream. |
+| `parser`     | `Exclude`\<[`GetMediaInfoOptions`](#get-media-infotype-aliasesgetmediainfooptionsmd)\[`"useParser"`\], `undefined`\> | -                                                                                                       |
 
 ## Index
 
@@ -553,6 +560,14 @@ Re-exports [ContainerType](#media-infotype-aliasescontainertypemd)
 ##### createReadableStreamFromFile
 
 Re-exports [createReadableStreamFromFile](#utilsfunctionscreatereadablestreamfromfilemd)
+
+---
+
+<a id="api-createwritablestreamfromfile"></a>
+
+##### createWritableStreamFromFile
+
+Re-exports [createWritableStreamFromFile](#utilsfunctionscreatewritablestreamfromfilemd)
 
 ---
 
@@ -1189,7 +1204,6 @@ Details of the video codec found, or throws an error if no matching codec can be
 | <a id="api-containerdetail"></a> `containerDetail?`     | `string`                                                                                                                                                                                                               | Parser-specific container information |
 | <a id="api-durationinseconds"></a> `durationInSeconds?` | `number`                                                                                                                                                                                                               | -                                     |
 | <a id="api-mimetype"></a> `mimeType?`                   | `string`                                                                                                                                                                                                               | -                                     |
-| <a id="api-parser"></a> `parser`                        | `"mp4box"` \| `"remotion"` \| `"isoboxer"` \| `"media-utils"` \| `"auto"`                                                                                                                                              | -                                     |
 | <a id="api-videostreams"></a> `videoStreams`            | [`VideoStreamInfo`](#media-infointerfacesvideostreaminfomd)[]                                                                                                                                                          | -                                     |
 
 <a id="media-infointerfacesvideostreaminfomd"></a>
@@ -1255,6 +1269,7 @@ Details of the video codec found, or throws an error if no matching codec can be
 | Function                                                                      | Description                                                                                                                                                                                                                                                                      |
 | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [createReadableStreamFromFile](#utilsfunctionscreatereadablestreamfromfilemd) | Creates a Web ReadableStream from a Node.js file path. This function works in Node.js environment but not in browser.                                                                                                                                                            |
+| [createWritableStreamFromFile](#utilsfunctionscreatewritablestreamfromfilemd) | Creates a Web WritableStream from a Node.js file path. This function works in Node.js environment but not in browser.                                                                                                                                                            |
 | [ensureBufferData](#utilsfunctionsensurebufferdatamd)                         | Ensures that the buffer has enough data by reading from the stream if necessary. This function manages buffer compaction and appending new data.                                                                                                                                 |
 | [getGlobalLogger](#utilsfunctionsgetgloballoggermd)                           | Returns the global logger for the library. If the logger has not been set, it will be initialized default settings which discards all logs. Please note that environment variables MEDIA_UTILS_LOG_QUIET and MEDIA_UTILS_LOG_DEBUG can be used to override the logging behavior. |
 | [readBeginning](#utilsfunctionsreadbeginningmd)                               | Reads the beginning of a stream up to a specified size. This function handles reading, buffering, and closing the reader.                                                                                                                                                        |
@@ -1332,11 +1347,36 @@ If the stream is not fully consumed, call `stream.cancel()` to clean up resource
 
 A (web) ReadableStream of Uint8Array chunks
 
+<a id="utilsfunctionscreatewritablestreamfromfilemd"></a>
+
+#### Function: createWritableStreamFromFile()
+
+> **createWritableStreamFromFile**(`filePath`): `Promise`\<`WritableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>\>
+
+Creates a Web WritableStream from a Node.js file path.
+This function works in Node.js environment but not in browser.
+
+**Important:** The caller is responsible for properly consuming or cancelling
+the returned stream to ensure the underlying file handle is released.
+If the stream is not fully consumed, call `stream.cancel()` to clean up resources.
+
+##### Parameters
+
+| Parameter  | Type     | Description          |
+| ---------- | -------- | -------------------- |
+| `filePath` | `string` | The path to the file |
+
+##### Returns
+
+`Promise`\<`WritableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>\>
+
+A (web) WritableStream of Uint8Array chunks
+
 <a id="utilsfunctionsensurebufferdatamd"></a>
 
 #### Function: ensureBufferData()
 
-> **ensureBufferData**(`reader`, `buffer?`, `bufferOffset?`, `size?`): `Promise`\<\{ `buffer`: `Uint8Array`; `bufferOffset`: `number`; `done`: `boolean`; \}\>
+> **ensureBufferData**(`reader`, `buffer?`, `bufferOffset?`, `size?`): `Promise`\<\{ `buffer`: `Uint8Array`; `bufferOffset`: `number`; `bytesRead`: `number`; `done`: `boolean`; \}\>
 
 Ensures that the buffer has enough data by reading from the stream if necessary.
 This function manages buffer compaction and appending new data.
@@ -1352,7 +1392,7 @@ This function manages buffer compaction and appending new data.
 
 ##### Returns
 
-`Promise`\<\{ `buffer`: `Uint8Array`; `bufferOffset`: `number`; `done`: `boolean`; \}\>
+`Promise`\<\{ `buffer`: `Uint8Array`; `bufferOffset`: `number`; `bytesRead`: `number`; `done`: `boolean`; \}\>
 
 An object containing the updated buffer, bufferOffset, and a boolean indicating if the stream has ended
 
@@ -1449,7 +1489,7 @@ The global logger for the library.
 
 | Property                                | Type                                                                      | Description                                                                                                                             |
 | --------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| <a id="api-useparser"></a> `useParser?` | `"mp4box"` \| `"remotion"` \| `"isoboxer"` \| `"media-utils"` \| `"auto"` | Which parser library/package to use The default is 'auto', which will try to use mp4box first and fallback to remotion if mp4box fails. |
+| <a id="api-useparser"></a> `useParser?` | `"auto"` \| `"mp4box"` \| `"remotion"` \| `"isoboxer"` \| `"media-utils"` | Which parser library/package to use The default is 'auto', which will try to use mp4box first and fallback to remotion if mp4box fails. |
 
 <a id="utilsinterfacesparsingerrormd"></a>
 
