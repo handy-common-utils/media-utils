@@ -1,5 +1,6 @@
-/* eslint-disable max-depth */
-import { toHexString } from '../codecs/binary';
+import { parseAudioSpecificConfig } from '../codecs/aac';
+import { BitReader, toHexString } from '../codecs/binary';
+import { parseMP3Header } from '../codecs/mp3';
 import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
 import { AudioCodecType, AudioStreamInfo, findAudioCodec, findVideoCodec } from '../media-info';
 import { ensureBufferData, setupGlobalLogger, UnsupportedFormatError } from '../utils';
@@ -111,6 +112,8 @@ interface TrackContext {
   bitrate?: number;
   totalBytes?: number;
   profile?: string;
+  needsMp3Sniffing?: boolean;
+  mp3Sniffed?: boolean;
 }
 
 interface ChunkInfo {
@@ -123,7 +126,14 @@ interface ChunkInfo {
 }
 
 /**
- * Parse MP4 files
+ * Parse MP4 files from a non-seekable ReadableStream.
+ *
+ * This parser implementation is designed to handle MP4/MOV files atom-by-atom
+ * without requiring the entire file to be in memory. It supports:
+ * 1. Metadata-first files (moov before mdat)
+ * 2. Media-first files (mdat before moov) - by buffering initial mdat data for sniffing
+ * 3. MP3 channel count sniffing - since container metadata is often unreliable for MP3
+ *
  * @param stream - The readable stream of the MP4 file
  * @param options - Optional options for the parser
  * @returns Promise resolving to MediaInfo
@@ -137,7 +147,30 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
   let bufferOffset = 0;
   let offset = 0;
 
-  // Helper to ensure we have enough data in the buffer
+  let mdatStart = 0;
+  let mdatSize = 0;
+  // Buffering for "mdat before moov" scenario:
+  // We keep the first few KB of mdat in memory to sniff audio headers once track metadata (moov) is parsed at the end.
+  let mdatInitialData: Uint8Array | undefined;
+  let mdatInitialDataOffset = 0;
+
+  const tracks: TrackContext[] = [];
+  let currentTrack: TrackContext | undefined;
+
+  const mediaInfo: Mp4MediaInfo = {
+    container: 'mp4',
+    containerDetail: '',
+    videoStreams: [],
+    audioStreams: [],
+  };
+
+  /**
+   * Helper to ensure we have enough data in the buffer to perform a contiguous read.
+   * If the buffer is insufficient, it refills from the underlying stream reader.
+   *
+   * @param needed - Number of bytes required in the buffer
+   * @returns Promise resolving to true if bytes are available, false if EOF reached
+   */
   async function ensureBytes(needed: number): Promise<boolean> {
     while (buffer.length - bufferOffset < needed) {
       const result = await ensureBufferData(reader, buffer, bufferOffset, needed);
@@ -227,20 +260,35 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
   }
 
   try {
-    const mediaInfo: Mp4MediaInfo = {
-      container: 'mp4',
-      containerDetail: '',
-      videoStreams: [],
-      audioStreams: [],
-    };
-
-    let currentTrack: TrackContext | undefined;
-    const tracks: TrackContext[] = [];
-    let mdatStart = 0;
-    let mdatSize = 0;
-
     let isAtVeryBeginning = true;
     let shouldKeepParsing = true;
+
+    /**
+     * Helper to sniff the first MP3 frame header to determine authoritative channel count.
+     * Some MP4 containers report 2 channels for mono MP3 streams in their 'stsd' box.
+     *
+     * @param track - The track to sniff
+     * @param startOffset - The start offset of the current atom
+     * @param endOffset - The end offset of the current atom
+     */
+    const sniffMp3At = async (track: TrackContext, startOffset: number, endOffset: number) => {
+      if (track.codec !== 'mp3' || track.mp3Sniffed || !track.stco || track.stco.length === 0) return;
+      const firstSampleOffset = track.stco[0];
+      if (firstSampleOffset >= startOffset && firstSampleOffset < endOffset) {
+        if (firstSampleOffset > offset) await skip(firstSampleOffset - offset);
+        if (await ensureBytes(10)) {
+          try {
+            const mp3Header = buffer.slice(bufferOffset, bufferOffset + 10);
+            const mp3Info = parseMP3Header(mp3Header);
+            track.channelCount = mp3Info.channelCount;
+            if (!track.sampleRate || track.sampleRate === 0) track.sampleRate = mp3Info.sampleRate;
+            track.mp3Sniffed = true;
+          } catch {
+            // Failed to parse MP3 header
+          }
+        }
+      }
+    };
 
     // Top level parsing loop: iterating over atoms
     while (shouldKeepParsing && (await ensureBytes(8))) {
@@ -301,13 +349,16 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
         case ATOM_MDAT: {
           if (logger.isDebug) logger.debug(`Found MDAT at ${atomStart}`);
 
-          // Track MDAT position for sample table data
           if (mdatStart === 0) {
             mdatStart = atomStart;
             mdatSize = atomSize;
           }
 
-          if (!options?.onSamples && !options?.sampleTableInfo && tracks.length > 0) {
+          const hasMp3Track = tracks.some((t) => t.codec === 'mp3');
+
+          // If we don't need to extract samples or table info, and we don't need to sniff MP3,
+          // we can stop early to save bandwidth/time.
+          if (!options?.onSamples && !options?.sampleTableInfo && tracks.length > 0 && !hasMp3Track) {
             if (logger.isDebug) logger.debug(`Stop parsing when having ${tracks.length} tracks and seeing MDAT at ${atomStart}`);
             shouldKeepParsing = false;
             break;
@@ -397,6 +448,31 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
             }
           }
 
+          // Sniff MP3 if needed
+          if (hasMp3Track && !options?.onSamples) {
+            for (const track of tracks) {
+              await sniffMp3At(track, offset, atomStart + atomSize);
+            }
+
+            // Optimization: If moov was already parsed and we've finished sniffing, stop now.
+            if (!options?.sampleTableInfo && tracks.length > 0 && tracks.every((t) => t.codec !== 'mp3' || t.mp3Sniffed)) {
+              if (logger.isDebug) logger.debug(`Stop parsing after sniffing all MP3 tracks in MDAT at ${atomStart}`);
+              shouldKeepParsing = false;
+              break;
+            }
+          }
+
+          // If moov hasn't been seen yet (media-first file), buffer the start of mdat.
+          // This allows us to sniff the audio header later after we've parsed the moov atom.
+          if (tracks.length === 0 && !mdatInitialData) {
+            const dataToBuffer = Math.min(atomSize - 8, 4096);
+            if (dataToBuffer > 0 && (await ensureBytes(dataToBuffer))) {
+              mdatInitialData = buffer.slice(bufferOffset, bufferOffset + dataToBuffer);
+              mdatInitialDataOffset = atomStart + 8;
+            }
+          }
+
+          // Advance past the MDAT payload if we haven't already stopped or switched to sample extraction.
           const parsedSoFar = offset - atomStart;
           if (atomSize === Infinity) {
             await skip(Infinity);
@@ -576,7 +652,10 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
         }
 
         case ATOM_STCO: {
-          if (currentTrack && (options?.onSamples || options?.sampleTableInfo)) {
+          // We always parse STCO/CO64 for MP3 tracks to find the first sample for sniffing,
+          // even if options.onSamples is false.
+          const needsStco = !!(options?.onSamples || options?.sampleTableInfo || tracks.some((t) => t.codec === 'mp3'));
+          if (currentTrack && needsStco) {
             await skip(4); // version, flags
             if (!(await ensureBytes(4))) throw new UnsupportedFormatError('EOF');
             const count = readUInt32BE();
@@ -593,7 +672,8 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
         }
 
         case ATOM_CO64: {
-          if (currentTrack && (options?.onSamples || options?.sampleTableInfo)) {
+          const needsCo64 = !!(options?.onSamples || options?.sampleTableInfo || tracks.some((t) => t.codec === 'mp3'));
+          if (currentTrack && needsCo64) {
             await skip(4); // version, flags
             if (!(await ensureBytes(4))) throw new UnsupportedFormatError('EOF');
             const count = readUInt32BE();
@@ -647,8 +727,6 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
 
               while (remaining >= 8) {
                 if (!(await ensureBytes(8))) break;
-                // Don't read subAtomStart from offset here as ensureBytes might have refilled buffer and offset is logical
-                // actually offset is tracked correctly.
                 const subAtomSize = readUInt32BE();
                 const subAtomType = readString(4);
 
@@ -664,7 +742,6 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
                     if (currentTrack.codecDetail && !currentTrack.codecDetail.includes('.')) {
                       currentTrack.codecDetail += `.${toHexString(profile)}${toHexString(compatibility)}${toHexString(level)}`;
                     }
-                    // skip remaining avcC data: subAtomSize - 8 (atom header) - 4 (read bytes) = subAtomSize - 12
                     await skip(subAtomSize - 12);
                   }
                 } else if (subAtomType === 'bitr') {
@@ -684,8 +761,8 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
             } else if (currentTrack?.type === 'audio') {
               const track = currentTrack; // Capture non-null reference
               let detailedFormat = format;
-              await skip(8); // reserved
-              if (!(await ensureBytes(12))) throw new UnsupportedFormatError('EOF'); // channel(2), size(2), pre(2), res(2), rate(4)
+              await skip(8); // reserved(6), data_ref(2)
+              if (!(await ensureBytes(12))) throw new UnsupportedFormatError('EOF');
               const channelCount = readUInt16BE();
               const _sampleSize = readUInt16BE();
               await skip(4); // pre_defined, reserved
@@ -698,101 +775,83 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
               const consumed = offset - entryStart;
               let remainingInMp4a = entrySize - consumed;
 
-              // Helper to parse ESDS atom content
+              // Helper to parse ESDS (Elementary Stream Descriptor) atom content.
+              // This is where AAC and MP3 codec details (objectTypeIndication) are found.
               const parseEsds = async (_atomSize: number) => {
                 await skip(4); // version/flags
 
-                if (await ensureBytes(20)) {
-                  const esDesc = readDescriptorHeader();
-                  if (esDesc.tag === 0x03) {
-                    // Object Descriptor
-                    await skip(2); // ES_ID
-                    const flags = readUInt8();
-                    if (flags & 0x80) await skip(2);
-                    if (flags & 0x40) {
-                      const urlLen = readUInt8();
-                      await skip(urlLen);
+                if (!(await ensureBytes(20))) return;
+
+                const esDesc = readDescriptorHeader();
+                if (esDesc.tag !== 0x03) {
+                  await skip(esDesc.length);
+                  return;
+                }
+
+                // Object Descriptor
+                await skip(2); // ES_ID
+                const flags = readUInt8();
+                if (flags & 0x80) await skip(2);
+                if (flags & 0x40) {
+                  const urlLen = readUInt8();
+                  await skip(urlLen);
+                }
+                if (flags & 0x20) await skip(2);
+
+                const decConfig = readDescriptorHeader();
+                if (decConfig.tag !== 0x04) {
+                  await skip(decConfig.length);
+                  return;
+                }
+
+                // ES Descriptor
+                // Header is 13 bytes: objectTypeIndication(1) + streamType(1) + bufferSizeDb(3) + maxBitrate(4) + avgBitrate(4)
+                if (!(await ensureBytes(13))) {
+                  await skip(decConfig.length);
+                  return;
+                }
+
+                const objectTypeIndication = readUInt8();
+                const _streamType = readUInt8();
+                const _bufferSizeDb = (readUInt8() << 16) | readUInt16BE();
+                const maxBitrate = readUInt32BE();
+                const avgBitrate = readUInt32BE();
+                track.bitrate = avgBitrate > 0 ? avgBitrate : maxBitrate;
+
+                detailedFormat = `mp4a.${toHexString(objectTypeIndication)}`;
+                if (objectTypeIndication === 0x6b || objectTypeIndication === 0x69) {
+                  track.codec = 'mp3';
+                  track.needsMp3Sniffing = true;
+                }
+
+                let remainingInDecConfig = decConfig.length - 13;
+                while (remainingInDecConfig > 0) {
+                  const childDesc = readDescriptorHeader();
+                  remainingInDecConfig -= childDesc.headerSize + childDesc.length;
+
+                  if (childDesc.tag === 0x05 && (await ensureBytes(childDesc.length))) {
+                    // DecoderSpecificInfo
+                    const ascData = buffer.slice(bufferOffset, bufferOffset + childDesc.length);
+                    const br = new BitReader(ascData);
+                    const ascInfo = parseAudioSpecificConfig(br);
+
+                    if (ascInfo.channelCount) track.channelCount = ascInfo.channelCount;
+                    if (ascInfo.sampleRate) track.sampleRate = ascInfo.sampleRate;
+                    detailedFormat += `.${toHexString(ascInfo.audioObjectType)}`;
+
+                    const aotProfileMap: Record<number, string> = {
+                      1: 'Main',
+                      2: 'LC',
+                      3: 'SSR',
+                      4: 'LTP',
+                      5: 'SBR',
+                    };
+                    if (aotProfileMap[ascInfo.audioObjectType]) {
+                      track.profile = aotProfileMap[ascInfo.audioObjectType];
                     }
-                    if (flags & 0x20) await skip(2);
-
-                    const decConfig = readDescriptorHeader();
-                    if (decConfig.tag === 0x04) {
-                      // ES Descriptor
-                      // Header is 13 bytes: objectTypeIndication(1) + streamType(1) + bufferSizeDb(3) + maxBitrate(4) + avgBitrate(4)
-                      if (await ensureBytes(13)) {
-                        const objectTypeIndication = readUInt8();
-                        const _streamType = readUInt8();
-                        const _bufferSizeDb = (readUInt8() << 16) | readUInt16BE();
-                        const maxBitrate = readUInt32BE();
-                        const avgBitrate = readUInt32BE();
-                        track.bitrate = avgBitrate > 0 ? avgBitrate : maxBitrate;
-
-                        detailedFormat = `mp4a.${toHexString(objectTypeIndication)}`;
-
-                        let remainingInDecConfig = decConfig.length - 13;
-
-                        while (remainingInDecConfig > 0) {
-                          const childDesc = readDescriptorHeader();
-                          remainingInDecConfig -= childDesc.headerSize + childDesc.length;
-
-                          if (childDesc.tag === 0x05) {
-                            // DecoderSpecificInfo
-                            if (await ensureBytes(childDesc.length)) {
-                              const startAsc = offset; // offset is tracked by read helper
-
-                              // Parse AudioSpecificConfig (bits)
-                              const byte0 = readUInt8();
-                              let audioObjectType = (byte0 >> 3) & 0x1f;
-                              if (audioObjectType === 31) {
-                                const byte1 = readUInt8();
-                                audioObjectType = 32 + ((byte1 >> 2) & 0x3f);
-                              }
-
-                              detailedFormat += `.${toHexString(audioObjectType)}`;
-
-                              switch (audioObjectType) {
-                                case 1: {
-                                  track.profile = 'Main';
-                                  break;
-                                }
-                                case 2: {
-                                  track.profile = 'LC';
-                                  break;
-                                }
-                                case 3: {
-                                  track.profile = 'SSR';
-                                  break;
-                                }
-                                case 4: {
-                                  track.profile = 'LTP';
-                                  break;
-                                }
-                                case 5: {
-                                  track.profile = 'SBR';
-                                  break;
-                                }
-                                default: {
-                                  break;
-                                }
-                              }
-
-                              const readSoFar = offset - startAsc;
-                              if (readSoFar < childDesc.length) {
-                                await skip(childDesc.length - readSoFar);
-                              }
-                            }
-                          } else {
-                            await skip(childDesc.length);
-                          }
-                        }
-                      } else {
-                        await skip(decConfig.length);
-                      }
-                    } else {
-                      await skip(decConfig.length);
-                    }
+                    await skip(childDesc.length);
                   } else {
-                    await skip(esDesc.length);
+                    await skip(childDesc.length);
                   }
                 }
               };
@@ -889,6 +948,31 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
             }
           }
           break;
+        }
+      }
+    }
+
+    // Deferred MP3 sniffing logic:
+    // If mdat was encountered before moov, we used the buffered initial data to
+    // find the first MP3 sample and determine the actual channel count.
+    if (mdatInitialData) {
+      for (const track of tracks) {
+        if (track.codec === 'mp3' && !track.mp3Sniffed && track.stco && track.stco.length > 0) {
+          const firstSampleOffset = track.stco[0];
+          if (firstSampleOffset >= mdatInitialDataOffset && firstSampleOffset < mdatInitialDataOffset + mdatInitialData.length) {
+            const bufferStart = firstSampleOffset - mdatInitialDataOffset;
+            if (bufferStart + 10 <= mdatInitialData.length) {
+              try {
+                const mp3Header = mdatInitialData.slice(bufferStart, bufferStart + 10);
+                const mp3Info = parseMP3Header(mp3Header);
+                track.channelCount = mp3Info.channelCount;
+                if (!track.sampleRate || track.sampleRate === 0) track.sampleRate = mp3Info.sampleRate;
+                track.mp3Sniffed = true;
+              } catch {
+                // Ignore
+              }
+            }
+          }
         }
       }
     }

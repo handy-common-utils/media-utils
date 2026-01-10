@@ -26,6 +26,27 @@ describe('Extract audio from MOV', () => {
       },
     },
     {
+      filename: 'engine-start.h264.aac-mono.mov',
+      expectedMediaInfo: {
+        bytesRead: 59232,
+        container: 'aac',
+        containerDetail: 'aac',
+        parser: 'media-utils',
+        durationInSeconds: undefined,
+        videoStreams: [],
+        audioStreams: [
+          {
+            id: 0,
+            codec: 'aac',
+            codecDetail: 'mp4a.40.2',
+            profile: 'LC',
+            channelCount: 1,
+            sampleRate: 44100,
+          },
+        ],
+      },
+    },
+    {
       filename: 'engine-start.h264.mp3.mov',
       expectedMediaInfo: {
         bytesRead: 65536,

@@ -80,33 +80,14 @@ export async function extractFromAvi(
   const writer = output.getWriter();
   try {
     const audioStream = findAudioStreamToBeExtracted(mediaInfo, options);
-    // Only PCM and ADPCM are supported for now
-    if (!isPCM(audioStream.codec)) {
+    // Only PCM, ADPCM and MP3 are supported for now
+    if (!isPCM(audioStream.codec) && audioStream.codec !== 'mp3') {
       throw new UnsupportedFormatError(`Unsupported audio codec for AVI extraction: ${audioStream.codec}`);
     }
 
     const logger = setupGlobalLogger(options);
     if (logger.isDebug) logger.debug(`Extracting audio from AVI. Stream: ${audioStream.id}, Codec: ${audioStream.codec}`);
 
-    // Initialize WAV writer
-    const wavWriter = new WavWriter(writer, audioStream);
-
-    // AVI Stream Numbering:
-    // ---------------------
-    // In AVI files, streams are numbered sequentially starting from 00:
-    //   Stream 00: First video stream (chunks: 00dc for compressed video)
-    //   Stream 01: First audio stream (chunks: 01wb for audio)
-    //   Stream 02: Second video or audio stream, etc.
-    //
-    // The parser assigns IDs differently:
-    //   Video streams: IDs 1, 2, 3, ...
-    //   Audio streams: IDs start after video streams (videoCount+1, videoCount+2, ...)
-    //
-    // Example with 1 video + 1 audio:
-    //   AVI stream 00 → Parser video ID 1
-    //   AVI stream 01 → Parser audio ID 2
-    //
-    // We need to map parser audio ID back to AVI stream number:
     const videoStreamCount = mediaInfo.videoStreams.length;
     const audioStreamIndexInAudioArray = audioStream.id - videoStreamCount - 1; // 0-based index in audio streams
     const targetAviStreamNumber = videoStreamCount + audioStreamIndexInAudioArray; // AVI stream number (0-based)
@@ -117,30 +98,52 @@ export async function extractFromAvi(
     if (audioStream.durationInSeconds && audioStream.bitrate) {
       estimatedTotalSize = Math.floor((audioStream.durationInSeconds * audioStream.bitrate) / 8);
     }
+    function reportProgress() {
+      if (options.onProgress && estimatedTotalSize > 0) {
+        const progress = Math.min(100, Math.floor((totalDataWritten / estimatedTotalSize) * 100));
+        options.onProgress(progress);
+      }
+    }
 
-    // Use the AVI parser to stream chunks
-    await parseAvi(input, {
-      ...options,
-      onSamples: async (streamNumber, samples) => {
-        // Check if this is an audio chunk for our stream
-        if (streamNumber === targetAviStreamNumber) {
-          for (const sample of samples) {
-            // Extract raw audio data from this chunk
-            // For PCM: This is raw samples that will be written to WAV
-            wavWriter.appendData(sample);
-            totalDataWritten += sample.length;
+    if (audioStream.codec === 'mp3') {
+      // For MP3, just write the raw frames
+      await parseAvi(input, {
+        ...options,
+        onSamples: async (streamNumber, samples) => {
+          if (streamNumber === targetAviStreamNumber) {
+            for (const sample of samples) {
+              await writer.write(sample);
+              totalDataWritten += sample.length;
+            }
+            reportProgress();
           }
+        },
+      });
+    } else if (isPCM(audioStream.codec)) {
+      // Initialize WAV writer for PCM/ADPCM
+      const wavWriter = new WavWriter(writer, audioStream);
 
-          // Update progress
-          if (options.onProgress && estimatedTotalSize > 0) {
-            const progress = Math.min(100, Math.floor((totalDataWritten / estimatedTotalSize) * 100));
-            options.onProgress(progress);
+      // Use the AVI parser to stream chunks
+      await parseAvi(input, {
+        ...options,
+        onSamples: async (streamNumber, samples) => {
+          // Check if this is an audio chunk for our stream
+          if (streamNumber === targetAviStreamNumber) {
+            for (const sample of samples) {
+              // Extract raw audio data from this chunk
+              // For PCM: This is raw samples that will be written to WAV
+              wavWriter.appendData(sample);
+              totalDataWritten += sample.length;
+            }
+            reportProgress();
           }
-        }
-      },
-    });
+        },
+      });
 
-    await wavWriter.writeAll();
+      await wavWriter.writeAll();
+    } else {
+      throw new UnsupportedFormatError(`Unsupported audio codec for AVI extraction: ${audioStream.codec}`);
+    }
 
     if (options.onProgress) {
       options.onProgress(100);

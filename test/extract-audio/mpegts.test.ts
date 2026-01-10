@@ -77,5 +77,26 @@ describe('Extract Audio from MPEG-TS', () => {
         ],
       },
     },
+    {
+      filename: 'engine-start.h264.aac-mono.m2ts',
+      expectedMediaInfo: {
+        bytesRead: 55571,
+        container: 'aac',
+        containerDetail: 'aac',
+        durationInSeconds: undefined,
+        parser: 'media-utils',
+        videoStreams: [],
+        audioStreams: [
+          {
+            codec: 'aac',
+            codecDetail: 'mp4a.40.2',
+            profile: 'LC',
+            sampleRate: 44100,
+            channelCount: 1,
+            id: 0,
+          },
+        ],
+      },
+    },
   ]);
 });

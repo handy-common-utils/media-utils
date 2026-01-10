@@ -47,6 +47,27 @@ describe('Extract audio from WebM', () => {
         ],
       },
     },
+    {
+      filename: 'engine-start.vp9.opus-mono.webm',
+      expectedMediaInfo: {
+        bytesRead: 55170,
+        container: 'ogg',
+        containerDetail: 'ogg',
+        parser: 'media-utils',
+        durationInSeconds: undefined,
+        videoStreams: [],
+        audioStreams: [
+          {
+            id: 1,
+            codec: 'opus',
+            codecDetail: 'opus',
+            channelCount: 1,
+            sampleRate: 48000,
+            durationInSeconds: undefined,
+          },
+        ],
+      },
+    },
   ]);
 
   it('should report progress when extracting from WebM', async () => {

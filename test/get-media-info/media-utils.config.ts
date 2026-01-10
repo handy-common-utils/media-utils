@@ -209,6 +209,40 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
     },
   },
   {
+    filename: 'engine-start.h264.aac-mono.mp4',
+    expectedMediaInfo: {
+      bytesRead: 6042,
+      parser: 'media-utils',
+      container: 'mp4',
+      containerDetail: 'isom, isom, iso2, avc1, mp41',
+      durationInSeconds: expect.closeTo(6, 0) as any,
+      videoStreams: [
+        {
+          codec: 'h264',
+          codecDetail: 'avc1.64001f',
+          durationInSeconds: expect.closeTo(6, 0) as any,
+          id: 1,
+          width: 1280,
+          height: 534,
+          fps: 24,
+          bitrate: 349083,
+        },
+      ],
+      audioStreams: [
+        {
+          codec: 'aac',
+          codecDetail: 'mp4a.40.02',
+          durationInSeconds: expect.closeTo(6, 0) as any,
+          id: 2,
+          sampleRate: 44100,
+          bitrate: expect.closeTo(69701, -3) as any,
+          channelCount: 1,
+          profile: 'LC',
+        },
+      ],
+    },
+  },
+  {
     filename: 'engine-start.h264.mp3.mp4',
     expectedMediaInfo: {
       bytesRead: 365336, // Atom mdat @ 40 of size: 358786, ends @ 358826, Atom moov @ 358826 of size: 6510, ends @ 365336
@@ -237,6 +271,39 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
           sampleRate: 44100,
           bitrate: expect.closeTo(128452, -3) as any,
           channelCount: 2,
+        },
+      ],
+    },
+  },
+  {
+    filename: 'engine-start.h264.mp3-mono.mp4',
+    expectedMediaInfo: {
+      bytesRead: 317074,
+      parser: 'media-utils',
+      container: 'mp4',
+      containerDetail: 'isom, isom, iso2, avc1, mp41',
+      durationInSeconds: expect.closeTo(6, 0) as any,
+      videoStreams: [
+        {
+          codec: 'h264',
+          codecDetail: 'avc1.64001f',
+          durationInSeconds: expect.closeTo(6, 0) as any,
+          id: 1,
+          width: 1280,
+          height: 534,
+          fps: 24,
+          bitrate: 349083,
+        },
+      ],
+      audioStreams: [
+        {
+          codec: 'mp3',
+          codecDetail: 'mp4a.6b',
+          durationInSeconds: expect.closeTo(6, 0) as any,
+          id: 2,
+          sampleRate: 44100,
+          bitrate: expect.closeTo(64010, -3) as any,
+          channelCount: 1,
         },
       ],
     },
@@ -275,6 +342,39 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
     },
   },
   {
+    filename: 'engine-start.h264.aac-mono.mov',
+    expectedMediaInfo: {
+      bytesRead: 769525,
+      parser: 'media-utils',
+      container: 'mov',
+      containerDetail: 'qt  , qt  ',
+      durationInSeconds: expect.closeTo(6, 0) as any,
+      videoStreams: [
+        {
+          codec: 'h264',
+          codecDetail: 'avc1.4d401f',
+          durationInSeconds: expect.closeTo(6, 0) as any,
+          id: 1,
+          width: 1280,
+          height: 534,
+          fps: expect.closeTo(22, 0) as any,
+          bitrate: 939149,
+        },
+      ],
+      audioStreams: [
+        {
+          codec: 'aac',
+          codecDetail: 'mp4a',
+          durationInSeconds: expect.closeTo(6, 0) as any,
+          id: 2,
+          sampleRate: 44100,
+          bitrate: expect.closeTo(76677, -3) as any,
+          channelCount: 1,
+        },
+      ],
+    },
+  },
+  {
     filename: 'engine-start.h264.mp3.mov',
     expectedMediaInfo: {
       bytesRead: 856055, // moov after [mdat] size=850251
@@ -303,6 +403,99 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
           sampleRate: 44100,
           bitrate: expect.closeTo(192000, -4) as any,
           durationInSeconds: expect.closeTo(6, 0) as any,
+        },
+      ],
+    },
+  },
+  {
+    filename: 'engine-start.h264.aac-mono.mkv',
+    expectedMediaInfo: {
+      bytesRead: 3841,
+      parser: 'media-utils',
+      container: 'mkv',
+      containerDetail: 'matroska',
+      durationInSeconds: expect.closeTo(6, 0) as any,
+      videoStreams: [
+        {
+          codec: 'h264',
+          codecDetail: 'V_MPEG4/ISO/AVC',
+          durationInSeconds: expect.closeTo(6, 0) as any,
+          id: 1,
+          width: 1280,
+          height: 534,
+        },
+      ],
+      audioStreams: [
+        {
+          codec: 'aac',
+          codecDetail: 'A_AAC',
+          durationInSeconds: expect.closeTo(6, 0) as any,
+          id: 2,
+          sampleRate: 44100,
+          channelCount: 1,
+          bitsPerSample: 32,
+        },
+      ],
+    },
+  },
+  {
+    filename: 'engine-start.h264.mp3-mono.mkv',
+    expectedMediaInfo: {
+      bytesRead: 3844,
+      parser: 'media-utils',
+      container: 'mkv',
+      containerDetail: 'matroska',
+      durationInSeconds: expect.closeTo(6, 0) as any,
+      videoStreams: [
+        {
+          codec: 'h264',
+          codecDetail: 'V_MPEG4/ISO/AVC',
+          durationInSeconds: expect.closeTo(6, 0) as any,
+          id: 1,
+          width: 1280,
+          height: 534,
+        },
+      ],
+      audioStreams: [
+        {
+          codec: 'mp3',
+          codecDetail: 'A_MPEG/L3',
+          durationInSeconds: expect.closeTo(6, 0) as any,
+          id: 2,
+          sampleRate: 44100,
+          channelCount: 1,
+          bitsPerSample: 32,
+        },
+      ],
+    },
+  },
+  {
+    filename: 'engine-start.vp9.opus-mono.webm',
+    expectedMediaInfo: {
+      bytesRead: 1232,
+      parser: 'media-utils',
+      container: 'webm',
+      containerDetail: 'webm',
+      durationInSeconds: expect.closeTo(6, 0) as any,
+      videoStreams: [
+        {
+          codec: 'vp9',
+          codecDetail: 'V_VP9',
+          durationInSeconds: expect.closeTo(6, 0) as any,
+          id: 1,
+          width: 1280,
+          height: 534,
+        },
+      ],
+      audioStreams: [
+        {
+          codec: 'opus',
+          codecDetail: 'A_OPUS',
+          durationInSeconds: expect.closeTo(6, 0) as any,
+          id: 2,
+          sampleRate: 48000,
+          channelCount: 1,
+          bitsPerSample: 32,
         },
       ],
     },
@@ -384,6 +577,44 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
     },
   },
   {
+    filename: 'engine-start.h264.mp3-mono.avi',
+    expectedMediaInfo: {
+      bytesRead: 8968,
+      parser: 'media-utils',
+      container: 'avi',
+      containerDetail: 'avi',
+      durationInSeconds: expect.closeTo(6, 0) as any,
+      videoStreams: [
+        {
+          codec: 'h264',
+          codecDetail: 'H264',
+          durationInSeconds: expect.closeTo(6, 0) as any,
+          id: 1,
+          width: 1280,
+          height: 534,
+          fps: 24,
+        },
+      ],
+      audioStreams: [
+        {
+          codec: 'mp3',
+          codecDetail: 'mp3',
+          durationInSeconds: expect.closeTo(6, 0) as any,
+          id: 2,
+          sampleRate: 44100,
+          channelCount: 1,
+          bitrate: 0,
+          bitsPerSample: undefined,
+          codecDetails: {
+            formatTag: 85,
+            blockAlign: 1152,
+            samplesPerBlock: undefined,
+          },
+        },
+      ],
+    },
+  },
+  {
     filename: 'engine-start.mpeg2video.mp2.m2ts',
     expectedMediaInfo: {
       bytesRead: 65536,
@@ -411,6 +642,34 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
             layer: 2,
             padding: 0,
           },
+          language: 'eng',
+        },
+      ],
+    },
+  },
+  {
+    filename: 'engine-start.h264.aac-mono.m2ts',
+    expectedMediaInfo: {
+      bytesRead: 65536,
+      parser: 'media-utils',
+      container: 'mpegts',
+      containerDetail: 'mpegts',
+      videoStreams: [
+        {
+          codec: 'h264',
+          codecDetail: 'avc1.64001f',
+          id: 4113,
+          width: 1280,
+          height: 534,
+        },
+      ],
+      audioStreams: [
+        {
+          codec: 'aac',
+          id: 4352,
+          sampleRate: 44100,
+          channelCount: 1,
+          codecDetail: 'AAC in ADTS',
           language: 'eng',
         },
       ],
