@@ -1,5 +1,5 @@
 import { ExtractAudioOptions } from '../extract-audio';
-import { AudioCodecType, AudioStreamInfo, MediaInfo } from '../media-info';
+import { AudioCodecType, MediaInfo } from '../media-info';
 import { parseMpegTs } from '../parsers/mpegts';
 import { setupGlobalLogger, UnsupportedFormatError } from '../utils';
 import { findAudioStreamToBeExtracted } from './utils';
@@ -26,24 +26,6 @@ export async function extractFromMpegTs(
     ...optionsInput,
   };
 
-  let stream: AudioStreamInfo;
-  try {
-    stream = findAudioStreamToBeExtracted(mediaInfo, options);
-    if (!supportedAudioCodecs.has(stream.codec)) {
-      throw new UnsupportedFormatError(`Unsupported codec for extracting from MPEG-TS: ${stream.codec}`);
-    }
-  } catch (error: any) {
-    input.cancel().catch(() => {});
-    await output
-      .getWriter()
-      .abort(error)
-      .catch(() => {});
-    throw error;
-  }
-
-  const logger = setupGlobalLogger(options);
-  if (logger.isDebug) logger.debug(`Extracting audio from MPEG-TS. Stream: ${stream.id}, Codec: ${stream.codec}`);
-
   if (options.onProgress) {
     options.onProgress(0);
   }
@@ -52,8 +34,16 @@ export async function extractFromMpegTs(
   let processingChain = Promise.resolve();
 
   try {
+    const stream = findAudioStreamToBeExtracted(mediaInfo, options);
+    if (!supportedAudioCodecs.has(stream.codec)) {
+      throw new UnsupportedFormatError(`Unsupported codec for extracting from MPEG-TS: ${stream.codec}`);
+    }
+
+    const logger = setupGlobalLogger(options);
+    if (logger.isDebug) logger.debug(`Extracting audio from MPEG-TS. Stream: ${stream.id}, Codec: ${stream.codec}`);
+
     await parseMpegTs(input, options, async (streamId, samples) => {
-      if (!stream || streamId !== stream.id) return;
+      if (streamId !== stream.id) return;
 
       // Queue processing to maintain order
       processingChain = processingChain.then(async () => {
@@ -73,12 +63,15 @@ export async function extractFromMpegTs(
 
     // Wait for all samples to be written
     await processingChain;
-    await writer.close().catch(() => {});
+
     if (options.onProgress) {
       options.onProgress(100);
     }
   } catch (error) {
     await writer.abort(error).catch(() => {});
     throw error;
+  } finally {
+    await writer.close().catch(() => {});
+    writer.releaseLock();
   }
 }

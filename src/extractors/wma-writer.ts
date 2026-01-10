@@ -53,12 +53,17 @@ export interface PayloadDetails {
 }
 
 /**
- * Write WMA audio content to a writable stream
- * @param output Writable stream to write the WMA audio content to. The stream will be closed after the content is written.
+ * Write WMA audio content to a writer.
+ * This function does not close or cancel the writer after the content is written.
+ * @param writer Writer to write the WMA audio content to.
  * @param content Audio content to write
  * @param onProgress Optional callback for progress reporting (0-100).
  */
-export async function writeWma(output: WritableStream<Uint8Array>, content: AudioContent, onProgress?: (progress: number) => void): Promise<void> {
+export async function writeWma(
+  writer: WritableStreamDefaultWriter<Uint8Array>,
+  content: AudioContent,
+  onProgress?: (progress: number) => void,
+): Promise<void> {
   const { allPayloads: _, ...metadata } = content;
 
   // Progress range: 0% - 100%
@@ -82,19 +87,11 @@ export async function writeWma(output: WritableStream<Uint8Array>, content: Audi
 
   if (onProgress) onProgress(50);
 
-  const writer = output.getWriter();
-  try {
-    await writer.write(headerObjectBuffer);
-    if (onProgress) onProgress(60);
+  await writer.write(headerObjectBuffer);
+  if (onProgress) onProgress(60);
 
-    await writer.write(dataObjectBuffer);
-    if (onProgress) onProgress(100);
-
-    await writer.close().catch(() => {});
-  } catch (error) {
-    await writer.abort(error).catch(() => {});
-    throw error;
-  }
+  await writer.write(dataObjectBuffer);
+  if (onProgress) onProgress(100);
 }
 
 /**

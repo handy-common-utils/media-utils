@@ -1,4 +1,4 @@
-import { withRetry } from '@handy-common-utils/promise-utils';
+import { delayedResolve, withRetry } from '@handy-common-utils/promise-utils';
 
 import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
 import { ParsingError } from '../utils';
@@ -31,18 +31,24 @@ export class InhouseParserAdapter implements MediaParserAdapter {
 
   async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<GetMediaInfoResult> {
     let i = 0;
-    const info = await withRetry(
-      () => {
-        const [s1, s2] = stream.tee();
-        stream = s1;
-        return this.parsers[i++](s2, options);
-      },
-      () => 0,
-      (error) => i < this.parsers.length && (error as ParsingError)?.isUnsupportedFormatError === true,
-    );
-    return {
-      ...info,
-      parser: 'media-utils',
-    };
+    try {
+      const info = await withRetry(
+        () => {
+          const [s1, s2] = stream.tee();
+          stream = s1;
+          return this.parsers[i++](s2, options);
+        },
+        () => 0,
+        (error) => i < this.parsers.length && (error as ParsingError)?.isUnsupportedFormatError === true,
+      );
+      return {
+        ...info,
+        parser: 'media-utils',
+      };
+    } finally {
+      // Node.js could keep pumping data to the stream for a very short period after the reader has been cancelled.
+      // Let's wait for a while to ensure that data pumping has actually stopped.
+      delayedResolve(800, () => stream.cancel().catch(() => {}));
+    }
   }
 }

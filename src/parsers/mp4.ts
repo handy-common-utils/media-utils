@@ -940,8 +940,8 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
       });
 
     return { ...mediaInfo, bytesRead: offset };
-  } catch (error) {
-    if (reader) reader.releaseLock();
-    throw error;
+  } finally {
+    reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
 }

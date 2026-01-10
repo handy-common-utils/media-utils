@@ -111,6 +111,33 @@ export async function createReadableStreamFromFile(filePath: string): Promise<Re
 }
 
 /**
+ * Creates a Web WritableStream from a Node.js file path.
+ * This function works in Node.js environment but not in browser.
+ *
+ * **Important:** The caller is responsible for properly consuming or cancelling
+ * the returned stream to ensure the underlying file handle is released.
+ * If the stream is not fully consumed, call `stream.cancel()` to clean up resources.
+ *
+ * @param filePath The path to the file
+ * @returns A (web) WritableStream of Uint8Array chunks
+ */
+export async function createWritableStreamFromFile(filePath: string): Promise<WritableStream<Uint8Array>> {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const { Writable } = require('node:stream');
+
+  // Ensure output directory exists
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  const nodeWritable = fs.createWriteStream(filePath);
+  const webWritableStream = Writable.toWeb(nodeWritable);
+  return webWritableStream;
+}
+
+/**
  * Reads a Web ReadableStream and writes it to a file.
  * This function works in Node.js environment but not in browser.
  * @param stream The readable stream to read from
@@ -142,11 +169,9 @@ export async function readFromStreamToFile(stream: ReadableStream<Uint8Array>, f
         writeStream.write(value);
       }
     }
-  } catch (error) {
-    // Cancel reader to release the stream lock
-    reader.cancel().catch(() => {});
-    throw error;
   } finally {
+    reader.cancel().catch(() => {});
+    reader.releaseLock();
     writeStream.end();
     await writePromise;
   }
@@ -206,6 +231,7 @@ export async function readBeginning(reader: ReadableStreamDefaultReader<Uint8Arr
     const { buffer } = await ensureBufferData(reader, undefined, undefined, size);
     return buffer;
   } finally {
-    reader.cancel().catch(() => {});
+    reader.cancel().catch(() => {}); // Without waiting the full releasing of underlying resources
+    reader.releaseLock();
   }
 }

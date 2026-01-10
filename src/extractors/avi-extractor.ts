@@ -1,5 +1,5 @@
 import { ExtractAudioOptions } from '../extract-audio';
-import { AudioStreamInfo, isPCM, MediaInfo } from '../media-info';
+import { isPCM, MediaInfo } from '../media-info';
 import { parseAvi } from '../parsers/avi';
 import { setupGlobalLogger, UnsupportedFormatError } from '../utils';
 import { findAudioStreamToBeExtracted } from './utils';
@@ -77,58 +77,47 @@ export async function extractFromAvi(
     options.onProgress(0);
   }
 
-  let audioStream: AudioStreamInfo;
+  const writer = output.getWriter();
   try {
-    audioStream = findAudioStreamToBeExtracted(mediaInfo, options);
+    const audioStream = findAudioStreamToBeExtracted(mediaInfo, options);
     // Only PCM and ADPCM are supported for now
     if (!isPCM(audioStream.codec)) {
       throw new UnsupportedFormatError(`Unsupported audio codec for AVI extraction: ${audioStream.codec}`);
     }
-  } catch (error: any) {
-    input.cancel().catch(() => {});
-    await output
-      .getWriter()
-      .abort(error)
-      .catch(() => {});
-    throw error;
-  }
 
-  const logger = setupGlobalLogger(options);
-  if (logger.isDebug) logger.debug(`Extracting audio from AVI. Stream: ${audioStream.id}, Codec: ${audioStream.codec}`);
+    const logger = setupGlobalLogger(options);
+    if (logger.isDebug) logger.debug(`Extracting audio from AVI. Stream: ${audioStream.id}, Codec: ${audioStream.codec}`);
 
-  const writer = output.getWriter();
+    // Initialize WAV writer
+    const wavWriter = new WavWriter(writer, audioStream);
 
-  // Initialize WAV writer
-  const wavWriter = new WavWriter(writer, audioStream);
+    // AVI Stream Numbering:
+    // ---------------------
+    // In AVI files, streams are numbered sequentially starting from 00:
+    //   Stream 00: First video stream (chunks: 00dc for compressed video)
+    //   Stream 01: First audio stream (chunks: 01wb for audio)
+    //   Stream 02: Second video or audio stream, etc.
+    //
+    // The parser assigns IDs differently:
+    //   Video streams: IDs 1, 2, 3, ...
+    //   Audio streams: IDs start after video streams (videoCount+1, videoCount+2, ...)
+    //
+    // Example with 1 video + 1 audio:
+    //   AVI stream 00 → Parser video ID 1
+    //   AVI stream 01 → Parser audio ID 2
+    //
+    // We need to map parser audio ID back to AVI stream number:
+    const videoStreamCount = mediaInfo.videoStreams.length;
+    const audioStreamIndexInAudioArray = audioStream.id - videoStreamCount - 1; // 0-based index in audio streams
+    const targetAviStreamNumber = videoStreamCount + audioStreamIndexInAudioArray; // AVI stream number (0-based)
 
-  // AVI Stream Numbering:
-  // ---------------------
-  // In AVI files, streams are numbered sequentially starting from 00:
-  //   Stream 00: First video stream (chunks: 00dc for compressed video)
-  //   Stream 01: First audio stream (chunks: 01wb for audio)
-  //   Stream 02: Second video or audio stream, etc.
-  //
-  // The parser assigns IDs differently:
-  //   Video streams: IDs 1, 2, 3, ...
-  //   Audio streams: IDs start after video streams (videoCount+1, videoCount+2, ...)
-  //
-  // Example with 1 video + 1 audio:
-  //   AVI stream 00 → Parser video ID 1
-  //   AVI stream 01 → Parser audio ID 2
-  //
-  // We need to map parser audio ID back to AVI stream number:
-  const videoStreamCount = mediaInfo.videoStreams.length;
-  const audioStreamIndexInAudioArray = audioStream.id - videoStreamCount - 1; // 0-based index in audio streams
-  const targetAviStreamNumber = videoStreamCount + audioStreamIndexInAudioArray; // AVI stream number (0-based)
+    let totalDataWritten = 0;
+    // Estimate total size for progress reporting only
+    let estimatedTotalSize = 0;
+    if (audioStream.durationInSeconds && audioStream.bitrate) {
+      estimatedTotalSize = Math.floor((audioStream.durationInSeconds * audioStream.bitrate) / 8);
+    }
 
-  let totalDataWritten = 0;
-  // Estimate total size for progress reporting only
-  let estimatedTotalSize = 0;
-  if (audioStream.durationInSeconds && audioStream.bitrate) {
-    estimatedTotalSize = Math.floor((audioStream.durationInSeconds * audioStream.bitrate) / 8);
-  }
-
-  try {
     // Use the AVI parser to stream chunks
     await parseAvi(input, {
       ...options,
@@ -152,7 +141,6 @@ export async function extractFromAvi(
     });
 
     await wavWriter.writeAll();
-    await writer.close().catch(() => {});
 
     if (options.onProgress) {
       options.onProgress(100);
@@ -160,5 +148,8 @@ export async function extractFromAvi(
   } catch (error) {
     await writer.abort(error).catch(() => {});
     throw error;
+  } finally {
+    await writer.close().catch(() => {});
+    writer.releaseLock();
   }
 }

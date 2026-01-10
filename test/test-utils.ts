@@ -1,13 +1,15 @@
 import { generateRandomStringQuickly } from '@handy-common-utils/misc-utils';
+import { PromiseUtils } from '@handy-common-utils/promise-utils';
 import { afterAll, expect, it } from '@jest/globals';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { extractAudioFromFileToFile, ExtractAudioOptions } from '../src/extract-audio';
-import { getMediaInfoFromFile, GetMediaInfoOptions, GetMediaInfoResult } from '../src/get-media-info';
+import { extractAudio, ExtractAudioOptions } from '../src/extract-audio';
+import { getMediaInfo, getMediaInfoFromFile, GetMediaInfoOptions, GetMediaInfoResult } from '../src/get-media-info';
 import { MediaInfo, toAudioCodec, toContainer } from '../src/media-info';
 import { AsfMediaInfo } from '../src/parsers/asf';
 import { Mp4MediaInfo } from '../src/parsers/mp4';
+import { createReadableStreamFromFile, createWritableStreamFromFile } from '../src/utils';
 
 // eslint-disable-next-line unicorn/prefer-module
 const SAMPLE_DIR = path.join(__dirname, 'sample-media-files');
@@ -217,9 +219,11 @@ export function runGetMediaInfoTestCases(testCases: GetMediaInfoTestCase[], useP
   for (const { shouldFail, filename, options, expectedMediaInfo, fileRemark, testRemark } of testCases) {
     const optionsWithUseParser = { ...options, useParser };
     it(`should getMediaInfo ${shouldFail ? 'fail' : 'work'} with ${filename}${fileRemark ? ` (${fileRemark})` : ''}${testRemark ? ` - ${testRemark}` : ''}`, async () => {
+      const { stream: inputStream, getBranches } = trackAllBranches(await createReadableStreamFromFile(sampleFile(filename)));
+
       if (shouldFail) {
         try {
-          await getMediaInfoFromFile(sampleFile(filename), optionsWithUseParser);
+          await getMediaInfo(inputStream, optionsWithUseParser);
           expect('').toEqual('getMediaInfoFromFile is expected to fail');
         } catch (error) {
           expect(error).toBeInstanceOf(Error);
@@ -230,12 +234,18 @@ export function runGetMediaInfoTestCases(testCases: GetMediaInfoTestCase[], useP
           );
         }
       } else {
-        const info = await getMediaInfoFromFile(sampleFile(filename), optionsWithUseParser);
+        const info = await getMediaInfo(inputStream, optionsWithUseParser);
         expect(info).toEqual(expectedMediaInfo);
         addGetMediaInfoTestReportItem(
           { succeeded: true, filename, fileRemark, testRemark, parser: optionsWithUseParser.useParser ?? 'auto' },
           expectedMediaInfo,
         );
+      }
+
+      const branches = getBranches();
+      // console.log('all branches:', branches);
+      for (const branch of branches) {
+        expect(await isReadableStreamNotOpen(branch)).toBe(true);
       }
     });
   }
@@ -280,10 +290,13 @@ export function runExtractAudioTestCases(testCases: ExtractAudioTestCase[]) {
           videoStreams: [],
         };
       }
+
       const outputFilename = `extracted-from-${filename}.audio`;
+      const { stream: inputStream, getBranches } = trackAllBranches(await createReadableStreamFromFile(sampleFile(filename)));
+      const outputStream = await createWritableStreamFromFile(outputFile(outputFilename));
       if (shouldFail) {
         try {
-          await extractAudioFromFileToFile(sampleFile(filename), outputFile(outputFilename), options);
+          await extractAudio(inputStream, outputStream, options);
           expect('').toEqual('extractAudio is expected to fail');
         } catch (error) {
           expect(error).toBeInstanceOf(Error);
@@ -291,7 +304,7 @@ export function runExtractAudioTestCases(testCases: ExtractAudioTestCase[]) {
           addExtractAudioTestReportItem({ succeeded: false, filename, fileRemark, testRemark }, sourceMediaInfo);
         }
       } else {
-        await extractAudioFromFileToFile(sampleFile(filename), outputFile(outputFilename), options);
+        await extractAudio(inputStream, outputStream, options);
         assertFileSize(outputFile(outputFilename), minSizeKB, maxSizeKB);
         const info = await getMediaInfoFromFile(outputFile(outputFilename));
         expect(info).toEqual(expectedMediaInfo);
@@ -301,6 +314,72 @@ export function runExtractAudioTestCases(testCases: ExtractAudioTestCase[]) {
         );
         addExtractAudioTestReportItem({ succeeded: true, filename, fileRemark, testRemark }, sourceMediaInfo, expectedMediaInfo);
       }
+
+      for (const branch of getBranches()) {
+        expect(await isReadableStreamNotOpen(branch)).toBe(true);
+      }
+      expect(await isWritableStreamClosed(outputStream)).toBe(true);
     });
   }
+}
+
+function trackAllBranches<T extends ReadableStream>(stream: T) {
+  const allBranches: T[] = [];
+
+  // Helper function to enhance a specific stream's tee method
+  function enhanceStream(s: T) {
+    const originalTee = s.tee;
+
+    s.tee = function () {
+      // 1. Call the native tee to get [s1, s2]
+      const results = originalTee.call(this) as [T, T];
+
+      // 2. Add these specific branches to our master list
+      allBranches.push(...results);
+
+      // 3. RECURSION: Enhance the new branches so their .tee() is also tracked
+      results.forEach((branch) => enhanceStream(branch));
+
+      return results;
+    };
+  }
+
+  // Initialize the first stream
+  enhanceStream(stream);
+
+  return {
+    stream,
+    // Returns a flat list of every branch created in the tree
+    getBranches: () => allBranches,
+  };
+}
+
+async function isReadableStreamNotOpen(stream: ReadableStream) {
+  const streamJSON = JSON.stringify(stream);
+  if (streamJSON.includes(" state: 'closed'")) return true;
+  if (streamJSON.includes(" state: 'readable'")) return false;
+
+  if (stream.locked) return true;
+
+  const reader = stream.getReader();
+
+  const closedPromise = reader.closed.then(() => true);
+  const isClosed = (await PromiseUtils.promiseState(closedPromise)) === 'Pending' ? true : await closedPromise;
+
+  if (!isClosed) {
+    // console.log('isReadableStreamNotOpen: stream is not closed');
+  }
+
+  reader.releaseLock(); // Be nice
+  return isClosed;
+}
+
+async function isWritableStreamClosed(stream: WritableStream) {
+  const writer = stream.getWriter();
+
+  const closedPromise = writer.closed.then(() => true).catch(() => false);
+  const isClosed = await closedPromise;
+
+  writer.releaseLock();
+  return isClosed;
 }

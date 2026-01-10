@@ -362,10 +362,9 @@ export async function parseAvi(stream: ReadableStream<Uint8Array>, options?: Par
       mediaInfo.durationInSeconds = undefined;
     }
 
-    reader.releaseLock();
     return { ...mediaInfo, bytesRead: offset };
-  } catch (error) {
+  } finally {
+    reader.cancel().catch(() => {});
     reader.releaseLock();
-    throw error;
   }
 }

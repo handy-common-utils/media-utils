@@ -193,10 +193,8 @@ export class MkvParser {
         }
       }
     } finally {
-      // Ensure reader is cancelled if we exit early
-      if (!this.onSamples && this.isReady) {
-        this.reader.cancel().catch(() => {});
-      }
+      this.reader.cancel().catch(() => {});
+      this.reader.releaseLock();
     }
 
     if (this.generatedMediaInfo) {

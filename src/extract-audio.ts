@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports, unicorn/prefer-module */
 
+import { delayedResolve } from '@handy-common-utils/promise-utils';
+
 import { extractFromAsf } from './extractors/asf-extractor';
 import { extractFromAvi } from './extractors/avi-extractor';
 import { extractFromMkv } from './extractors/mkv-extractor';
@@ -66,53 +68,65 @@ export async function extractAudio(
 
   // Tee the stream: one for detection, one for extraction
   const [detectStream, extractStream] = input.tee();
-  if (options.onProgress) {
-    options.onProgress(2);
-  }
 
-  // Detect container type
-  const mediaInfo = await getMediaInfo(detectStream, {
-    ...options,
-    useParser: 'media-utils',
-    sampleTableInfo: true, // Always enable for MP4/MOV (will be ignored for other formats)
-  } as GetMediaInfoOptions | ParseMp4Options);
-  if (options.onProgress) {
-    options.onProgress(8);
-    const originalOnProgress = options.onProgress;
-    options.onProgress = (progress) => {
-      originalOnProgress(8 + Math.round(progress * 0.92));
-    };
-  }
-  if (logger.isDebug)
-    logger.debug(
-      `Detected input media info by ${mediaInfo.parser}: ${mediaInfo.container}[${mediaInfo.videoStreams.map((s) => s.codec).join(',')}][${mediaInfo.audioStreams.map((s) => s.codec).join(',')}]`,
-    );
+  try {
+    if (options.onProgress) {
+      options.onProgress(2);
+    }
 
-  const container = mediaInfo.container;
+    // Detect container type
+    const mediaInfo = await getMediaInfo(detectStream, {
+      ...options,
+      useParser: 'media-utils',
+      sampleTableInfo: true, // Always enable for MP4/MOV (will be ignored for other formats)
+    } as GetMediaInfoOptions | ParseMp4Options);
+    if (options.onProgress) {
+      options.onProgress(8);
+      const originalOnProgress = options.onProgress;
+      options.onProgress = (progress) => {
+        originalOnProgress(8 + Math.round(progress * 0.92));
+      };
+    }
+    if (logger.isDebug)
+      logger.debug(
+        `Detected input media info by ${mediaInfo.parser}: ${mediaInfo.container}[${mediaInfo.videoStreams.map((s) => s.codec).join(',')}][${mediaInfo.audioStreams.map((s) => s.codec).join(',')}]`,
+      );
 
-  // Route to appropriate extractor
-  switch (container) {
-    case 'mp4':
-    case 'mov': {
-      return extractFromMp4(extractStream, output, mediaInfo as unknown as Mp4MediaInfo, options);
+    const container = mediaInfo.container;
+
+    // Route to appropriate extractor
+    switch (container) {
+      case 'mp4':
+      case 'mov': {
+        return await extractFromMp4(extractStream, output, mediaInfo as unknown as Mp4MediaInfo, options);
+      }
+      case 'mkv':
+      case 'webm': {
+        return await extractFromMkv(extractStream, output, mediaInfo, options);
+      }
+      case 'wma':
+      case 'asf': {
+        return await extractFromAsf(extractStream, output, mediaInfo as unknown as AsfMediaInfo, options);
+      }
+      case 'avi': {
+        return await extractFromAvi(extractStream, output, mediaInfo, options);
+      }
+      case 'mpegts': {
+        return await extractFromMpegTs(extractStream, output, mediaInfo, options);
+      }
+      default: {
+        throw new UnsupportedFormatError(`Unsupported container format: ${container}. Supported formats: mp4, mov, mkv/webm, asf, wma, avi, mpegts`);
+      }
     }
-    case 'mkv':
-    case 'webm': {
-      return extractFromMkv(extractStream, output, mediaInfo, options);
-    }
-    case 'wma':
-    case 'asf': {
-      return extractFromAsf(extractStream, output, mediaInfo as unknown as AsfMediaInfo, options);
-    }
-    case 'avi': {
-      return extractFromAvi(extractStream, output, mediaInfo, options);
-    }
-    case 'mpegts': {
-      return extractFromMpegTs(extractStream, output, mediaInfo, options);
-    }
-    default: {
-      throw new UnsupportedFormatError(`Unsupported container format: ${container}. Supported formats: mp4, mov, mkv/webm, asf, wma, avi, mpegts`);
-    }
+  } finally {
+    // Node.js could keep pumping data to the stream for a very short period after the reader has been cancelled.
+    // Let's wait for a while to ensure that data pumping has actually stopped.
+    delayedResolve(800, () => {
+      // Make sure that all the streams are closed
+      detectStream.cancel().catch(() => {});
+      extractStream.cancel().catch(() => {});
+      output.close().catch(() => {});
+    });
   }
 }
 
