@@ -30,6 +30,31 @@ describe('Extract audio from ASF/WMV', () => {
         additionalStreamInfo: expect.any(Map) as any,
       },
     },
+    {
+      filename: 'engine-start.wmv2.wmav2-mono.wmv',
+      expectedMediaInfo: {
+        bytesRead: 65536,
+        parser: 'media-utils',
+        container: 'asf',
+        containerDetail: 'wma',
+        durationInSeconds: 6,
+        videoStreams: [],
+        audioStreams: [
+          {
+            id: 2,
+            codec: 'wmav2',
+            codecDetail: 'WMAv2',
+            channelCount: 1,
+            sampleRate: 44100,
+            bitrate: 128000,
+            durationInSeconds: 6,
+            bitsPerSample: 16,
+          },
+        ],
+        fileProperties: expect.any(Object) as any,
+        additionalStreamInfo: expect.any(Map) as any,
+      },
+    },
   ]);
 
   it('should report progress when extracting from ASF', async () => {

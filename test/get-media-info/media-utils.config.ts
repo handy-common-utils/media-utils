@@ -956,4 +956,38 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
       ],
     },
   },
+  {
+    filename: 'engine-start.wmv2.wmav2-mono.wmv',
+    expectedMediaInfo: {
+      bytesRead: 65536,
+      parser: 'media-utils',
+      container: 'asf',
+      containerDetail: 'wmv',
+      durationInSeconds: expect.closeTo(6, 0.1) as any,
+      videoStreams: [
+        {
+          id: 1,
+          codec: 'wmv2',
+          codecDetail: 'WMV2',
+          width: 1280,
+          height: 534,
+          durationInSeconds: expect.closeTo(6, 0.1) as any,
+        },
+      ],
+      audioStreams: [
+        {
+          id: 2,
+          codec: 'wmav2',
+          codecDetail: 'WMAv2',
+          channelCount: 1,
+          sampleRate: 44100,
+          bitsPerSample: 16,
+          bitrate: 128000,
+          durationInSeconds: expect.closeTo(6, 0.1) as any,
+        },
+      ],
+      additionalStreamInfo: expect.any(Map) as any,
+      fileProperties: expect.any(Object) as any,
+    },
+  },
 ];
