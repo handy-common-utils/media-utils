@@ -990,4 +990,45 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
       fileProperties: expect.any(Object) as any,
     },
   },
+  {
+    filename: 'sample_960x400_ocean_with_audio.mxf',
+    expectedMediaInfo: {
+      bytesRead: expect.closeTo(18292066, -7) as any,
+      parser: 'media-utils',
+      container: 'mxf',
+      containerDetail: 'OP1a',
+      durationInSeconds: expect.closeTo(46.55, 1) as any,
+      videoStreams: [
+        {
+          id: 2,
+          codec: 'mpeg2video',
+          codecDetail: 'mpeg2video',
+          profile: 'Main',
+          width: 960,
+          height: 400,
+          fps: 23.98,
+          durationInSeconds: expect.closeTo(46.55, 1) as any,
+          codecDetails: {
+            essenceTrackNumber: 5377,
+          },
+        },
+      ],
+      audioStreams: [
+        {
+          id: 3,
+          codec: 'pcm_s16le',
+          codecDetail: 'pcm_s16le',
+          channelCount: 2,
+          sampleRate: 48000,
+          bitsPerSample: 16,
+          bitrate: expect.closeTo(1536000, -3) as any,
+          durationInSeconds: expect.closeTo(46.55, 1) as any,
+          codecDetails: {
+            essenceTrackNumber: 5633,
+            blockAlign: 4,
+          },
+        },
+      ],
+    },
+  },
 ];

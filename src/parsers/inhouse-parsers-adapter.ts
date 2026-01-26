@@ -10,6 +10,7 @@ import { parseMkv } from './mkv';
 import { parseMp3 } from './mp3';
 import { parseMp4 } from './mp4';
 import { parseMpegTs } from './mpegts';
+import { parseMxf } from './mxf';
 import { parseOgg } from './ogg';
 import { parseWav } from './wav';
 
@@ -27,7 +28,7 @@ import { parseWav } from './wav';
  * - MP4 files with ISO BMFF atoms
  */
 export class InhouseParserAdapter implements MediaParserAdapter {
-  private readonly parsers = [parseMp4, parseMp3, parseAac, parseMkv, parseWav, parseOgg, parseAvi, parseAsf, parseMpegTs];
+  private readonly parsers = [parseMp4, parseMp3, parseAac, parseMkv, parseWav, parseOgg, parseAvi, parseAsf, parseMxf, parseMpegTs];
 
   async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<GetMediaInfoResult> {
     let i = 0;

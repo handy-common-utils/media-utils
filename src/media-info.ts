@@ -16,6 +16,7 @@ const containers = {
   mkv: new ContainerDetails('mkv', 'mkv', ['matroska']),
   avi: new ContainerDetails('avi', 'avi', []),
   mpegts: new ContainerDetails('mpegts', 'ts', ['ts', 'transport-stream', 'm2ts']),
+  mxf: new ContainerDetails('mxf', 'mxf', []),
 
   /**
    * "wma" is only used as the default container format of audio codec "wmav1" and "wmav2"
@@ -166,6 +167,16 @@ export interface VideoStreamInfo {
   fps?: number;
   profile?: string;
   level?: string;
+  codecDetails?: {
+    /**
+     * In an MXF file, the video and audio data (the "essence") are stored in packets called KLVs. Every essence KLV starts with a 16-byte Universal Label (UL) that acts as a header.
+     * The essenceTrackNumber is a 4-byte value (e.g., 0x15010000 or 0x16010000) that is embedded inside those 16-byte headers to identify which stream the data belongs to.
+     * - Prefix 0x15: Usually indicates Video essence.
+     * - Prefix 0x16: Usually indicates Sound essence.
+     * - The suffix: Differentiates between multiple tracks of the same type (e.g., 0x1601 for the first audio track, 0x1602 for the second).
+     */
+    essenceTrackNumber?: number;
+  };
 }
 
 export interface AudioStreamInfo {
@@ -207,6 +218,14 @@ export interface AudioStreamInfo {
    * These values do NOT change per block/frame.
    */
   codecDetails?: {
+    /**
+     * In an MXF file, the video and audio data (the "essence") are stored in packets called KLVs. Every essence KLV starts with a 16-byte Universal Label (UL) that acts as a header.
+     * The essenceTrackNumber is a 4-byte value (e.g., 0x15010000 or 0x16010000) that is embedded inside those 16-byte headers to identify which stream the data belongs to.
+     * - Prefix 0x15: Usually indicates Video essence.
+     * - Prefix 0x16: Usually indicates Sound essence.
+     * - The suffix: Differentiates between multiple tracks of the same type (e.g., 0x1601 for the first audio track, 0x1602 for the second).
+     */
+    essenceTrackNumber?: number;
     /**
      * Format tag (wFormatTag) — STREAM LEVEL
      *
