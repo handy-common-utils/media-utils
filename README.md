@@ -98,6 +98,7 @@ This table lists the combinations verified by our test suite.
 | **mp4**          | h264        | mp3            |             |    ✅     |
 | **mpegts**       | h264        | aac            |             |    ✅     |
 | **mpegts**       | mpeg2video  | mp2            |             |    ✅     |
+| **mxf**          | h264        | pcm_s24le      |             |    ✅     |
 | **mxf**          | mpeg2video  | pcm_s16le      |             |    ✅     |
 | **ogg**          |             | opus           |             |    ✅     |
 | **ogg**          |             | vorbis         |             |    ✅     |
@@ -174,6 +175,7 @@ await extractAudioFromFileToFile('input-video.mp4', 'output-audio.aac');
 | **mpegts**       | h264        | aac            |             |    ✅     | **aac** in **aac**       |
 | **mpegts**       | h264        | mp3            |             |    ✅     | **mp3** in **mp3**       |
 | **mpegts**       | mpeg2video  | mp2            |             |    ✅     | **mp2** in **mp3**       |
+| **mxf**          | h264        | pcm_s24le      |             |    ✅     | **pcm_s24le** in **wav** |
 | **mxf**          | mpeg2video  | pcm_s16le      |             |    ✅     | **pcm_s16le** in **wav** |
 | **webm**         | vp9         | opus           |             |    ✅     | **opus** in **ogg**      |
 | **webm**         | vp9         | vorbis         |             |    ✅     | **vorbis** in **ogg**    |
