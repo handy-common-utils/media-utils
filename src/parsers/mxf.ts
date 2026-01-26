@@ -26,6 +26,7 @@ const TRACK_KEY = Buffer.from([0x06, 0x0e, 0x2b, 0x34, 0x02, 0x53, 0x01, 0x01, 0
 const SEQUENCE_KEY = Buffer.from([0x06, 0x0e, 0x2b, 0x34, 0x02, 0x53, 0x01, 0x01, 0x0d, 0x01, 0x01, 0x01, 0x01, 0x01, 0x0f, 0x00]);
 const SOURCE_CLIP_KEY = Buffer.from([0x06, 0x0e, 0x2b, 0x34, 0x02, 0x53, 0x01, 0x01, 0x0d, 0x01, 0x01, 0x01, 0x01, 0x01, 0x11, 0x00]);
 const MULTIPLE_DESCRIPTOR_KEY = Buffer.from([0x06, 0x0e, 0x2b, 0x34, 0x02, 0x53, 0x01, 0x01, 0x0d, 0x01, 0x01, 0x01, 0x01, 0x01, 0x44, 0x00]);
+const CDCI_ESSENCE_DESCRIPTOR_KEY = Buffer.from([0x06, 0x0e, 0x2b, 0x34, 0x02, 0x53, 0x01, 0x01, 0x0d, 0x01, 0x01, 0x01, 0x01, 0x01, 0x28, 0x00]);
 const MPEG_VIDEO_DESCRIPTOR_KEY = Buffer.from([0x06, 0x0e, 0x2b, 0x34, 0x02, 0x53, 0x01, 0x01, 0x0d, 0x01, 0x01, 0x01, 0x01, 0x01, 0x51, 0x00]);
 const WAVE_AUDIO_DESCRIPTOR_KEY = Buffer.from([0x06, 0x0e, 0x2b, 0x34, 0x02, 0x53, 0x01, 0x01, 0x0d, 0x01, 0x01, 0x01, 0x01, 0x01, 0x48, 0x00]);
 const AES3_AUDIO_DESCRIPTOR_KEY = Buffer.from([0x06, 0x0e, 0x2b, 0x34, 0x02, 0x53, 0x01, 0x01, 0x0d, 0x01, 0x01, 0x01, 0x01, 0x01, 0x47, 0x00]);
@@ -58,6 +59,7 @@ const OP1A_BASE = Buffer.from([0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0
 
 // Codec Universal Labels (Partial list for identification)
 const UL_PICTURE_ESSENCE_CODING_MPEG2_PREFIX = Buffer.from([0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x03, 0x04, 0x01, 0x02, 0x02]);
+const UL_PICTURE_ESSENCE_CODING_H264_PREFIX = Buffer.from([0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x0a, 0x04, 0x01, 0x02, 0x02]);
 // Updated to match common WAVE PCM usage (byte 10 = 0x02)
 const UL_SOUND_ESSENCE_CODING_LPCM_WAV = Buffer.from([0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x04, 0x02, 0x02, 0x01]);
 
@@ -327,7 +329,7 @@ export async function parseMxf(
                 compareUUID(target.key, WAVE_AUDIO_DESCRIPTOR_KEY) ||
                 compareUUID(target.key, AES3_AUDIO_DESCRIPTOR_KEY) ||
                 compareUUID(target.key, GENERIC_SOUND_DESCRIPTOR_KEY);
-              const isVideoDescriptor = compareUUID(target.key, MPEG_VIDEO_DESCRIPTOR_KEY);
+              const isVideoDescriptor = compareUUID(target.key, MPEG_VIDEO_DESCRIPTOR_KEY) || compareUUID(target.key, CDCI_ESSENCE_DESCRIPTOR_KEY);
 
               if (linkedID === undefined) {
                 // If LinkedTrackID is missing, match by essence type
@@ -378,7 +380,7 @@ export async function parseMxf(
                 break;
               } else if (target.properties.get(0x3203) && target.properties.get(0x3202) && isVideoDescriptor) {
                 const w = target.properties.get(0x3203)!.readUInt32BE(0);
-                const h = target.properties.get(0x3202)!.readUInt32BE(0);
+                let h = target.properties.get(0x3202)!.readUInt32BE(0);
 
                 const eRateProp = track.properties.get(0x4b01) || target.properties.get(0x3001);
                 let fps = 0;
@@ -442,6 +444,73 @@ export async function parseMxf(
                         break;
                       }
                     }
+                  }
+                } else if (pictureCodingUL && compareUUID(pictureCodingUL.subarray(0, 12), UL_PICTURE_ESSENCE_CODING_H264_PREFIX)) {
+                  codec = 'h264';
+                  const ulProfile = pictureCodingUL.length >= 14 ? pictureCodingUL[13] : 0;
+                  // Mapping based on ITU-T H.264 | ISO/IEC 14496-10
+                  switch (ulProfile) {
+                    case 0x42: {
+                      profile = 'Baseline';
+                      break;
+                    }
+                    case 0x4d: {
+                      profile = 'Main';
+                      break;
+                    }
+                    case 0x58: {
+                      profile = 'Extended';
+                      break;
+                    }
+                    case 0x64: {
+                      profile = 'High';
+                      break;
+                    }
+                    case 0x6e: {
+                      profile = 'High 10';
+                      break;
+                    }
+                    case 0x7a: {
+                      profile = 'High 4:2:2';
+                      break;
+                    }
+                    case 0xf4: {
+                      profile = 'High 4:4:4';
+                      break;
+                    }
+                    // MXF-specific mappings (SMPTE RP 2027 / FFmpeg)
+                    case 0x30: {
+                      profile = 'Baseline'; // Or Main? FFmpeg uses 0x30 for Main sometimes
+                      // Actually 0x30 is often Main or Constrained Baseline.
+                      // Let's assume Main for 0x30 based on some docs, but for High it is 0x31.
+                      break;
+                    }
+                    case 0x31: {
+                      profile = 'High';
+                      break;
+                    }
+                    case 0x32: {
+                      profile = 'High 10';
+                      break;
+                    }
+                    case 0x33: {
+                      profile = 'High 4:2:2';
+                      break;
+                    }
+                    case 0x34: {
+                      profile = 'High 4:4:4';
+                      break;
+                    }
+                  }
+                }
+
+                if (codec === 'h264') {
+                  const displayHeight = target.properties.get(0x3208);
+                  const sampledHeight = target.properties.get(0x3209);
+                  if (displayHeight) {
+                    h = displayHeight.readUInt32BE(0);
+                  } else if (sampledHeight) {
+                    h = sampledHeight.readUInt32BE(0);
                   }
                 }
 

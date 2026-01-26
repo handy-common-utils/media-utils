@@ -1031,4 +1031,45 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
       ],
     },
   },
+  {
+    filename: 'sample.h264.pcm24le.8ch.mxf',
+    expectedMediaInfo: {
+      bytesRead: expect.closeTo(15362105, -7) as any,
+      container: 'mxf',
+      containerDetail: 'OP1a',
+      parser: 'media-utils',
+      durationInSeconds: expect.closeTo(10, 1) as any,
+      videoStreams: [
+        {
+          id: 2,
+          codec: 'h264',
+          codecDetail: 'h264',
+          profile: 'High',
+          width: 1920,
+          height: 1080,
+          fps: 25,
+          durationInSeconds: expect.closeTo(10, 1) as any,
+          codecDetails: {
+            essenceTrackNumber: 5377,
+          },
+        },
+      ],
+      audioStreams: [
+        {
+          id: 3,
+          codec: 'pcm_s24le',
+          codecDetail: 'pcm_s24le',
+          channelCount: 8,
+          sampleRate: 48000,
+          bitsPerSample: 24,
+          bitrate: expect.closeTo(9216000, -3) as any,
+          durationInSeconds: expect.closeTo(10, 1) as any,
+          codecDetails: {
+            essenceTrackNumber: 5633,
+            blockAlign: 24,
+          },
+        },
+      ],
+    },
+  },
 ];

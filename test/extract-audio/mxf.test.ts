@@ -32,5 +32,33 @@ describe('Extract audio from MXF', () => {
         ],
       },
     },
+    {
+      filename: 'sample.h264.pcm24le.8ch.mxf',
+      expectedMediaInfo: {
+        bytesRead: 65536,
+        parser: 'media-utils',
+        container: 'wav',
+        containerDetail: 'wav',
+        durationInSeconds: expect.closeTo(10, 1) as any,
+        videoStreams: [],
+        audioStreams: [
+          {
+            id: 1,
+            codec: 'pcm_s24le',
+            codecDetail: 'pcm_s24le',
+            channelCount: 8,
+            sampleRate: 48000,
+            bitrate: 9216000,
+            durationInSeconds: expect.closeTo(10, 1) as any,
+            bitsPerSample: 24,
+            codecDetails: {
+              blockAlign: 24,
+              formatTag: 1,
+              samplesPerBlock: undefined,
+            },
+          },
+        ],
+      },
+    },
   ]);
 });
