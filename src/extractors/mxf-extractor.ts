@@ -1,5 +1,5 @@
 import { ExtractAudioOptions } from '../extract-audio';
-import { MediaInfo } from '../media-info';
+import { isPCM, MediaInfo } from '../media-info';
 import { parseMxf } from '../parsers/mxf';
 import { setupGlobalLogger, UnsupportedFormatError } from '../utils';
 import { findAudioStreamToBeExtracted } from './utils';
@@ -33,7 +33,7 @@ export async function extractFromMxf(
   try {
     const audioStream = findAudioStreamToBeExtracted(mediaInfo, options);
 
-    if (audioStream.codec !== 'pcm_s16le') {
+    if (!isPCM(audioStream.codec)) {
       throw new UnsupportedFormatError(`Unsupported audio codec for MXF extraction: ${audioStream.codec}`);
     }
 
