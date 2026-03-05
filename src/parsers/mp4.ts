@@ -99,6 +99,7 @@ interface TrackContext {
   height?: number;
   sampleRate?: number;
   channelCount?: number;
+  bitsPerSample?: number;
 
   // Sample Tables for Audio Extraction
   stts?: { sampleCount: number; sampleDelta: number }[];
@@ -764,12 +765,56 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
               await skip(8); // reserved(6), data_ref(2)
               if (!(await ensureBytes(12))) throw new UnsupportedFormatError('EOF');
               const channelCount = readUInt16BE();
-              const _sampleSize = readUInt16BE();
+              const pcmSampleSize = readUInt16BE();
               await skip(4); // pre_defined, reserved
               const sampleRate = readUInt32BE() / 65536;
 
               track.channelCount = channelCount;
               track.sampleRate = sampleRate;
+              track.bitsPerSample = pcmSampleSize;
+
+              // Refine PCM format based on 4CC and bits per sample
+              switch (format) {
+                case 'sowt': {
+                  detailedFormat = 'pcm_s16le';
+                  break;
+                }
+                case 'twos': {
+                  detailedFormat = 'pcm_s16be';
+                  break;
+                }
+                case 'in24': {
+                  detailedFormat = 'pcm_s24be';
+                  break;
+                }
+                case 'in32': {
+                  detailedFormat = 'pcm_s32be';
+                  break;
+                }
+                case 'fl32': {
+                  detailedFormat = 'pcm_f32be';
+                  break;
+                }
+                case 'fl64': {
+                  detailedFormat = 'pcm_f64be';
+                  break;
+                }
+                case 'raw ': {
+                  detailedFormat = 'pcm_u8';
+                  break;
+                }
+                case 'lpcm': {
+                  // Generic lpcm - use sample size to guess common types
+                  if (pcmSampleSize === 24) {
+                    detailedFormat = 'pcm_s24le';
+                  } else if (pcmSampleSize === 32) {
+                    detailedFormat = 'pcm_s32le';
+                  } else {
+                    detailedFormat = 'pcm_s16le';
+                  }
+                  break;
+                }
+              }
 
               // Parse children for esds
               const consumed = offset - entryStart;
@@ -1000,6 +1045,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
           codecDetail: t.codecDetail,
           channelCount: t.channelCount || undefined,
           sampleRate: t.sampleRate || undefined,
+          bitsPerSample: t.bitsPerSample || undefined,
           bitrate: t.bitrate || (t.totalBytes && t.duration ? Math.round((t.totalBytes * 8) / t.duration) : undefined),
           durationInSeconds: t.duration || mediaInfo.durationInSeconds,
           ...(t.profile ? { profile: t.profile } : {}),

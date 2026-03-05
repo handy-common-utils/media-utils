@@ -30,6 +30,7 @@ export const largeMovTestCases: GetMediaInfoTestCase[] = [
           codecDetail: '.mp3',
           channelCount: 2,
           sampleRate: 44100,
+          bitsPerSample: 16,
           bitrate: expect.closeTo(192000, -3) as any,
           durationInSeconds: expect.closeTo(734, 0) as any,
         },

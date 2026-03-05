@@ -1,4 +1,4 @@
-import { describe } from '@jest/globals';
+import { describe, expect } from '@jest/globals';
 
 import { runExtractAudioTestCases } from '../test-utils';
 
@@ -67,6 +67,34 @@ describe('Extract audio from MOV', () => {
             codecDetails: {
               layer: 3,
               padding: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      filename: 'engine-start.h264.pcms16le.mov',
+      expectedMediaInfo: {
+        bytesRead: 65536,
+        container: 'wav',
+        containerDetail: 'wav',
+        parser: 'media-utils',
+        durationInSeconds: expect.closeTo(6, 0) as any,
+        videoStreams: [],
+        audioStreams: [
+          {
+            id: 1,
+            codec: 'pcm_s16le',
+            codecDetail: 'pcm_s16le',
+            channelCount: 2,
+            sampleRate: 44100,
+            bitrate: 1411200,
+            bitsPerSample: 16,
+            durationInSeconds: expect.closeTo(6, 0) as any,
+            codecDetails: {
+              blockAlign: 4,
+              formatTag: 1,
+              samplesPerBlock: undefined,
             },
           },
         ],
