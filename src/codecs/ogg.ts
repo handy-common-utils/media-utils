@@ -1,3 +1,4 @@
+import { writeBigUInt64LE, writeUInt16LE, writeUInt32LE } from './binary';
 /**
  * OGG container muxer for Opus and Vorbis audio streams
  * Based on: https://xiph.org/ogg/doc/framing.html
@@ -189,7 +190,6 @@ export class OggMuxer {
     const headerSize = 27 + segments.length;
     const pageSize = headerSize + payload.length;
     const page = new Uint8Array(pageSize);
-    const view = new DataView(page.buffer);
 
     // Capture pattern: "OggS"
     page[0] = 0x4f; // 'O'
@@ -202,18 +202,17 @@ export class OggMuxer {
 
     // Header type flag
     page[5] = headerTypeFlag;
-
     // Granule position (8 bytes, little-endian)
-    view.setBigUint64(6, BigInt(granulePos), true);
+    writeBigUInt64LE(page, 6, BigInt(granulePos));
 
     // Stream serial number (4 bytes, little-endian)
-    view.setUint32(14, this.serialNumber, true);
+    writeUInt32LE(page, 14, this.serialNumber);
 
     // Page sequence number (4 bytes, little-endian)
-    view.setUint32(18, this.pageSequenceNumber++, true);
+    writeUInt32LE(page, 18, this.pageSequenceNumber++);
 
     // CRC checksum (4 bytes, set to 0 for now, will calculate later)
-    view.setUint32(22, 0, true);
+    writeUInt32LE(page, 22, 0);
 
     // Number of page segments
     page[26] = segments.length;
@@ -228,7 +227,7 @@ export class OggMuxer {
 
     // Calculate and set CRC checksum
     const crc = this.calculateCRC(page);
-    view.setUint32(22, crc, true);
+    writeUInt32LE(page, 22, crc);
 
     return page;
   }
@@ -281,7 +280,6 @@ export class OggMuxer {
    */
   private createDefaultOpusHead(): Uint8Array {
     const header = new Uint8Array(19);
-    const view = new DataView(header.buffer);
 
     // Magic signature: "OpusHead"
     header.set([0x4f, 0x70, 0x75, 0x73, 0x48, 0x65, 0x61, 0x64], 0);
@@ -291,15 +289,14 @@ export class OggMuxer {
 
     // Channel count (1 byte) - default to 2 (stereo)
     header[9] = 0x02;
-
     // Pre-skip (2 bytes, little-endian) - default to 312
-    view.setUint16(10, 312, true);
+    writeUInt16LE(header, 10, 312);
 
     // Input sample rate (4 bytes, little-endian) - default to 48000
-    view.setUint32(12, 48000, true);
+    writeUInt32LE(header, 12, 48000);
 
     // Output gain (2 bytes, little-endian) - default to 0
-    view.setUint16(16, 0, true);
+    writeUInt16LE(header, 16, 0);
 
     // Channel mapping family (1 byte) - default to 0
     header[18] = 0x00;
@@ -317,16 +314,14 @@ export class OggMuxer {
 
     const headerSize = 8 + 4 + vendorBytes.length + 4; // "OpusTags" + vendor_length + vendor + user_comment_list_length
     const header = new Uint8Array(headerSize);
-    const view = new DataView(header.buffer);
 
     let offset = 0;
 
     // Magic signature: "OpusTags"
     header.set([0x4f, 0x70, 0x75, 0x73, 0x54, 0x61, 0x67, 0x73], offset);
     offset += 8;
-
     // Vendor string length (4 bytes, little-endian)
-    view.setUint32(offset, vendorBytes.length, true);
+    writeUInt32LE(header, offset, vendorBytes.length);
     offset += 4;
 
     // Vendor string
@@ -334,7 +329,7 @@ export class OggMuxer {
     offset += vendorBytes.length;
 
     // User comment list length (4 bytes, little-endian) - 0 comments
-    view.setUint32(offset, 0, true);
+    writeUInt32LE(header, offset, 0);
 
     return header;
   }
@@ -345,31 +340,29 @@ export class OggMuxer {
    */
   private createDefaultVorbisIdHeader(): Uint8Array {
     const header = new Uint8Array(30);
-    const view = new DataView(header.buffer);
 
     // Header type (1 byte) - 0x01 for identification
     header[0] = 0x01;
 
     // Magic signature: "vorbis"
     header.set([0x76, 0x6f, 0x72, 0x62, 0x69, 0x73], 1);
-
     // Vorbis version (4 bytes, little-endian) - 0
-    view.setUint32(7, 0, true);
+    writeUInt32LE(header, 7, 0);
 
     // Audio channels (1 byte) - default to 2
     header[11] = 0x02;
 
     // Audio sample rate (4 bytes, little-endian) - default to 48000
-    view.setUint32(12, 48000, true);
+    writeUInt32LE(header, 12, 48000);
 
     // Bitrate maximum (4 bytes, little-endian) - 0 (unset)
-    view.setUint32(16, 0, true);
+    writeUInt32LE(header, 16, 0);
 
     // Bitrate nominal (4 bytes, little-endian) - 0 (unset)
-    view.setUint32(20, 0, true);
+    writeUInt32LE(header, 20, 0);
 
     // Bitrate minimum (4 bytes, little-endian) - 0 (unset)
-    view.setUint32(24, 0, true);
+    writeUInt32LE(header, 24, 0);
 
     // Blocksize (1 byte) - default values
     header[28] = 0xb8; // blocksize_0=256 (2^8), blocksize_1=2048 (2^11)
@@ -390,7 +383,6 @@ export class OggMuxer {
 
     const headerSize = 1 + 6 + 4 + vendorBytes.length + 4 + 1; // type + "vorbis" + vendor_length + vendor + comment_count + framing
     const header = new Uint8Array(headerSize);
-    const view = new DataView(header.buffer);
 
     let offset = 0;
 
@@ -400,9 +392,8 @@ export class OggMuxer {
     // Magic signature: "vorbis"
     header.set([0x76, 0x6f, 0x72, 0x62, 0x69, 0x73], offset);
     offset += 6;
-
     // Vendor string length (4 bytes, little-endian)
-    view.setUint32(offset, vendorBytes.length, true);
+    writeUInt32LE(header, offset, vendorBytes.length);
     offset += 4;
 
     // Vendor string
@@ -410,7 +401,7 @@ export class OggMuxer {
     offset += vendorBytes.length;
 
     // User comment list length (4 bytes, little-endian) - 0 comments
-    view.setUint32(offset, 0, true);
+    writeUInt32LE(header, offset, 0);
     offset += 4;
 
     // Framing bit (1 byte) - must be 0x01

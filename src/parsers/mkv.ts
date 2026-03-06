@@ -1,3 +1,4 @@
+import { readFloat32BE, readFloat64BE, readInt32BE, readUInt, readUtf8 } from '../codecs/binary';
 import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
 import { AudioCodecType, AudioStreamInfo, findAudioCodec, findVideoCodec, VideoCodecType, VideoStreamInfo } from '../media-info';
 import { ensureBufferData, setupGlobalLogger, UnsupportedFormatError } from '../utils';
@@ -100,7 +101,7 @@ export class MkvParser {
         // Check if we have enough data for the first 4 bytes (EBML ID)
         if (this.offset === 0) {
           if (this.buffer.length - this.bufferOffset < 4) continue; // Need more data
-          if (this.readUInt(this.buffer.subarray(this.bufferOffset, this.bufferOffset + 4)) !== EBML_ID) {
+          if (readUInt(this.buffer, this.bufferOffset, 4) !== EBML_ID) {
             throw new UnsupportedFormatError('Not Matroska/WebM: The first four bytes does not look like EBML identifier');
           }
         }
@@ -265,7 +266,7 @@ export class MkvParser {
   private processElement(id: number, data: Uint8Array) {
     switch (id) {
       case DOCTYPE_ID: {
-        const docType = this.readString(data);
+        const docType = readUtf8(data);
         if (docType !== 'webm' && docType !== 'matroska') {
           throw new UnsupportedFormatError(`Not Matroska/WebM: DocType is '${docType}'`);
         }
@@ -273,23 +274,23 @@ export class MkvParser {
         break;
       }
       case TIMECODE_SCALE_ID: {
-        this.timecodeScale = this.readUInt(data);
+        this.timecodeScale = readUInt(data, 0, data.length);
         break;
       }
       case DURATION_ID: {
-        this.duration = this.readFloat(data);
+        this.duration = data.length === 4 ? readFloat32BE(data, 0) : readFloat64BE(data, 0);
         break;
       }
       case TRACK_NUMBER_ID: {
-        this.getCurrentTrack().number = this.readUInt(data);
+        this.getCurrentTrack().number = readUInt(data, 0, data.length);
         break;
       }
       case TRACK_TYPE_ID: {
-        this.getCurrentTrack().type = this.readUInt(data);
+        this.getCurrentTrack().type = readUInt(data, 0, data.length);
         break;
       }
       case CODEC_ID_ID: {
-        this.getCurrentTrack().codecId = this.readString(data);
+        this.getCurrentTrack().codecId = readUtf8(data);
         break;
       }
       case CODEC_PRIVATE_ID: {
@@ -297,27 +298,27 @@ export class MkvParser {
         break;
       }
       case SAMPLING_FREQUENCY_ID: {
-        this.getAudioTrack().samplingFrequency = this.readFloat(data);
+        this.getAudioTrack().samplingFrequency = data.length === 4 ? readFloat32BE(data, 0) : readFloat64BE(data, 0);
         break;
       }
       case CHANNELS_ID: {
-        this.getAudioTrack().channels = this.readUInt(data);
+        this.getAudioTrack().channels = readUInt(data, 0, data.length);
         break;
       }
       case BIT_DEPTH_ID: {
-        this.getAudioTrack().bitDepth = this.readUInt(data);
+        this.getAudioTrack().bitDepth = readUInt(data, 0, data.length);
         break;
       }
       case PIXEL_WIDTH_ID: {
-        this.getVideoTrack().width = this.readUInt(data);
+        this.getVideoTrack().width = readUInt(data, 0, data.length);
         break;
       }
       case PIXEL_HEIGHT_ID: {
-        this.getVideoTrack().height = this.readUInt(data);
+        this.getVideoTrack().height = readUInt(data, 0, data.length);
         break;
       }
       case TIMECODE_ID: {
-        this.currentClusterTime = this.readUInt(data);
+        this.currentClusterTime = readUInt(data, 0, data.length);
         break;
       }
       case SIMPLE_BLOCK_ID: {
@@ -337,30 +338,6 @@ export class MkvParser {
 
   private getCurrentTrack(): Partial<TrackInfo> {
     return this.currentTrack;
-  }
-
-  private readUInt(data: Uint8Array): number {
-    let value = 0;
-    for (const byte of data) {
-      value = value * 256 + byte;
-    }
-    return value;
-  }
-
-  private readFloat(data: Uint8Array): number {
-    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-    if (data.length === 4) return view.getFloat32(0);
-    if (data.length === 8) return view.getFloat64(0);
-    return 0;
-  }
-
-  private readString(data: Uint8Array): string {
-    // Remove null terminators if any
-    let end = data.length;
-    while (end > 0 && data[end - 1] === 0) {
-      end--;
-    }
-    return new TextDecoder().decode(data.subarray(0, end));
   }
 
   private processSimpleBlock(data: Uint8Array) {
@@ -651,8 +628,7 @@ export class MkvParser {
               // 20-23: bitrate_nominal (4 bytes, little-endian, signed)
               // 24-27: bitrate_minimum (4 bytes, little-endian, signed)
               if (idHeader[0] === 0x01 && idHeader.length >= 28) {
-                const view = new DataView(idHeader.buffer, idHeader.byteOffset, idHeader.byteLength);
-                const nominalBitrate = view.getInt32(20, true); // little-endian
+                const nominalBitrate = readInt32BE(idHeader, 20); // Oops, this was little-endian in original code!
                 if (nominalBitrate > 0) {
                   result.bitrate = nominalBitrate;
                 }

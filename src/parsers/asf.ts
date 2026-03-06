@@ -241,7 +241,7 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
 
       // Extract Stream Number from Flags field at offset 72 (2 bytes, little-endian)
       // Bits 0-6 contain the stream number (1-127)
-      const flags = data[offset + 72] | (data[offset + 73] << 8);
+      const flags = readUInt16LE(data, offset + 72);
       const streamNumber = flags & 0x7f; // Extract lower 7 bits
 
       const typeSpecificDataOffset = offset + 78;
@@ -271,16 +271,8 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
           durationInSeconds: undefined,
         });
       } else if (isVideo) {
-        const encodedWidth =
-          data[typeSpecificDataOffset] |
-          (data[typeSpecificDataOffset + 1] << 8) |
-          (data[typeSpecificDataOffset + 2] << 16) |
-          (data[typeSpecificDataOffset + 3] << 24);
-        const encodedHeight =
-          data[typeSpecificDataOffset + 4] |
-          (data[typeSpecificDataOffset + 5] << 8) |
-          (data[typeSpecificDataOffset + 6] << 16) |
-          (data[typeSpecificDataOffset + 7] << 24);
+        const encodedWidth = readUInt32LE(data, typeSpecificDataOffset);
+        const encodedHeight = readUInt32LE(data, typeSpecificDataOffset + 4);
 
         // Format Data starts at offset 78 + 4 + 4 + 1 + 2 = 78 + 11 = 89
         const formatDataOffset = typeSpecificDataOffset + 11;
@@ -458,8 +450,7 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
     // |                          |                 |             | described in section 5.2.                       |
     // +--------------------------+-----------------+-------------+-------------------------------------------------+
 
-    const dataObjectSize =
-      firstValue[dataOffset + 16] | (firstValue[dataOffset + 17] << 8) | (firstValue[dataOffset + 18] << 16) | (firstValue[dataOffset + 19] << 24);
+    const dataObjectSize = readUInt32LE(firstValue, dataOffset + 16);
     const dataObjectEnd = dataOffset + dataObjectSize;
 
     // Initialize packet buffer with remaining data from first chunk

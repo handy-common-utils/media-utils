@@ -52,6 +52,34 @@ export function readUInt64LE(buffer: Uint8Array, offset: number): bigint {
   return (BigInt(high) << 32n) + BigInt(low);
 }
 
+/**
+ * Read a 16-bit signed integer (little-endian) from buffer
+ * @param buffer The buffer to read from
+ * @param offset Offset to read from
+ * @returns The int16 value
+ */
+export function readInt16LE(buffer: Uint8Array, offset: number): number {
+  if (offset + 2 > buffer.length) {
+    throw new UnsupportedFormatError(`Insufficient data for reading int16 at offset ${offset} from a buffer of size ${buffer.length}`);
+  }
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  return view.getInt16(offset, true);
+}
+
+/**
+ * Read a 32-bit signed integer (little-endian) from buffer
+ * @param buffer The buffer to read from
+ * @param offset Offset to read from
+ * @returns The int32 value
+ */
+export function readInt32LE(buffer: Uint8Array, offset: number): number {
+  if (offset + 4 > buffer.length) {
+    throw new UnsupportedFormatError(`Insufficient data for reading int32 at offset ${offset} from a buffer of size ${buffer.length}`);
+  }
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  return view.getInt32(offset, true);
+}
+
 // ============================================================================
 // Little-Endian Writing
 // ============================================================================
@@ -99,6 +127,28 @@ export function writeUInt64LE(buffer: Uint8Array, offset: number, value: bigint 
   return 8;
 }
 
+/**
+ * Write a 16-bit signed integer (little-endian) to buffer
+ * @param buffer Buffer to write to
+ * @param offset Offset in buffer
+ * @param value Value to write
+ */
+export function writeInt16LE(buffer: Uint8Array, offset: number, value: number): void {
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  view.setInt16(offset, value, true);
+}
+
+/**
+ * Write a 32-bit signed integer (little-endian) to buffer
+ * @param buffer Buffer to write to
+ * @param offset Offset in buffer
+ * @param value Value to write
+ */
+export function writeInt32LE(buffer: Uint8Array, offset: number, value: number): void {
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  view.setInt32(offset, value, true);
+}
+
 // ============================================================================
 // Big-Endian Reading
 // ============================================================================
@@ -130,6 +180,118 @@ export function readUInt32BE(buffer: Uint8Array, offset: number): number {
 }
 
 /**
+ * Read a 16-bit signed integer (big-endian) from buffer
+ * @param buffer The buffer to read from
+ * @param offset Offset to read from
+ * @returns The int16 value
+ */
+export function readInt16BE(buffer: Uint8Array, offset: number): number {
+  if (offset + 2 > buffer.length) {
+    throw new UnsupportedFormatError(`Insufficient data for reading int16 at offset ${offset} from a buffer of size ${buffer.length}`);
+  }
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  return view.getInt16(offset, false);
+}
+
+/**
+ * Read a 32-bit signed integer (big-endian) from buffer
+ * @param buffer The buffer to read from
+ * @param offset Offset to read from
+ * @returns The int32 value
+ */
+export function readInt32BE(buffer: Uint8Array, offset: number): number {
+  if (offset + 4 > buffer.length) {
+    throw new UnsupportedFormatError(`Insufficient data for reading int32 at offset ${offset} from a buffer of size ${buffer.length}`);
+  }
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  return view.getInt32(offset, false);
+}
+
+/**
+ * Read a 64-bit signed integer (big-endian) from buffer
+ * @param buffer The buffer to read from
+ * @param offset Offset to read from
+ * @returns The int64 value as bigint
+ */
+export function readBigInt64BE(buffer: Uint8Array, offset: number): bigint {
+  if (offset + 8 > buffer.length) {
+    throw new UnsupportedFormatError(`Insufficient data for reading int64 at offset ${offset} from a buffer of size ${buffer.length}`);
+  }
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  return view.getBigInt64(offset, false);
+}
+
+// ============================================================================
+// Big-Endian Writing
+// ============================================================================
+
+/**
+ * Write a 64-bit unsigned integer (little-endian) to buffer using BigInt
+ * @param buffer Buffer to write to
+ * @param offset Offset in buffer
+ * @param value Value to write
+ */
+export function writeBigUInt64LE(buffer: Uint8Array, offset: number, value: bigint): void {
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  view.setBigUint64(offset, value, true);
+}
+
+/**
+ * Write a 64-bit signed integer (little-endian) to buffer using BigInt
+ * @param buffer Buffer to write to
+ * @param offset Offset in buffer
+ * @param value Value to write
+ */
+export function writeBigInt64LE(buffer: Uint8Array, offset: number, value: bigint): void {
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  view.setBigInt64(offset, value, true);
+}
+
+/**
+ * Write a 16-bit unsigned integer (big-endian) to buffer
+ * @param buffer Buffer to write to
+ * @param offset Offset in buffer
+ * @param value Value to write
+ */
+export function writeUInt16BE(buffer: Uint8Array, offset: number, value: number): void {
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  view.setUint16(offset, value, false);
+}
+
+/**
+ * Write a 32-bit unsigned integer (big-endian) to buffer
+ * @param buffer Buffer to write to
+ * @param offset Offset in buffer
+ * @param value Value to write
+ */
+export function writeUInt32BE(buffer: Uint8Array, offset: number, value: number): void {
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  view.setUint32(offset, value, false);
+}
+
+/**
+ * Write a 16-bit signed integer (big-endian) to buffer
+ * @param buffer Buffer to write to
+ * @param offset Offset in buffer
+ * @param value Value to write
+ */
+export function writeInt16BE(buffer: Uint8Array, offset: number, value: number): void {
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  view.setInt16(offset, value, false);
+}
+
+/**
+ * Write a 32-bit signed integer (big-endian) to buffer
+ * @param buffer Buffer to write to
+ * @param offset Offset in buffer
+ * @param value Value to write
+ */
+export function writeInt32BE(buffer: Uint8Array, offset: number, value: number): void {
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  view.setInt32(offset, value, false);
+}
+
+/**
  * Format a number as a hexadecimal string without 0x prefix
  *
  * @param value Number to format
@@ -157,6 +319,70 @@ export function toHexString(value: number | Uint8Array | ArrayBufferLike, minDig
 }
 
 /**
+ * Format binary data as a hexadecimal string without separators
+ *
+ * @param value Binary data or number to format
+ * @returns Hex string (e.g., "010203")
+ */
+export function toHex(value: Uint8Array | ArrayBufferLike | number): string {
+  if (typeof value === 'number') {
+    return value.toString(16).padStart(2, '0');
+  }
+  const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+  let res = '';
+  for (const byte of bytes) {
+    res += byte.toString(16).padStart(2, '0');
+  }
+  return res;
+}
+
+/**
+ * Read a 32-bit floating point number (big-endian) from buffer
+ * @param buffer The buffer to read from
+ * @param offset Offset to read from
+ * @returns The float32 value
+ */
+export function readFloat32BE(buffer: Uint8Array, offset: number): number {
+  if (offset + 4 > buffer.length) {
+    throw new UnsupportedFormatError(`Insufficient data for reading float32 at offset ${offset} from a buffer of size ${buffer.length}`);
+  }
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  return view.getFloat32(offset, false);
+}
+
+/**
+ * Read a 64-bit floating point number (big-endian) from buffer
+ * @param buffer The buffer to read from
+ * @param offset Offset to read from
+ * @returns The float64 value
+ */
+export function readFloat64BE(buffer: Uint8Array, offset: number): number {
+  if (offset + 8 > buffer.length) {
+    throw new UnsupportedFormatError(`Insufficient data for reading float64 at offset ${offset} from a buffer of size ${buffer.length}`);
+  }
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  return view.getFloat64(offset, false);
+}
+
+/**
+ * Read a variable-length unsigned integer (big-endian) from buffer
+ * @param buffer The buffer to read from
+ * @param offset Offset to read from
+ * @param length Number of bytes to read
+ * @returns The uint value
+ */
+export function readUInt(buffer: Uint8Array, offset: number, length: number): number {
+  if (offset + length > buffer.length) {
+    throw new UnsupportedFormatError(`Insufficient data for reading uint of length ${length} at offset ${offset}`);
+  }
+  let value = 0;
+  for (let i = 0; i < length; i++) {
+    value = value * 256 + buffer[offset + i];
+  }
+  return value;
+}
+
+/**
  * Read an ASCII string from a Uint8Array
  * @param u8 The Uint8Array to read from
  * @param offset The offset to start reading from
@@ -165,9 +391,42 @@ export function toHexString(value: number | Uint8Array | ArrayBufferLike, minDig
  */
 export function readAscii(u8: Uint8Array, offset = 0, length = u8.length): string {
   let result = '';
-  for (let i = offset; i < length; i++) {
+  const actualLength = Math.min(length, u8.length - offset);
+  for (let i = 0; i < actualLength; i++) {
     // eslint-disable-next-line unicorn/prefer-code-point
-    result += String.fromCharCode(u8[i]);
+    result += String.fromCharCode(u8[offset + i]);
+  }
+  return result;
+}
+
+/**
+ * Read a UTF-8 string from a Uint8Array, removing null terminators
+ * @param u8 The Uint8Array to read from
+ * @param offset The offset to start reading from
+ * @param length The number of bytes to read
+ * @returns The UTF-8 string
+ */
+export function readUtf8(u8: Uint8Array, offset = 0, length = u8.length): string {
+  const actualLength = Math.min(length, u8.length - offset);
+  let end = offset + actualLength;
+  while (end > offset && u8[end - 1] === 0) {
+    end--;
+  }
+  return new TextDecoder().decode(u8.subarray(offset, end));
+}
+
+/**
+ * Concatenate multiple Uint8Arrays into one
+ * @param arrays Array of Uint8Arrays to concatenate
+ * @returns A new Uint8Array containing all the concatenated data
+ */
+export function concatUint8Arrays(arrays: Uint8Array[]): Uint8Array {
+  const totalLength = arrays.reduce((acc, arr) => acc + arr.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const arr of arrays) {
+    result.set(arr, offset);
+    offset += arr.length;
   }
   return result;
 }

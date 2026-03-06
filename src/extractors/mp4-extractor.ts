@@ -1,4 +1,5 @@
 import { createADTSFrame } from '../codecs/aac';
+import { writeUInt32LE } from '../codecs/binary';
 import { buildWaveFormatEx } from '../codecs/waveformatex';
 import { ExtractAudioOptions } from '../extract-audio';
 import { AudioStreamInfo, isPCM } from '../media-info';
@@ -262,24 +263,22 @@ function buildWavHeader(stream: AudioStreamInfo, dataSize: number): Uint8Array {
   // Calculate total header size: RIFF (12) + fmt (8 + fmtSize) + data header (8)
   const headerSize = 12 + (8 + waveFormatEx.length) + 8;
   const header = new Uint8Array(headerSize);
-  const view = new DataView(header.buffer);
-
   const fileSize = headerSize + dataSize - 8;
 
   // RIFF header
   header.set([0x52, 0x49, 0x46, 0x46], 0); // "RIFF"
-  view.setUint32(4, fileSize, true); // File size
+  writeUInt32LE(header, 4, fileSize); // File size
   header.set([0x57, 0x41, 0x56, 0x45], 8); // "WAVE"
 
   // fmt chunk
   header.set([0x66, 0x6d, 0x74, 0x20], 12); // "fmt "
-  view.setUint32(16, waveFormatEx.length, true); // fmt chunk size
+  writeUInt32LE(header, 16, waveFormatEx.length); // fmt chunk size
   header.set(waveFormatEx, 20); // WAVEFORMATEX data
 
   // data chunk header
   const dataChunkOffset = 20 + waveFormatEx.length;
   header.set([0x64, 0x61, 0x74, 0x61], dataChunkOffset); // "data"
-  view.setUint32(dataChunkOffset + 4, dataSize, true); // Data size
+  writeUInt32LE(header, dataChunkOffset + 4, dataSize); // Data size
 
   return header;
 }

@@ -1,5 +1,5 @@
 import { getAacProfileName, parseAudioSpecificConfig } from '../codecs/aac';
-import { BitReader, toHexString } from '../codecs/binary';
+import { BitReader, readUInt16BE as readUInt16BE_bin, readUInt32BE as readUInt32BE_bin, readUtf8, toHex } from '../codecs/binary';
 import { parseMP3Header } from '../codecs/mp3';
 import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
 import { AudioCodecType, AudioStreamInfo, findAudioCodec, findVideoCodec } from '../media-info';
@@ -186,14 +186,14 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
 
   // Helper functions to read data
   function readUInt32BE(): number {
-    const value = (buffer[bufferOffset] << 24) | (buffer[bufferOffset + 1] << 16) | (buffer[bufferOffset + 2] << 8) | buffer[bufferOffset + 3];
+    const value = readUInt32BE_bin(buffer, bufferOffset);
     bufferOffset += 4;
     offset += 4;
-    return value >>> 0;
+    return value;
   }
 
   function readUInt16BE(): number {
-    const value = (buffer[bufferOffset] << 8) | buffer[bufferOffset + 1];
+    const value = readUInt16BE_bin(buffer, bufferOffset);
     bufferOffset += 2;
     offset += 2;
     return value;
@@ -207,10 +207,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
   }
 
   function readString(length: number): string {
-    let str = '';
-    for (let i = 0; i < length; i++) {
-      str += String.fromCodePoint(buffer[bufferOffset + i]);
-    }
+    const str = readUtf8(buffer, bufferOffset, length);
     bufferOffset += length;
     offset += length;
     return str;
@@ -741,7 +738,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
                     const compatibility = readUInt8();
                     const level = readUInt8();
                     if (currentTrack.codecDetail && !currentTrack.codecDetail.includes('.')) {
-                      currentTrack.codecDetail += `.${toHexString(profile)}${toHexString(compatibility)}${toHexString(level)}`;
+                      currentTrack.codecDetail += `.${toHex(new Uint8Array([profile, compatibility, level]))}`;
                     }
                     await skip(subAtomSize - 12);
                   }
@@ -767,7 +764,8 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
               const channelCount = readUInt16BE();
               track.bitsPerSample = readUInt16BE();
               await skip(4); // pre_defined, reserved
-              const sampleRate = readUInt32BE() / 65536;
+              const sampleRate = readUInt16BE();
+              await skip(2);
 
               track.channelCount = channelCount;
               track.sampleRate = sampleRate;
@@ -869,7 +867,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
                 const avgBitrate = readUInt32BE();
                 track.bitrate = avgBitrate > 0 ? avgBitrate : maxBitrate;
 
-                detailedFormat = `mp4a.${toHexString(objectTypeIndication)}`;
+                detailedFormat = `mp4a.${toHex(objectTypeIndication)}`;
                 if (objectTypeIndication === 0x6b || objectTypeIndication === 0x69) {
                   track.codec = 'mp3';
                   track.needsMp3Sniffing = true;
@@ -893,7 +891,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
 
                     if (ascInfo.channelCount) track.channelCount = ascInfo.channelCount;
                     if (ascInfo.sampleRate) track.sampleRate = ascInfo.sampleRate;
-                    detailedFormat += `.${toHexString(ascInfo.audioObjectType)}`;
+                    detailedFormat += `.${toHex(ascInfo.audioObjectType)}`;
 
                     // AAC: set bits per sample (decoded output is 16-bit PCM) and profile
                     if (objectTypeIndication === 0x40) {

@@ -1,4 +1,5 @@
 import { AudioCodecType } from '../media-info';
+import { readUInt16LE, readUInt32LE, writeInt16LE, writeUInt16LE, writeUInt32LE } from './binary';
 
 /**
  * WAVEFORMATEX structure
@@ -64,12 +65,12 @@ export function parseWaveFormatEx(buffer: Uint8Array, offset: number, maxSize?: 
   }
 
   // Read the standard 16-byte WAVEFORMATEX fields (little-endian)
-  const formatTag = buffer[offset] | (buffer[offset + 1] << 8);
-  const channels = buffer[offset + 2] | (buffer[offset + 3] << 8);
-  const samplesPerSec = buffer[offset + 4] | (buffer[offset + 5] << 8) | (buffer[offset + 6] << 16) | (buffer[offset + 7] << 24);
-  const avgBytesPerSec = buffer[offset + 8] | (buffer[offset + 9] << 8) | (buffer[offset + 10] << 16) | (buffer[offset + 11] << 24);
-  const blockAlign = buffer[offset + 12] | (buffer[offset + 13] << 8);
-  const bitsPerSample = buffer[offset + 14] | (buffer[offset + 15] << 8);
+  const formatTag = readUInt16LE(buffer, offset);
+  const channels = readUInt16LE(buffer, offset + 2);
+  const samplesPerSec = readUInt32LE(buffer, offset + 4);
+  const avgBytesPerSec = readUInt32LE(buffer, offset + 8);
+  const blockAlign = readUInt16LE(buffer, offset + 12);
+  const bitsPerSample = readUInt16LE(buffer, offset + 14);
 
   let bytesRead = 16;
   const format: WaveFormatEx = { formatTag, channels, samplesPerSec, avgBytesPerSec, blockAlign, bitsPerSample };
@@ -77,7 +78,7 @@ export function parseWaveFormatEx(buffer: Uint8Array, offset: number, maxSize?: 
   // Check for extra data (cbSize + extra bytes)
   // For non-PCM formats, WAVEFORMATEX is extended with codec-specific data
   if (availableSize > 16) {
-    const cbSize = buffer[offset + 16] | (buffer[offset + 17] << 8);
+    const cbSize = readUInt16LE(buffer, offset + 16);
     bytesRead += 2; // cbSize field itself
 
     // Parse MS ADPCM specific data (formatTag 0x0002)
@@ -92,7 +93,7 @@ export function parseWaveFormatEx(buffer: Uint8Array, offset: number, maxSize?: 
     if (formatTag === 0x0002 && cbSize >= 4 && availableSize >= 16 + 2 + 2) {
       // samplesPerBlock: How many PCM samples each ADPCM block will decode to
       // This is STREAM LEVEL — constant for the entire audio stream
-      const samplesPerBlock = buffer[offset + 18] | (buffer[offset + 19] << 8);
+      const samplesPerBlock = readUInt16LE(buffer, offset + 18);
       format.adpcmDetails = { samplesPerBlock };
       bytesRead += 2; // samplesPerBlock
 
@@ -130,23 +131,21 @@ export function buildWaveFormatEx(format: WaveFormatEx): Uint8Array {
     // cbSize (2) + samplesPerBlock (2) + numCoef (2) + coefficients (7 * 4 = 28)
     const extraDataSize = 2 + 2 + 2 + numCoef * 4;
     extraData = new Uint8Array(extraDataSize);
-    const view = new DataView(extraData.buffer);
-
     // cbSize: size of the extra data following this field
-    view.setUint16(0, extraDataSize - 2, true);
+    writeUInt16LE(extraData, 0, extraDataSize - 2);
 
     // samplesPerBlock: STREAM LEVEL — constant for entire stream
-    view.setUint16(2, samplesPerBlock, true);
+    writeUInt16LE(extraData, 2, samplesPerBlock);
 
     // numCoef: always 7 for MS ADPCM
-    view.setUint16(4, numCoef, true);
+    writeUInt16LE(extraData, 4, numCoef);
 
     // Write the 7 standard coefficient pairs
     // These are required by the WAV/AVI format specification,
     // even though they're always the same values
     for (let i = 0; i < numCoef; i++) {
-      view.setInt16(6 + i * 4, MS_ADPCM_COEFFICIENTS[i].coeff1, true);
-      view.setInt16(8 + i * 4, MS_ADPCM_COEFFICIENTS[i].coeff2, true);
+      writeInt16LE(extraData, 6 + i * 4, MS_ADPCM_COEFFICIENTS[i].coeff1);
+      writeInt16LE(extraData, 8 + i * 4, MS_ADPCM_COEFFICIENTS[i].coeff2);
     }
   } else if (format.formatTag !== 0x0001) {
     // For non-PCM formats, we need a cbSize of 0 at least
@@ -157,15 +156,13 @@ export function buildWaveFormatEx(format: WaveFormatEx): Uint8Array {
   // Allocate buffer for base WAVEFORMATEX (16 bytes) + extra data
   const totalSize = 16 + extraData.length;
   const buffer = new Uint8Array(totalSize);
-  const view = new DataView(buffer.buffer);
-
   // Write the standard 16-byte WAVEFORMATEX fields (little-endian)
-  view.setUint16(0, format.formatTag, true);
-  view.setUint16(2, format.channels, true);
-  view.setUint32(4, format.samplesPerSec, true);
-  view.setUint32(8, format.avgBytesPerSec, true);
-  view.setUint16(12, format.blockAlign, true);
-  view.setUint16(14, format.bitsPerSample, true);
+  writeUInt16LE(buffer, 0, format.formatTag);
+  writeUInt16LE(buffer, 2, format.channels);
+  writeUInt32LE(buffer, 4, format.samplesPerSec);
+  writeUInt32LE(buffer, 8, format.avgBytesPerSec);
+  writeUInt16LE(buffer, 12, format.blockAlign);
+  writeUInt16LE(buffer, 14, format.bitsPerSample);
 
   // Append extra data if present
   if (extraData.length > 0) {

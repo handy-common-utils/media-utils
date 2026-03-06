@@ -1,3 +1,4 @@
+import { writeUInt32LE } from '../codecs/binary';
 import { buildWaveFormatEx } from '../codecs/waveformatex';
 import { AudioStreamInfo } from '../media-info';
 
@@ -78,25 +79,23 @@ export class WavWriter {
 
     // Create header buffer
     const header = new Uint8Array(headerSize);
-    const view = new DataView(header.buffer);
-
     // File size field (at offset 4) is the size of the rest of the file (Total Size - 8 bytes)
     const fileSize = headerSize + this.dataSize - 8;
 
     // RIFF header
     header.set([0x52, 0x49, 0x46, 0x46], 0); // "RIFF"
-    view.setUint32(4, fileSize, true); // File size
+    writeUInt32LE(header, 4, fileSize); // File size
     header.set([0x57, 0x41, 0x56, 0x45], 8); // "WAVE"
 
     // fmt chunk
     header.set([0x66, 0x6d, 0x74, 0x20], 12); // "fmt "
-    view.setUint32(16, waveFormatEx.length, true); // fmt chunk size
+    writeUInt32LE(header, 16, waveFormatEx.length); // fmt chunk size
     header.set(waveFormatEx, 20); // WAVEFORMATEX data
 
     // data chunk header
     const dataChunkOffset = 20 + waveFormatEx.length;
     header.set([0x64, 0x61, 0x74, 0x61], dataChunkOffset); // "data"
-    view.setUint32(dataChunkOffset + 4, this.dataSize, true); // Data size
+    writeUInt32LE(header, dataChunkOffset + 4, this.dataSize); // Data size
 
     return header;
   }

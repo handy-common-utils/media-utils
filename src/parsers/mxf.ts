@@ -1,3 +1,4 @@
+import { concatUint8Arrays, readBigInt64BE, readInt32BE, readUInt16BE, readUInt32BE, toHex } from '../codecs/binary';
 import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
 import { AudioStreamInfo, VideoStreamInfo } from '../media-info';
 import { UnsupportedFormatError } from '../utils';
@@ -17,32 +18,6 @@ export interface ParserContext {
  */
 export interface MediaInfoParserOptions extends GetMediaInfoOptions {
   onSamples?: (sample: { streamInfo: { id: number }; data: Uint8Array }) => Promise<void>;
-}
-
-function readUInt8(buf: Uint8Array, offset: number) {
-  return buf[offset];
-}
-function readUInt16BE(buf: Uint8Array, offset: number) {
-  return new DataView(buf.buffer, buf.byteOffset, buf.byteLength).getUint16(offset, false);
-}
-function readUInt32BE(buf: Uint8Array, offset: number) {
-  return new DataView(buf.buffer, buf.byteOffset, buf.byteLength).getUint32(offset, false);
-}
-function readInt32BE(buf: Uint8Array, offset: number) {
-  return new DataView(buf.buffer, buf.byteOffset, buf.byteLength).getInt32(offset, false);
-}
-function readBigInt64BE(buf: Uint8Array, offset: number) {
-  return new DataView(buf.buffer, buf.byteOffset, buf.byteLength).getBigInt64(offset, false);
-}
-function concatUint8Arrays(arrays: Uint8Array[]): Uint8Array {
-  const totalLength = arrays.reduce((acc, arr) => acc + arr.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const arr of arrays) {
-    result.set(arr, offset);
-    offset += arr.length;
-  }
-  return result;
 }
 
 // SMPTE Universal Labels (ULs)
@@ -241,7 +216,7 @@ export async function parseMxf(
     if (key[4] === 0x02 && key[5] === 0x53) {
       // Metadata Set
       const set = decodeMetadataSet(key, value);
-      metadataSetsLookup.set([...set.instanceUID].map((b) => b.toString(16).padStart(2, '0')).join(''), set);
+      metadataSetsLookup.set(toHex(set.instanceUID), set);
       metadataSetsRaw.push(set);
     } else if (key[4] === 0x02 && key[5] === 0x05 && key[13] >= 0x02 && key[13] <= 0x04) {
       // Partition Pack - contains Operational Pattern UL
@@ -282,13 +257,13 @@ export async function parseMxf(
       const itemSize = readUInt32BE(tracksProp, 4);
       for (let i = 0; i < count; i++) {
         const uid = tracksProp.subarray(8 + i * itemSize, 8 + (i + 1) * itemSize);
-        const track = metadataSetsLookup.get([...uid].map((b) => b.toString(16).padStart(2, '0')).join(''));
+        const track = metadataSetsLookup.get(toHex(uid));
         if (!track || !compareUUID(track.key, TRACK_KEY)) continue;
 
         const trackIDProp = track.properties.get(0x4801);
         const trackID = trackIDProp ? readUInt32BE(trackIDProp, 0) : 0;
         const seqUID = track.properties.get(0x4803);
-        const seq = seqUID ? metadataSetsLookup.get([...seqUID].map((b) => b.toString(16).padStart(2, '0')).join('')) : undefined;
+        const seq = seqUID ? metadataSetsLookup.get(toHex(seqUID)) : undefined;
         if (!seq || !compareUUID(seq.key, SEQUENCE_KEY)) continue;
 
         const compsProp = seq.properties.get(0x1001);
@@ -301,7 +276,7 @@ export async function parseMxf(
 
         for (let j = 0; j < compCount && !trackAdded; j++) {
           const compUID = compsProp.subarray(8 + j * compItemSize, 8 + (j + 1) * compItemSize);
-          const comp = metadataSetsLookup.get([...compUID].map((b) => b.toString(16).padStart(2, '0')).join(''));
+          const comp = metadataSetsLookup.get(toHex(compUID));
           if (!comp || !compareUUID(comp.key, SOURCE_CLIP_KEY)) continue;
 
           const dProp = comp.properties.get(0x0202);
@@ -330,14 +305,14 @@ export async function parseMxf(
           const spTSize = readUInt32BE(spTracksProp, 4);
           for (let k = 0; k < spTCount && !trackAdded; k++) {
             const spTUID = spTracksProp.subarray(8 + k * spTSize, 8 + (k + 1) * spTSize);
-            const spT = metadataSetsLookup.get([...spTUID].map((b) => b.toString(16).padStart(2, '0')).join(''));
+            const spT = metadataSetsLookup.get(toHex(spTUID));
             const spTProp = spT?.properties.get(0x4801);
             if (!spT || (spTProp ? readUInt32BE(spTProp, 0) : undefined) !== stID) continue;
 
             const eNumProp = spT.properties.get(0x4804);
             const eNum = eNumProp ? readUInt32BE(eNumProp, 0) >> 16 : 0;
             const dUID = spkg.properties.get(0x4701);
-            const dSet = dUID ? metadataSetsLookup.get([...dUID].map((b) => b.toString(16).padStart(2, '0')).join('')) : undefined;
+            const dSet = dUID ? metadataSetsLookup.get(toHex(dUID)) : undefined;
             if (!dSet) continue;
 
             const targets = [dSet];
@@ -348,7 +323,7 @@ export async function parseMxf(
                 const sSize = readUInt32BE(sProp, 4);
                 for (let l = 0; l < sCount; l++) {
                   const subUID = sProp.subarray(8 + l * sSize, 8 + (l + 1) * sSize);
-                  const subSet = metadataSetsLookup.get([...subUID].map((b) => b.toString(16).padStart(2, '0')).join(''));
+                  const subSet = metadataSetsLookup.get(toHex(subUID));
                   if (subSet) targets.push(subSet);
                 }
               }
@@ -429,7 +404,7 @@ export async function parseMxf(
                 if (pictureCodingUL && compareUUID(pictureCodingUL.subarray(0, 12), UL_PICTURE_ESSENCE_CODING_MPEG2_PREFIX)) {
                   codec = 'mpeg2video';
                   const profileAndLevelProp = target.properties.get(0x8007);
-                  const profileAndLevel = profileAndLevelProp ? readUInt8(profileAndLevelProp, 0) : undefined;
+                  const profileAndLevel = profileAndLevelProp ? profileAndLevelProp[0] : undefined;
 
                   if (profileAndLevel !== undefined) {
                     const mainProfile = (profileAndLevel & 0x70) >> 4;
