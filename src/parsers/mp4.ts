@@ -1,4 +1,4 @@
-import { parseAudioSpecificConfig } from '../codecs/aac';
+import { getAacProfileName, parseAudioSpecificConfig } from '../codecs/aac';
 import { BitReader, toHexString } from '../codecs/binary';
 import { parseMP3Header } from '../codecs/mp3';
 import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
@@ -765,49 +765,55 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
               await skip(8); // reserved(6), data_ref(2)
               if (!(await ensureBytes(12))) throw new UnsupportedFormatError('EOF');
               const channelCount = readUInt16BE();
-              const pcmSampleSize = readUInt16BE();
+              track.bitsPerSample = readUInt16BE();
               await skip(4); // pre_defined, reserved
               const sampleRate = readUInt32BE() / 65536;
 
               track.channelCount = channelCount;
               track.sampleRate = sampleRate;
-              track.bitsPerSample = pcmSampleSize;
 
               // Refine PCM format based on 4CC and bits per sample
               switch (format) {
                 case 'sowt': {
                   detailedFormat = 'pcm_s16le';
+                  track.bitsPerSample = 16;
                   break;
                 }
                 case 'twos': {
                   detailedFormat = 'pcm_s16be';
+                  track.bitsPerSample = 16;
                   break;
                 }
                 case 'in24': {
                   detailedFormat = 'pcm_s24be';
+                  track.bitsPerSample = 24;
                   break;
                 }
                 case 'in32': {
                   detailedFormat = 'pcm_s32be';
+                  track.bitsPerSample = 32;
                   break;
                 }
                 case 'fl32': {
                   detailedFormat = 'pcm_f32be';
+                  track.bitsPerSample = 32;
                   break;
                 }
                 case 'fl64': {
                   detailedFormat = 'pcm_f64be';
+                  track.bitsPerSample = 64;
                   break;
                 }
                 case 'raw ': {
                   detailedFormat = 'pcm_u8';
+                  track.bitsPerSample = 8;
                   break;
                 }
                 case 'lpcm': {
                   // Generic lpcm - use sample size to guess common types
-                  if (pcmSampleSize === 24) {
+                  if (track.bitsPerSample === 24) {
                     detailedFormat = 'pcm_s24le';
-                  } else if (pcmSampleSize === 32) {
+                  } else if (track.bitsPerSample === 32) {
                     detailedFormat = 'pcm_s32le';
                   } else {
                     detailedFormat = 'pcm_s16le';
@@ -867,6 +873,11 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
                 if (objectTypeIndication === 0x6b || objectTypeIndication === 0x69) {
                   track.codec = 'mp3';
                   track.needsMp3Sniffing = true;
+                  // MP3 decodes to 16-bit PCM
+                  track.bitsPerSample = 16;
+                } else if (objectTypeIndication === 0x40) {
+                  // AAC (MPEG-4 Audio): decoded output is 16-bit PCM
+                  track.bitsPerSample = 16;
                 }
 
                 let remainingInDecConfig = decConfig.length - 13;
@@ -875,7 +886,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
                   remainingInDecConfig -= childDesc.headerSize + childDesc.length;
 
                   if (childDesc.tag === 0x05 && (await ensureBytes(childDesc.length))) {
-                    // DecoderSpecificInfo
+                    // DecoderSpecificInfo (AudioSpecificConfig for AAC)
                     const ascData = buffer.slice(bufferOffset, bufferOffset + childDesc.length);
                     const br = new BitReader(ascData);
                     const ascInfo = parseAudioSpecificConfig(br);
@@ -884,15 +895,11 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
                     if (ascInfo.sampleRate) track.sampleRate = ascInfo.sampleRate;
                     detailedFormat += `.${toHexString(ascInfo.audioObjectType)}`;
 
-                    const aotProfileMap: Record<number, string> = {
-                      1: 'Main',
-                      2: 'LC',
-                      3: 'SSR',
-                      4: 'LTP',
-                      5: 'SBR',
-                    };
-                    if (aotProfileMap[ascInfo.audioObjectType]) {
-                      track.profile = aotProfileMap[ascInfo.audioObjectType];
+                    // AAC: set bits per sample (decoded output is 16-bit PCM) and profile
+                    if (objectTypeIndication === 0x40) {
+                      track.bitsPerSample = 16;
+                      const profileName = getAacProfileName(ascInfo.audioObjectType);
+                      if (profileName) track.profile = profileName;
                     }
                     await skip(childDesc.length);
                   } else {

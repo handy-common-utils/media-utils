@@ -100,5 +100,61 @@ describe('Extract audio from MOV', () => {
         ],
       },
     },
+    {
+      filename: 'engine-start.h264.pcms32be.mov',
+      expectedMediaInfo: {
+        bytesRead: 65536,
+        container: 'wav',
+        containerDetail: 'wav',
+        parser: 'media-utils',
+        durationInSeconds: expect.closeTo(6, 0) as any,
+        videoStreams: [],
+        audioStreams: [
+          {
+            id: 1,
+            codec: 'pcm_s32le',
+            codecDetail: 'pcm_s32le',
+            channelCount: 2,
+            sampleRate: 44100,
+            bitrate: 2822400,
+            bitsPerSample: 32,
+            durationInSeconds: expect.closeTo(6, 0) as any,
+            codecDetails: {
+              blockAlign: 8,
+              formatTag: 1,
+              samplesPerBlock: undefined,
+            },
+          },
+        ],
+      },
+    },
+    {
+      filename: 'test-tone.h264.pcms32be.mov',
+      expectedMediaInfo: {
+        bytesRead: 65536,
+        container: 'wav',
+        containerDetail: 'wav',
+        parser: 'media-utils',
+        durationInSeconds: expect.closeTo(3, 0) as any,
+        videoStreams: [],
+        audioStreams: [
+          {
+            id: 1,
+            codec: 'pcm_s32le',
+            codecDetail: 'pcm_s32le',
+            channelCount: 2,
+            sampleRate: 44100,
+            bitrate: 2822400,
+            bitsPerSample: 32,
+            durationInSeconds: expect.closeTo(3, 0) as any,
+            codecDetails: {
+              blockAlign: 8,
+              formatTag: 1,
+              samplesPerBlock: undefined,
+            },
+          },
+        ],
+      },
+    },
   ]);
 });

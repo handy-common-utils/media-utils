@@ -93,6 +93,8 @@ This table lists the combinations verified by our test suite.
 | **mkv**          |             |                | streaming   |    ✅     |
 | **mov**          | h264        | aac            |             |    ✅     |
 | **mov**          | h264        | mp3            |             |    ✅     |
+| **mov**          | h264        | pcm_s16le      |             |    ✅     |
+| **mov**          | h264        | pcm_s32be      |             |    ✅     |
 | **mp3**          |             | mp3            |             |    ✅     |
 | **mp4**          | h264        | aac            |             |    ✅     |
 | **mp4**          | h264        | mp3            |             |    ✅     |
@@ -170,6 +172,8 @@ await extractAudioFromFileToFile('input-video.mp4', 'output-audio.aac');
 | **mkv**          | msmpeg4v2   | mp3            |             |    ✅     | **mp3** in **mp3**       |
 | **mov**          | h264        | aac            |             |    ✅     | **aac** in **aac**       |
 | **mov**          | h264        | mp3            |             |    ✅     | **mp3** in **mp3**       |
+| **mov**          | h264        | pcm_s16le      |             |    ✅     | **pcm_s16le** in **wav** |
+| **mov**          | h264        | pcm_s32be      |             |    ✅     | **pcm_s32le** in **wav** |
 | **mp4**          | h264        | aac            |             |    ✅     | **aac** in **aac**       |
 | **mp4**          | h264        | mp3            |             |    ✅     | **mp3** in **mp3**       |
 | **mpegts**       | h264        | aac            |             |    ✅     | **aac** in **aac**       |

@@ -449,6 +449,74 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
     },
   },
   {
+    filename: 'test-tone.h264.pcms32be.mov',
+    expectedMediaInfo: {
+      bytesRead: expect.closeTo(1135682, -5) as any,
+      parser: 'media-utils',
+      container: 'mov',
+      containerDetail: 'qt  , qt  ',
+      durationInSeconds: expect.closeTo(4.967, 0) as any,
+      videoStreams: [
+        {
+          codec: 'h264',
+          codecDetail: 'avc1.64001f',
+          id: 1,
+          width: 1280,
+          height: 720,
+          durationInSeconds: expect.closeTo(4.966667, 0) as any,
+          fps: expect.closeTo(30, 0) as any,
+          bitrate: expect.closeTo(116682, -4) as any,
+        },
+      ],
+      audioStreams: [
+        {
+          codec: 'pcm_s32be',
+          codecDetail: 'pcm_s32be',
+          id: 2,
+          channelCount: 2,
+          sampleRate: 44100,
+          bitsPerSample: 32,
+          bitrate: expect.closeTo(2822400, -4) as any,
+          durationInSeconds: expect.closeTo(3, 0) as any,
+        },
+      ],
+    },
+  },
+  {
+    filename: 'engine-start.h264.pcms32be.mov',
+    expectedMediaInfo: {
+      bytesRead: expect.closeTo(2824496, -5) as any,
+      parser: 'media-utils',
+      container: 'mov',
+      containerDetail: 'qt  , qt  ',
+      durationInSeconds: expect.closeTo(6, 0) as any,
+      videoStreams: [
+        {
+          codec: 'h264',
+          codecDetail: 'avc1.4d401f',
+          id: 1,
+          width: 1280,
+          height: 534,
+          durationInSeconds: expect.closeTo(6, 0) as any,
+          fps: expect.closeTo(22, 0) as any,
+          bitrate: expect.closeTo(939149, -4) as any,
+        },
+      ],
+      audioStreams: [
+        {
+          codec: 'pcm_s32be',
+          codecDetail: 'pcm_s32be',
+          id: 2,
+          channelCount: 2,
+          sampleRate: 44100,
+          bitsPerSample: 32,
+          bitrate: expect.closeTo(2822400, -4) as any,
+          durationInSeconds: expect.closeTo(6, 0) as any,
+        },
+      ],
+    },
+  },
+  {
     filename: 'engine-start.h264.aac-mono.mkv',
     expectedMediaInfo: {
       bytesRead: 3841,
