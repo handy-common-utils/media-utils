@@ -180,6 +180,7 @@ export const largeMkvTestCases: GetMediaInfoTestCase[] = [
       ],
     },
   },
+  // This file contains junk elements (elements not defined in the specs) either at the beginning or the end of Clusters. These elements should be skipped. There is also an invalid element at 451417 that should be skipped until the next valid Cluster is found.large_matroska-test-files7.mkv
   {
     filename: 'large_matroska-test-files7.mkv',
     expectedMediaInfo: {

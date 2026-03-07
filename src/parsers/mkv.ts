@@ -173,7 +173,9 @@ export class MkvParser {
           // Check if we have enough data for the content
           if (this.buffer.length - this.bufferOffset < this.currentElementSize) {
             if (done) {
-              throw new UnsupportedFormatError('Unexpected EOF: Element size larger than remaining data');
+              // throw new UnsupportedFormatError(`Unexpected EOF: Element size larger than remaining data: ${this.currentElementSize} > ${this.buffer.length - this.bufferOffset}`);
+              // Very likely that the file is corrupted, but let's just see how much we can get
+              break;
             }
             requiredSize = this.currentElementSize;
             continue;

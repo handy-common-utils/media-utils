@@ -99,5 +99,27 @@ describe('Extract audio from MKV', () => {
         ],
       },
     },
+    // This file contains junk elements (elements not defined in the specs) either at the beginning or the end of Clusters. These elements should be skipped. There is also an invalid element at 451417 that should be skipped until the next valid Cluster is found.
+    {
+      filename: 'large_matroska-test-files7.mkv',
+      expectedMediaInfo: {
+        bytesRead: 25117,
+        container: 'aac',
+        containerDetail: 'aac',
+        parser: 'media-utils',
+        durationInSeconds: undefined,
+        videoStreams: [],
+        audioStreams: [
+          {
+            id: 0,
+            codec: 'aac',
+            codecDetail: 'mp4a.40.2',
+            profile: 'LC',
+            channelCount: 2,
+            sampleRate: 48000,
+          },
+        ],
+      },
+    },
   ]);
 });
