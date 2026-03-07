@@ -1,3 +1,4 @@
+/* eslint-disable indent */
 import { concatUint8Arrays, readBigInt64BE, readInt32BE, readUInt16BE, readUInt32BE, toHex } from '../codecs/binary';
 import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
 import { AudioStreamInfo, VideoStreamInfo } from '../media-info';
