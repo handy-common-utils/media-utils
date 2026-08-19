@@ -207,7 +207,7 @@ describe('Extract audio from AVI', () => {
         container: 'mp3',
         containerDetail: 'mp3',
         parser: 'media-utils',
-        durationInSeconds: undefined,
+        durationInSeconds: expect.closeTo(6.1, 0.1) as any,
         videoStreams: [],
         audioStreams: [
           {
@@ -217,7 +217,7 @@ describe('Extract audio from AVI', () => {
             channelCount: 1,
             sampleRate: 44100,
             bitrate: 64000,
-            durationInSeconds: undefined,
+            durationInSeconds: expect.closeTo(6.1, 0.1) as any,
             codecDetails: {
               layer: 3,
               padding: 0,

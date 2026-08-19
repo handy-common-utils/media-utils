@@ -49,11 +49,11 @@ describe('Extract audio from MOV', () => {
     {
       filename: 'engine-start.h264.mp3.mov',
       expectedMediaInfo: {
-        bytesRead: 65536,
+        bytesRead: 143569,
         container: 'mp3',
         containerDetail: 'mp3',
         parser: 'media-utils',
-        durationInSeconds: undefined,
+        durationInSeconds: expect.closeTo(6, 0.1) as any,
         videoStreams: [],
         audioStreams: [
           {
@@ -63,7 +63,7 @@ describe('Extract audio from MOV', () => {
             channelCount: 2,
             sampleRate: 44100,
             bitrate: 192000,
-            durationInSeconds: undefined,
+            durationInSeconds: expect.closeTo(6, 0.1) as any,
             codecDetails: {
               layer: 3,
               padding: 1,

@@ -1,4 +1,4 @@
-import { describe } from '@jest/globals';
+import { describe, expect } from '@jest/globals';
 
 import { runExtractAudioTestCases } from '../test-utils';
 
@@ -7,15 +7,15 @@ describe('Extract audio from MKV', () => {
     {
       filename: 'large_matroska-test-files1.mkv',
       expectedMediaInfo: {
-        bytesRead: 65536,
+        bytesRead: 2646816,
         audioStreams: [
           {
             id: 0,
-            bitrate: 160000,
+            bitrate: expect.closeTo(242449, -3) as any,
             channelCount: 2,
             codec: 'mp3',
             codecDetail: 'MPEG-1 Layer III',
-            durationInSeconds: undefined,
+            durationInSeconds: expect.closeTo(87.3, 0.1) as any,
             sampleRate: 48000,
             codecDetails: {
               layer: 3,
@@ -25,7 +25,7 @@ describe('Extract audio from MKV', () => {
         ],
         container: 'mp3',
         containerDetail: 'mp3',
-        durationInSeconds: undefined,
+        durationInSeconds: expect.closeTo(87.3, 0.1) as any,
         parser: 'media-utils',
         videoStreams: [],
       },
@@ -80,7 +80,7 @@ describe('Extract audio from MKV', () => {
         container: 'mp3',
         containerDetail: 'mp3',
         parser: 'media-utils',
-        durationInSeconds: undefined,
+        durationInSeconds: expect.closeTo(6.1, 0.1) as any,
         videoStreams: [],
         audioStreams: [
           {
@@ -90,7 +90,7 @@ describe('Extract audio from MKV', () => {
             channelCount: 1,
             sampleRate: 44100,
             bitrate: 64000,
-            durationInSeconds: undefined,
+            durationInSeconds: expect.closeTo(6.1, 0.1) as any,
             codecDetails: {
               layer: 3,
               padding: 0,

@@ -58,7 +58,7 @@ describe('Extract audio from MP4', () => {
         container: 'mp3',
         containerDetail: 'mp3',
         parser: 'media-utils',
-        durationInSeconds: undefined,
+        durationInSeconds: expect.closeTo(6.1, 0.1) as any,
         videoStreams: [],
         audioStreams: [
           {
@@ -68,7 +68,7 @@ describe('Extract audio from MP4', () => {
             channelCount: 1,
             sampleRate: 44100,
             bitrate: 64000,
-            durationInSeconds: undefined,
+            durationInSeconds: expect.closeTo(6.1, 0.1) as any,
             codecDetails: {
               layer: 3,
               padding: 0,
@@ -80,11 +80,11 @@ describe('Extract audio from MP4', () => {
     {
       filename: 'engine-start.h264.mp3.mp4',
       expectedMediaInfo: {
-        bytesRead: 65536,
+        bytesRead: 96966,
         container: 'mp3',
         containerDetail: 'mp3',
         parser: 'media-utils',
-        durationInSeconds: undefined,
+        durationInSeconds: expect.closeTo(6.1, 0.1) as any,
         videoStreams: [],
         audioStreams: [
           {
@@ -93,8 +93,8 @@ describe('Extract audio from MP4', () => {
             codecDetail: 'MPEG-1 Layer III',
             channelCount: 2,
             sampleRate: 44100,
-            bitrate: 128000,
-            durationInSeconds: undefined,
+            bitrate: expect.closeTo(128000, -3) as any,
+            durationInSeconds: expect.closeTo(6.1, 0.1) as any,
             codecDetails: {
               layer: 3,
               padding: 0,

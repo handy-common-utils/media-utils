@@ -138,6 +138,68 @@ export function parseMP3Header(data: Uint8Array, offset: number = 0): Omit<Audio
 }
 
 /**
+ * Returns whether the data at the given offset looks like an MP3 frame sync word.
+ * @param data The MP3 data buffer
+ * @param offset The offset to check
+ * @returns True if the bytes match an MP3 frame sync pattern
+ */
+export function isMp3FrameSync(data: Uint8Array, offset: number): boolean {
+  if (offset + 2 > data.length) {
+    return false;
+  }
+  if (data[offset] !== 0xff) {
+    return false;
+  }
+  return (data[offset + 1] & 0xe0) === 0xe0;
+}
+
+/**
+ * Returns the number of PCM samples encoded in one MP3 frame.
+ * @param data The MP3 data with a frame header
+ * @param offset The offset of the frame header
+ * @returns Number of samples per frame
+ */
+export function getMp3SamplesPerFrame(data: Uint8Array, offset: number = 0): number {
+  const version = (data[offset + 1] >> 3) & 0x03;
+  const layer = (data[offset + 1] >> 1) & 0x03;
+  switch (layer) {
+    case 1: {
+      return version === 3 ? 1152 : 576;
+    }
+    case 2: {
+      return 1152;
+    }
+    case 3: {
+      return 384;
+    }
+    default: {
+      return 1152;
+    }
+  }
+}
+
+/**
+ * Calculates the total byte length of an MP3 frame from its 4-byte header.
+ * @param data The MP3 data with a frame header
+ * @param offset The offset of the frame header
+ * @returns Frame length in bytes
+ * @throws UnsupportedFormatError if the frame header is invalid
+ */
+export function getMp3FrameLength(data: Uint8Array, offset: number = 0): number {
+  const version = (data[offset + 1] >> 3) & 0x03;
+  const { bitrate, sampleRate, codecDetails } = parseMP3Header(data, offset);
+  const { layer: layerNumber, padding } = codecDetails!;
+
+  if (layerNumber === 1) {
+    return Math.floor(((12 * bitrate!) / sampleRate! + padding!) * 4);
+  }
+  if (layerNumber === 3 && version !== 3) {
+    return Math.floor((72 * bitrate!) / sampleRate! + padding!);
+  }
+  return Math.floor((144 * bitrate!) / sampleRate! + padding!);
+}
+
+/**
  * VBR header information extracted from Xing/LAME or VBRI headers
  */
 export interface VBRHeaderInfo {

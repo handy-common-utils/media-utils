@@ -25,6 +25,32 @@ export const mediaUtilsTestCases: GetMediaInfoTestCase[] = [
     },
   },
   {
+    filename: 'simple.mp3',
+    expectedMediaInfo: {
+      bytesRead: 12672,
+      parser: 'media-utils',
+      audioStreams: [
+        {
+          id: 0,
+          bitrate: expect.closeTo(32000, -3) as any,
+          channelCount: 1,
+          codec: 'mp3',
+          codecDetail: 'MPEG-2 Layer III',
+          durationInSeconds: expect.closeTo(3, 0.1) as any,
+          sampleRate: 16000,
+          codecDetails: {
+            layer: 3,
+            padding: 0,
+          },
+        },
+      ],
+      container: 'mp3',
+      containerDetail: 'mp3',
+      durationInSeconds: expect.closeTo(3, 0.1) as any,
+      videoStreams: [],
+    },
+  },
+  {
     filename: 'engine-start.mp3',
     expectedMediaInfo: {
       bytesRead: 65536,

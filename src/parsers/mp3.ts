@@ -1,6 +1,112 @@
-import { parseMP3Header, parseVBRHeader } from '../codecs/mp3';
+import { getMp3FrameLength, getMp3SamplesPerFrame, isMp3FrameSync, parseMP3Header, parseVBRHeader } from '../codecs/mp3';
 import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
-import { readBeginning, UnsupportedFormatError } from '../utils';
+import { ensureBufferData, UnsupportedFormatError } from '../utils';
+
+const INITIAL_READ_SIZE = 64 * 1024;
+const STREAM_READ_CHUNK_SIZE = 64 * 1024;
+
+/**
+ * Returns the byte offset of the first MP3 audio frame, skipping an ID3v2 tag when present.
+ * @param buffer The MP3 data read so far
+ * @returns The offset of the first audio frame
+ */
+function getFirstAudioFrameOffset(buffer: Uint8Array): number {
+  if (buffer.length >= 10 && buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33) {
+    const size = ((buffer[6] & 0x7f) << 21) | ((buffer[7] & 0x7f) << 14) | ((buffer[8] & 0x7f) << 7) | (buffer[9] & 0x7f);
+    return 10 + size;
+  }
+  return 0;
+}
+
+/**
+ * Counts MP3 audio frames in a buffer starting from the given offset.
+ * @param buffer The MP3 data buffer
+ * @param startOffset The offset of the first audio frame
+ * @returns Frame count, audio byte count, and the next offset to continue from
+ */
+function countMp3FramesInBuffer(
+  buffer: Uint8Array,
+  startOffset: number,
+): { frameCount: number; audioBytes: number; nextOffset: number; needsMoreData: boolean } {
+  let offset = startOffset;
+  let frameCount = 0;
+  let audioBytes = 0;
+
+  while (offset + 4 <= buffer.length) {
+    if (!isMp3FrameSync(buffer, offset)) {
+      offset++;
+      continue;
+    }
+
+    try {
+      const frameLength = getMp3FrameLength(buffer, offset);
+      if (frameLength <= 0) {
+        offset++;
+        continue;
+      }
+      if (offset + frameLength > buffer.length) {
+        return { frameCount, audioBytes, nextOffset: offset, needsMoreData: true };
+      }
+      frameCount++;
+      audioBytes += frameLength;
+      offset += frameLength;
+    } catch {
+      offset++;
+    }
+  }
+
+  return {
+    frameCount,
+    audioBytes,
+    nextOffset: offset,
+    needsMoreData: offset + 4 > buffer.length,
+  };
+}
+
+/**
+ * Counts MP3 frames by scanning the stream until EOF when no VBR header is available.
+ * @param reader The stream reader
+ * @param buffer The buffered data read so far
+ * @param startOffset The offset of the first audio frame in the buffer
+ * @param streamDone Whether the stream has already reached EOF
+ * @param streamBytesRead Total bytes already read from the stream
+ * @returns Total frame count, audio bytes, and total stream bytes read
+ */
+async function countMp3FramesToEnd(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  buffer: Uint8Array,
+  startOffset: number,
+  streamDone: boolean,
+  streamBytesRead: number,
+): Promise<{ totalFrames: number; audioBytes: number; streamBytesRead: number }> {
+  let currentBuffer = buffer;
+  let offset = startOffset;
+  let totalFrames = 0;
+  let audioBytes = 0;
+  let done = streamDone;
+  let bytesRead = streamBytesRead;
+
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const scanResult = countMp3FramesInBuffer(currentBuffer, offset);
+    totalFrames += scanResult.frameCount;
+    audioBytes += scanResult.audioBytes;
+    offset = scanResult.nextOffset;
+
+    if (!scanResult.needsMoreData || done) {
+      break;
+    }
+
+    const requiredSize = Math.max(STREAM_READ_CHUNK_SIZE, currentBuffer.length - offset + 4);
+    const readResult = await ensureBufferData(reader, currentBuffer, offset, requiredSize);
+    currentBuffer = readResult.buffer;
+    offset = readResult.bufferOffset;
+    bytesRead += readResult.bytesRead;
+    done = readResult.done;
+  }
+
+  return { totalFrames, audioBytes, streamBytesRead: bytesRead };
+}
 
 /**
  * Parses MP3 file from a stream and extracts media information.
@@ -13,93 +119,67 @@ import { readBeginning, UnsupportedFormatError } from '../utils';
  * @throws UnsupportedFormatError if the stream is not a valid MP3 file
  */
 export async function parseMp3(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<GetMediaInfoResult, 'parser'>> {
-  // Read the first chunk to parse the MP3 frame header
   const reader = stream.getReader();
-  const buffer = await readBeginning(reader);
 
-  if (!buffer || buffer.length === 0) {
-    throw new UnsupportedFormatError('Not an MP3 file: insufficient data');
-  }
+  try {
+    const initialRead = await ensureBufferData(reader, undefined, undefined, INITIAL_READ_SIZE);
+    const buffer = initialRead.buffer;
+    let streamBytesRead = initialRead.bytesRead;
 
-  // Skip ID3v2 tag if present
-  let offset = 0;
-  if (buffer.length >= 10 && buffer[0] === 0x49 && buffer[1] === 0x44 && buffer[2] === 0x33) {
-    // ID3v2 tag found, calculate size and skip it
-    // Size is stored in bytes 6-9 as synchsafe integer (7 bits per byte)
-    const size = ((buffer[6] & 0x7f) << 21) | ((buffer[7] & 0x7f) << 14) | ((buffer[8] & 0x7f) << 7) | (buffer[9] & 0x7f);
-    offset = 10 + size; // 10 byte header + tag size
-  }
+    if (buffer.length === 0) {
+      throw new UnsupportedFormatError('Not an MP3 file: insufficient data');
+    }
 
-  if (offset >= buffer.length) {
-    throw new UnsupportedFormatError('Not an MP3 file: no frame header found after ID3 tag');
-  }
+    const audioFrameOffset = getFirstAudioFrameOffset(buffer);
+    if (audioFrameOffset >= buffer.length) {
+      throw new UnsupportedFormatError('Not an MP3 file: no frame header found after ID3 tag');
+    }
 
-  // Parse MP3 frame header
-  const audioStream = parseMP3Header(buffer.slice(offset));
+    const audioStream = parseMP3Header(buffer, audioFrameOffset);
 
-  // Try to extract duration and bitrate from VBR header (Xing/Info/LAME or VBRI)
-  let durationInSeconds: number | undefined = undefined;
-  let averageBitrate: number | undefined = audioStream.bitrate; // Default to frame header bitrate
+    let durationInSeconds: number | undefined;
+    let averageBitrate: number | undefined = audioStream.bitrate;
 
-  const vbrInfo = parseVBRHeader(buffer.slice(offset));
+    const vbrInfo = parseVBRHeader(buffer.subarray(audioFrameOffset));
+    if (vbrInfo.totalFrames && audioStream.sampleRate) {
+      const samplesPerFrame = getMp3SamplesPerFrame(buffer, audioFrameOffset);
+      const totalSamples = vbrInfo.totalFrames * samplesPerFrame;
+      durationInSeconds = totalSamples / audioStream.sampleRate;
 
-  if (vbrInfo.totalFrames && audioStream.sampleRate) {
-    // Calculate duration from total frames
-    // Samples per frame depends on MPEG version and Layer
-    // For Layer III:
-    // MPEG1: 1152 samples/frame, MPEG2/2.5: 576 samples/frame
-    let samplesPerFrame = 1152;
-    // version: 3 = MPEG1, 2 = MPEG2, 0 = MPEG2.5
-    // Layer: 1 = Layer III
-    const header = buffer.slice(offset, offset + 4);
-    const version = (header[1] >> 3) & 0x03;
-    const layer = (header[1] >> 1) & 0x03;
-    switch (layer) {
-      case 1: {
-        // Layer III
-        // eslint-disable-next-line unicorn/prefer-ternary
-        if (version === 3) {
-          samplesPerFrame = 1152; // MPEG1
-        } else {
-          samplesPerFrame = 576; // MPEG2/2.5
+      if (vbrInfo.fileSize && durationInSeconds > 0) {
+        averageBitrate = Math.round((vbrInfo.fileSize * 8) / durationInSeconds);
+      }
+    } else if (audioStream.sampleRate) {
+      const scanResult = await countMp3FramesToEnd(reader, buffer, audioFrameOffset, initialRead.done, streamBytesRead);
+      streamBytesRead = scanResult.streamBytesRead;
+
+      if (scanResult.totalFrames > 0) {
+        const samplesPerFrame = getMp3SamplesPerFrame(buffer, audioFrameOffset);
+        durationInSeconds = (scanResult.totalFrames * samplesPerFrame) / audioStream.sampleRate;
+
+        if (scanResult.audioBytes > 0 && durationInSeconds > 0) {
+          averageBitrate = Math.round((scanResult.audioBytes * 8) / durationInSeconds);
         }
-        break;
       }
-      case 2: {
-        // Layer II
-        samplesPerFrame = 1152;
-        break;
-      }
-      case 3: {
-        // Layer I
-        samplesPerFrame = 384;
-        break;
-      }
-      // No default
     }
-    const totalSamples = vbrInfo.totalFrames * samplesPerFrame;
-    durationInSeconds = totalSamples / audioStream.sampleRate;
 
-    // Calculate average bitrate if we have file size
-    if (vbrInfo.fileSize && durationInSeconds > 0) {
-      // bitrate = (fileSize * 8) / duration
-      averageBitrate = Math.round((vbrInfo.fileSize * 8) / durationInSeconds);
-    }
+    return {
+      container: 'mp3',
+      containerDetail: 'mp3',
+      durationInSeconds,
+      videoStreams: [],
+      audioStreams: [
+        {
+          id: 0,
+          ...audioStream,
+          bitrate: averageBitrate,
+          durationInSeconds,
+        },
+      ],
+      bytesRead: streamBytesRead,
+    };
+  } finally {
+    reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
-
-  return {
-    container: 'mp3',
-    containerDetail: 'mp3',
-    durationInSeconds,
-    videoStreams: [],
-    audioStreams: [
-      {
-        id: 0,
-        ...audioStream,
-        bitrate: averageBitrate,
-        durationInSeconds,
-      },
-    ],
-    bytesRead: buffer.length,
-  };
 }

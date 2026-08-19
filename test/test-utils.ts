@@ -247,7 +247,7 @@ export function runGetMediaInfoTestCases(testCases: GetMediaInfoTestCase[], useP
       for (const branch of branches) {
         expect(await isReadableStreamNotOpen(branch)).toBe(true);
       }
-    }, 8000);
+    }, 10000);
   }
 }
 
@@ -319,7 +319,7 @@ export function runExtractAudioTestCases(testCases: ExtractAudioTestCase[]) {
         expect(await isReadableStreamNotOpen(branch)).toBe(true);
       }
       expect(await isWritableStreamClosed(outputStream)).toBe(true);
-    }, 8000);
+    }, 10000);
   }
 }
 
