@@ -5,10 +5,10 @@ mkdir -p "$DEST_DIR"
 
 # List of "filename|url"
 FILES=(
-  "large_TearsOfSteel.mov|https://mirrors.dotsrc.org/blender/blender-demo/movies/ToS/tears_of_steel_1080p.mov"
-  "large_TearsOfSteel.webm|http://media.xiph.org/mango/tears_of_steel_1080p.webm"
-  "large_TearsOfSteel.mp4|http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
-  "large_BigBuckBunny_surround.avi|https://download.blender.org/peach/bigbuckbunny_movies/big_buck_bunny_720p_surround.avi"
+  "large_TearsOfSteel.mov|https://download.blender.org/demo/movies/ToS/tears_of_steel_1080p.mov.zip"
+  "large_TearsOfSteel.webm|https://download.blender.org/demo/movies/ToS/tears_of_steel_1080p.webm.zip"
+  "large_BigBuckBunny.mp4|https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4.zip"
+  "large_BigBuckBunny_surround.avi|https://download.blender.org/peach/bigbuckbunny_movies/big_buck_bunny_720p_surround.avi.zip"
   "large_matroska-test-files1.mkv|https://github.com/ietf-wg-cellar/matroska-test-files/raw/refs/heads/master/test_files/test1.mkv"
   "large_matroska-test-files2.mkv|https://github.com/ietf-wg-cellar/matroska-test-files/raw/refs/heads/master/test_files/test2.mkv"
   "large_matroska-test-files3.mkv|https://github.com/ietf-wg-cellar/matroska-test-files/raw/refs/heads/master/test_files/test3.mkv"
@@ -45,13 +45,56 @@ if [ ${#files_to_download[@]} -gt 0 ]; then
     
     # Run in background
     (
-      curl -s -L -o "$DEST_DIR/$filename" "$url"
-      if [ -f "$DEST_DIR/$filename" ]; then
-        echo "Downloaded $filename"
+      # Check if the URL ends with .zip (case-insensitive)
+      if [[ "$url" =~ \.[Zz][Ii][Pp]$ ]]; then
+        
+        # Define a temporary location for the ZIP archive
+        TEMP_ZIP=$(mktemp "$DEST_DIR/XXXXXX.zip")
+        
+        # Download to the temporary location
+        curl -s -L -o "$TEMP_ZIP" "$url"
+        
+        if [ -f "$TEMP_ZIP" ]; then
+          echo "Downloaded for $filename to temporary ZIP archive $TEMP_ZIP"
+          
+          # Get the name of the first/only file inside the ZIP (ignores directories)
+          # -Z -1 lists only the raw filenames inside the archive
+          INTERNAL_NAME=$(unzip -Z -1 "$TEMP_ZIP" | grep -v '/$' | head -n 1)
+          
+          if [ -z "$INTERNAL_NAME" ]; then
+            echo "Error: ZIP file is empty or invalid"
+            rm -f "$TEMP_ZIP"
+            exit 1
+          fi
+
+          # Strip any directory path from the internal name to know its base filename
+          BASE_INTERNAL_NAME=$(basename "$INTERNAL_NAME")
+
+          # Extract the file directly into DEST_DIR, discarding any internal archive folder structures (-j)
+          unzip -q -j "$TEMP_ZIP" "$INTERNAL_NAME" -d "$DEST_DIR"
+          
+          # Rename the extracted file to your specific $filename
+          mv "$DEST_DIR/$BASE_INTERNAL_NAME" "$DEST_DIR/$filename"
+          
+          # Clean up the temporary ZIP archive
+          rm -f "$TEMP_ZIP"
+          
+          echo "Extracted and renamed file to $DEST_DIR/$filename"
+        else
+          echo "Error: Failed to download ZIP from $url"
+          exit 1
+        fi
+
       else
-        # No error from curl but the file is not there
-        echo "Error: Failed to download $filename"
-        exit 1
+        # Standard download behavior for non-zip files
+        curl -s -L -o "$DEST_DIR/$filename" "$url"
+        
+        if [ -f "$DEST_DIR/$filename" ]; then
+          echo "Downloaded $filename"
+        else
+          echo "Error: Failed to download $filename"
+          exit 1
+        fi
       fi
     ) &
     pids="$pids $!"
