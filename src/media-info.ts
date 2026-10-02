@@ -52,7 +52,7 @@ export class AudioCodecDetails<T extends string> {
 const audioCodecs = {
   unknown: new AudioCodecDetails('unknown', 'wav', []),
   mp3: new AudioCodecDetails('mp3', 'mp3', ['mp4a.6b', '.mp3', 'A_MPEG/L3', 'MPEG-2.5 Layer III', 'MPEG-2 Layer III', 'MPEG-1 Layer III']),
-  opus: new AudioCodecDetails('opus', 'ogg', ['opus', 'mp4a.ad', 'A_OPUS']),
+  opus: new AudioCodecDetails('opus', 'ogg', ['opus', 'mp4a.ad', 'A_OPUS', 'Opus']),
   aac: new AudioCodecDetails('aac', 'aac', [/^mp4a\.40/, 'mp4a', 'A_AAC', /^A_AAC\/MPEG2\//, /^A_AAC\/MPEG4\//]),
   /**
    * AAC LATM (Advanced Audio Coding LATM syntax)
