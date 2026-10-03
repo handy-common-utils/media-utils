@@ -145,7 +145,7 @@ export class MpegTsParser {
         // For M2TS, the sync byte is at offset 4 within each packet
         const syncByteOffset = this.packetSize === TS_PACKET_SIZE_192 ? 4 : 0;
 
-        while (syncOffset < this.buffer.length && !foundValidSync) {
+        while (!foundValidSync && syncOffset < this.buffer.length) {
           // Check if sync byte is at the expected position
           if (syncOffset + syncByteOffset < this.buffer.length && this.buffer[syncOffset + syncByteOffset] === SYNC_BYTE) {
             foundValidSync = true;
@@ -181,12 +181,12 @@ export class MpegTsParser {
     return {
       container: 'mpegts',
       containerDetail: 'mpegts',
-      audioStreams: [...this.allStreamDetails.values()]
-        .filter((s) => s.streamTypeCategory === 'audio')
-        .map((s) => convertStreamDetailsToStreamInfo(s)),
-      videoStreams: [...this.allStreamDetails.values()]
-        .filter((s) => s.streamTypeCategory === 'video')
-        .map((s) => convertStreamDetailsToStreamInfo(s)),
+      audioStreams:
+        // eslint-disable-next-line unicorn/prefer-iterator-to-array
+        [...this.allStreamDetails.values()].filter((s) => s.streamTypeCategory === 'audio').map((s) => convertStreamDetailsToStreamInfo(s)),
+      videoStreams:
+        // eslint-disable-next-line unicorn/prefer-iterator-to-array
+        [...this.allStreamDetails.values()].filter((s) => s.streamTypeCategory === 'video').map((s) => convertStreamDetailsToStreamInfo(s)),
       bytesRead: this.bytesRead,
     };
   }
@@ -291,9 +291,9 @@ export class MpegTsParser {
 
     // 01 = payload only, 10 = adaptation only, 11 = adaptation + payload
     const hasPayload = (adaptationFieldControl & 0x01) !== 0;
-    const hasAdaptation = (adaptationFieldControl & 0x02) !== 0;
-
     if (!hasPayload) return;
+
+    const hasAdaptation = (adaptationFieldControl & 0x02) !== 0;
 
     let payloadOffset = 4;
     if (hasAdaptation) {
@@ -323,24 +323,27 @@ export class MpegTsParser {
     }
 
     const streamDetails = this.allStreamDetails.get(pid);
-    if (streamDetails && (streamDetails.parsed === false || this.onSamples)) {
-      const parsed = await this.processStreamPacket(pid, payload, payloadUnitStartIndicator);
-      streamDetails.parsed = streamDetails.parsed || parsed;
+    if (!streamDetails || (streamDetails.parsed !== false && !this.onSamples)) {
       return;
     }
+
+    const parsed = await this.processStreamPacket(pid, payload, payloadUnitStartIndicator);
+    streamDetails.parsed ||= parsed;
   }
 
   private async flushRemainingPESPayload(streamDetails: StreamDetails, pesStart: number) {
     // Flush out any remaining PES payload
-    if (
+    if (!(
       streamDetails.pesPayloadHandler &&
       streamDetails.pesPayloadStartOffsetInPesBuffer !== undefined &&
       streamDetails.pesPayloadStartOffsetInPesBuffer < pesStart
-    ) {
-      // console.error('flushRemainingPESPayload', streamDetails.pesPayloadStartOffsetInPesBuffer, pesStart);
-      await streamDetails.pesPayloadHandler.onData(streamDetails.pesBuffer.subarray(streamDetails.pesPayloadStartOffsetInPesBuffer, pesStart));
-      streamDetails.pesPayloadStartOffsetInPesBuffer = undefined;
+    )) {
+      return;
     }
+
+    // console.error('flushRemainingPESPayload', streamDetails.pesPayloadStartOffsetInPesBuffer, pesStart);
+    await streamDetails.pesPayloadHandler.onData(streamDetails.pesBuffer.subarray(streamDetails.pesPayloadStartOffsetInPesBuffer, pesStart));
+    streamDetails.pesPayloadStartOffsetInPesBuffer = undefined;
   }
 
   /**
@@ -382,7 +385,7 @@ export class MpegTsParser {
     if (streamDetails.pesBuffer.length < 9) return false;
 
     // When PUSI is not set, it is guaranteed that the full payload is a part of the previous PES packet.
-    if (payloadUnitStartIndicator === false) {
+    if (!payloadUnitStartIndicator) {
       return false;
     }
 
@@ -427,25 +430,72 @@ export class MpegTsParser {
 
     let pesStart = 0;
     for (let i = 0; i < streamDetails.pesBuffer.length - 4; i++) {
-      if (streamDetails.pesBuffer[i] === 0x00 && streamDetails.pesBuffer[i + 1] === 0x00 && streamDetails.pesBuffer[i + 2] === 0x01) {
-        // if (pid === 257)console.log('i=', i, 'pid=', pid, 'streamDetails.pesBuffer.length=', streamDetails.pesBuffer.length);
-        if (streamDetails.pesBuffer.length < pesStart + 9) break; // leave for next time when there is more data
+      if (!(streamDetails.pesBuffer[i] === 0x00 && streamDetails.pesBuffer[i + 1] === 0x00 && streamDetails.pesBuffer[i + 2] === 0x01)) {
+        continue;
+      }
 
-        pesStart = i;
-        const streamId = streamDetails.pesBuffer[pesStart + 3];
-        const pesLength = readUInt16BE(streamDetails.pesBuffer, pesStart + 4);
-        if (streamId >= 0xe0 && streamId <= 0xef) {
-          // 0xE0–0xEF Video stream (MPEG-1/2/4, H.264/AVC, H.265/HEVC inside TS)
-          if (streamDetails.pesBuffer.length < pesStart + 100) break; // leave for next time when there is more data
-          // try to parse the video header
-          try {
+      // if (pid === 257)console.log('i=', i, 'pid=', pid, 'streamDetails.pesBuffer.length=', streamDetails.pesBuffer.length);
+      if (streamDetails.pesBuffer.length < pesStart + 9) break; // leave for next time when there is more data
+
+      pesStart = i;
+      const streamId = streamDetails.pesBuffer[pesStart + 3];
+      const pesLength = readUInt16BE(streamDetails.pesBuffer, pesStart + 4);
+      if (streamId >= 0xe0 && streamId <= 0xef) {
+        // 0xE0–0xEF Video stream (MPEG-1/2/4, H.264/AVC, H.265/HEVC inside TS)
+        if (streamDetails.pesBuffer.length < pesStart + 100) break; // leave for next time when there is more data
+        // try to parse the video header
+        try {
+          switch (streamDetails.codec) {
+            case 'h264': {
+              parseH264HeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), videoStreamDetails);
+              break;
+            }
+            case 'mpeg2video': {
+              parseMpeg2VideoHeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), videoStreamDetails);
+              break;
+            }
+            default: {
+              // Other codec, let's assume it is valid
+              break;
+            }
+          }
+        } catch {
+          // could be caused by false positive PES start code, keep searching
+          i += 2;
+          continue;
+        }
+
+        // We believe a legit PES packet start is found
+        parsedPESHeader = true;
+
+        // Flush out any remaining PES payload
+        await this.flushRemainingPESPayload(streamDetails, pesStart);
+
+        const { shouldBreakNotContinue, nextIndex } = await checkAvailableData({ pesLength, pesStart, frameDataOffset: 0 });
+        if (shouldBreakNotContinue) break;
+        i = nextIndex!;
+        continue;
+      }
+      if (streamId >= 0xc0 && streamId <= 0xdf) {
+        // 0xC0–0xDF ISO/IEC 13818-3 audio streams (MPEG-1/2 Layer I/II/III), AAC, etc.
+        if (streamDetails.pesBuffer.length < pesStart + 100) break; // leave for next time when there is more data
+
+        let frameOffset = 0;
+
+        // try to parse the audio header
+        try {
+          if (streamDetails.streamTypeCategory === 'private') {
+            // We need to guess, because ffmpeg uses 0x06 for aac and mp3 but with different packaging
+            frameOffset = guessAudioHeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
+          } else {
             switch (streamDetails.codec) {
-              case 'h264': {
-                parseH264HeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), videoStreamDetails);
+              case 'mp2':
+              case 'mp3': {
+                frameOffset = parseMp2OrMp3HeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
                 break;
               }
-              case 'mpeg2video': {
-                parseMpeg2VideoHeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), videoStreamDetails);
+              case 'aac': {
+                frameOffset = parseAacHeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
                 break;
               }
               default: {
@@ -453,114 +503,70 @@ export class MpegTsParser {
                 break;
               }
             }
-          } catch {
-            // could be caused by false positive PES start code, keep searching
-            i += 2;
-            continue;
           }
-
-          // We believe a legit PES packet start is found
-          parsedPESHeader = true;
-
-          // Flush out any remaining PES payload
-          await this.flushRemainingPESPayload(streamDetails, pesStart);
-
-          const { shouldBreakNotContinue, nextIndex } = await checkAvailableData({ pesLength, pesStart, frameDataOffset: 0 });
-          if (shouldBreakNotContinue) break;
-          i = nextIndex!;
-          continue;
-        } else if (streamId >= 0xc0 && streamId <= 0xdf) {
-          // 0xC0–0xDF ISO/IEC 13818-3 audio streams (MPEG-1/2 Layer I/II/III), AAC, etc.
-          if (streamDetails.pesBuffer.length < pesStart + 100) break; // leave for next time when there is more data
-
-          let frameOffset = 0;
-
-          // try to parse the audio header
-          try {
-            if (streamDetails.streamTypeCategory === 'private') {
-              // We need to guess, because ffmpeg uses 0x06 for aac and mp3 but with different packaging
-              frameOffset = guessAudioHeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
-            } else {
-              switch (streamDetails.codec) {
-                case 'mp2':
-                case 'mp3': {
-                  frameOffset = parseMp2OrMp3HeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
-                  break;
-                }
-                case 'aac': {
-                  frameOffset = parseAacHeaderInPES(streamDetails.pesBuffer.subarray(pesStart + 6), audioStreamDetails);
-                  break;
-                }
-                default: {
-                  // Other codec, let's assume it is valid
-                  break;
-                }
-              }
-            }
-          } catch {
-            // could be caused by false positive PES start code, keep searching
-            i += 2;
-            continue;
-          }
-
-          // Now we believe a legit PES packet start is found, and the codec information in streamDetails has been updated
-          parsedPESHeader = true;
-
-          if (this.onSamples && !streamDetails.pesPayloadHandler) {
-            streamDetails.pesPayloadHandler = new PesPayloadHandler(
-              audioStreamDetails.codec!,
-              async (frames) =>
-                await this.onSamples!(
-                  pid,
-                  frames.map((f) => f.data),
-                ),
-            );
-          }
-
-          // Flush out any remaining PES payload
-          await this.flushRemainingPESPayload(streamDetails, pesStart);
-
-          const { shouldBreakNotContinue, nextIndex } = await checkAvailableData({
-            pesLength,
-            pesStart,
-            frameDataOffset: frameOffset,
-            onKnownLengthData: async (start, end) => {
-              // console.error('onKnownLengthData', start, end, end-start, streamDetails.pesBuffer.length);
-              await streamDetails.pesPayloadHandler?.onData(streamDetails.pesBuffer.subarray(start, end));
-            },
-          });
-          if (shouldBreakNotContinue) break;
-          i = nextIndex!;
-          // console.log('pesStart:', pesStart, 'nextIndex:', nextIndex, 'new i:', i);
-          continue;
-        } else if (streamId === 0xbd) {
-          // 0xBD Private Stream 1 (AC-3, DTS, DVB subtitles, teletext, etc.)
-          if (streamDetails.pesBuffer.length < pesStart + 100) break; // leave for next time when there is more data
-
-          const { shouldBreakNotContinue, nextIndex } = await checkAvailableData({ pesLength, pesStart });
-          if (shouldBreakNotContinue) break;
-          i = nextIndex!;
-          continue;
-        } else if (
-          (streamId >= 0xbc && streamId <= 0xbf) ||
-          streamId === 0xff ||
-          (streamId >= 0xf0 && streamId <= 0xf2) ||
-          (streamId >= 0xf8 && streamId <= 0xfe)
-        ) {
-          // BC, BE, BF, FF Special system streams
-          // F0–F2, F8–FE Reserved
-
-          const { shouldBreakNotContinue, nextIndex } = await checkAvailableData({ pesLength, pesStart });
-          if (shouldBreakNotContinue) break;
-          i = nextIndex!;
-          continue;
-        } else {
-          // Invalid stream ID, maybe the PES start is false positive
-          // continue searching for next possible PES start code
+        } catch {
+          // could be caused by false positive PES start code, keep searching
           i += 2;
           continue;
         }
+
+        // Now we believe a legit PES packet start is found, and the codec information in streamDetails has been updated
+        parsedPESHeader = true;
+
+        if (this.onSamples && !streamDetails.pesPayloadHandler) {
+          streamDetails.pesPayloadHandler = new PesPayloadHandler(
+            audioStreamDetails.codec!,
+            async (frames) =>
+              await this.onSamples!(
+                pid,
+                frames.map((f) => f.data),
+              ),
+          );
+        }
+
+        // Flush out any remaining PES payload
+        await this.flushRemainingPESPayload(streamDetails, pesStart);
+
+        const { shouldBreakNotContinue, nextIndex } = await checkAvailableData({
+          pesLength,
+          pesStart,
+          frameDataOffset: frameOffset,
+          onKnownLengthData: async (start, end) => {
+            // console.error('onKnownLengthData', start, end, end-start, streamDetails.pesBuffer.length);
+            await streamDetails.pesPayloadHandler?.onData(streamDetails.pesBuffer.subarray(start, end));
+          },
+        });
+        if (shouldBreakNotContinue) break;
+        i = nextIndex!;
+        // console.log('pesStart:', pesStart, 'nextIndex:', nextIndex, 'new i:', i);
+        continue;
       }
+      if (streamId === 0xbd) {
+        // 0xBD Private Stream 1 (AC-3, DTS, DVB subtitles, teletext, etc.)
+        if (streamDetails.pesBuffer.length < pesStart + 100) break; // leave for next time when there is more data
+
+        const { shouldBreakNotContinue, nextIndex } = await checkAvailableData({ pesLength, pesStart });
+        if (shouldBreakNotContinue) break;
+        i = nextIndex!;
+        continue;
+      }
+      if (
+        streamId === 0xff ||
+        (streamId >= 0xbc && streamId <= 0xbf) ||
+        (streamId >= 0xf0 && streamId <= 0xf2) ||
+        (streamId >= 0xf8 && streamId <= 0xfe)
+      ) {
+        // BC, BE, BF, FF Special system streams
+        // F0–F2, F8–FE Reserved
+
+        const { shouldBreakNotContinue, nextIndex } = await checkAvailableData({ pesLength, pesStart });
+        if (shouldBreakNotContinue) break;
+        i = nextIndex!;
+        continue;
+      }
+      // Invalid stream ID, maybe the PES start is false positive
+      // continue searching for next possible PES start code
+      i += 2;
     }
 
     // Discard already processed data  which could be valid data or garbage

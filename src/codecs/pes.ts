@@ -53,7 +53,8 @@ export function parseAudioFrame(
         frameLength,
         headerLength,
       };
-    } else if ((layer === 1 || layer === 2 || layer === 3) && (secondByte & 0xe0) === 0xe0) {
+    }
+    if ([1, 2, 3].includes(layer) && (secondByte & 0xe0) === 0xe0) {
       // Potentially MP3/MP2 (Layer I, II, III)
       // Check syncword 11 bits 0xFFE0
 
@@ -172,16 +173,18 @@ export class PesPayloadHandler {
     // to ensure we discard any junk data we skipped over
     if (processedUpTo > 0) {
       // console.error('Keep only unprocessed data', processedUpTo, this.buffer.length);
-      this.buffer = this.buffer.slice(processedUpTo);
+      this.buffer = this.buffer.subarray(processedUpTo);
     }
 
     // Safety check: if buffer is growing too large without finding valid frames,
     // discard old data to prevent memory leak
-    if (this.buffer.length > 100000) {
-      console.error('buffer length too large', this.buffer.length);
-      // Keep only last 10KB
-      this.buffer = this.buffer.slice(-10000);
+    if (this.buffer.length <= 100000) {
+      return;
     }
+
+    console.error('buffer length too large', this.buffer.length);
+    // Keep only last 10KB
+    this.buffer = this.buffer.subarray(-10000);
     // console.error('buffer length check', this.buffer.length);
   }
 
@@ -196,7 +199,8 @@ export class PesPayloadHandler {
       if (buffer[i] === 0xff && (buffer[i + 1] & 0xe0) === 0xe0) {
         // 11-bit sync word 0x7FF
         return i;
-      } else if (buffer[i] === 0xff && (buffer[i + 1] & 0xf0) === 0xf0) {
+      }
+      if (buffer[i] === 0xff && (buffer[i + 1] & 0xf0) === 0xf0) {
         // ADTS syncword 0xFFF
         return i;
       }

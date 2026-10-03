@@ -63,7 +63,7 @@ const OP1A_BASE = new Uint8Array([0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01
 const UL_PICTURE_ESSENCE_CODING_MPEG2_PREFIX = new Uint8Array([0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x03, 0x04, 0x01, 0x02, 0x02]);
 const UL_PICTURE_ESSENCE_CODING_H264_PREFIX = new Uint8Array([0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x0a, 0x04, 0x01, 0x02, 0x02]);
 // Updated to match common WAVE PCM usage (byte 10 = 0x02)
-const UL_SOUND_ESSENCE_CODING_LPCM_WAV = new Uint8Array([0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x04, 0x02, 0x02, 0x01]);
+const _UL_SOUND_ESSENCE_CODING_LPCM_WAV = new Uint8Array([0x06, 0x0e, 0x2b, 0x34, 0x04, 0x01, 0x01, 0x01, 0x04, 0x02, 0x02, 0x01]);
 
 /**
  * Reads a BER length from a buffer at a given position.
@@ -275,7 +275,7 @@ export async function parseMxf(
         const compItemSize = readUInt32BE(compsProp, 4);
         let trackAdded = false;
 
-        for (let j = 0; j < compCount && !trackAdded; j++) {
+        for (let j = 0; !trackAdded && j < compCount; j++) {
           const compUID = compsProp.subarray(8 + j * compItemSize, 8 + (j + 1) * compItemSize);
           const comp = metadataSetsLookup.get(toHex(compUID));
           if (!comp || !compareUUID(comp.key, SOURCE_CLIP_KEY)) continue;
@@ -304,7 +304,7 @@ export async function parseMxf(
 
           const spTCount = readUInt32BE(spTracksProp, 0);
           const spTSize = readUInt32BE(spTracksProp, 4);
-          for (let k = 0; k < spTCount && !trackAdded; k++) {
+          for (let k = 0; !trackAdded && k < spTCount; k++) {
             const spTUID = spTracksProp.subarray(8 + k * spTSize, 8 + (k + 1) * spTSize);
             const spT = metadataSetsLookup.get(toHex(spTUID));
             const spTProp = spT?.properties.get(0x4801);
@@ -342,8 +342,8 @@ export async function parseMxf(
               if (linkedID === undefined) {
                 // If LinkedTrackID is missing, match by essence type
                 const isAudioTrack = eNum >> 8 === 0x16;
-                const isVideoTrack = eNum >> 8 === 0x15;
                 if (isAudioTrack && !isAudioDescriptor) continue;
+                const isVideoTrack = eNum >> 8 === 0x15;
                 if (isVideoTrack && !isVideoDescriptor) continue;
               } else if (linkedID !== stID) {
                 continue;
@@ -356,19 +356,7 @@ export async function parseMxf(
                 const sr = readInt32BE(sRateProp, 0) / readInt32BE(sRateProp, 4);
                 const ch = readUInt32BE(chProp, 0);
                 const bps = bProp ? readUInt32BE(bProp, 0) : 16;
-                const soundCodingUL = target.properties.get(0x3d06);
-
-                let codec = 'unknown';
-                if (soundCodingUL && compareUUID(soundCodingUL.subarray(0, 12), UL_SOUND_ESSENCE_CODING_LPCM_WAV)) {
-                  codec = `pcm_s${bps}le`;
-                } else if (compareUUID(target.key, WAVE_AUDIO_DESCRIPTOR_KEY)) {
-                  codec = `pcm_s${bps}le`;
-                } else if (compareUUID(target.key, AES3_AUDIO_DESCRIPTOR_KEY)) {
-                  codec = `pcm_s${bps}le`; // Fallback to LE for compatibility
-                } else {
-                  // Fallback or generic sound, default to LE if unspecified for compatibility
-                  codec = `pcm_s${bps}le`;
-                }
+                const codec = `pcm_s${bps}le`;
 
                 audioStreams.push({
                   id: trackID,
@@ -386,7 +374,8 @@ export async function parseMxf(
                 });
                 trackAdded = true;
                 break;
-              } else if (target.properties.get(0x3203) && target.properties.get(0x3202) && isVideoDescriptor) {
+              }
+              if (isVideoDescriptor && target.properties.get(0x3203) && target.properties.get(0x3202)) {
                 const w = readUInt32BE(target.properties.get(0x3203)!, 0);
                 let h = readUInt32BE(target.properties.get(0x3202)!, 0);
 

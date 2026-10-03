@@ -173,10 +173,12 @@ export async function extractFromMp4(
           totalProcessedSamples++;
 
           // Report progress
-          if (options.onProgress && totalSamples > 0 && totalProcessedSamples % 100 === 0) {
-            const progress = Math.min(100, Math.round((totalProcessedSamples / totalSamples) * 100));
-            options.onProgress(progress);
+          if (!options.onProgress || totalSamples <= 0 || totalProcessedSamples % 100 !== 0) {
+            continue;
           }
+
+          const progress = Math.min(100, Math.round((totalProcessedSamples / totalSamples) * 100));
+          options.onProgress(progress);
         }
       }
     } finally {
@@ -209,7 +211,7 @@ function buildWavHeader(stream: AudioStreamInfo, dataSize: number): Uint8Array {
   // Infer bits per sample if not provided
   let bitsPerSample = stream.bitsPerSample;
   if (!bitsPerSample && stream.codec) {
-    if (stream.codec === 'pcm_alaw' || stream.codec === 'pcm_mulaw' || stream.codec === 'pcm_u8') {
+    if (['pcm_alaw', 'pcm_mulaw', 'pcm_u8'].includes(stream.codec)) {
       bitsPerSample = 8;
     } else if (stream.codec.includes('s16')) {
       bitsPerSample = 16;
@@ -292,7 +294,7 @@ function buildWavHeader(stream: AudioStreamInfo, dataSize: number): Uint8Array {
  */
 function preparePcmData(data: Uint8Array, stream: AudioStreamInfo): Uint8Array {
   // Check if it's a Big Endian format
-  const isBigEndian = stream.codec === 'pcm_s16be' || stream.codec === 'pcm_s24be' || stream.codec === 'pcm_s32be';
+  const isBigEndian = ['pcm_s16be', 'pcm_s24be', 'pcm_s32be'].includes(stream.codec);
 
   if (!isBigEndian) {
     return data;

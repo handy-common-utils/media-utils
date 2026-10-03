@@ -341,7 +341,8 @@ export function findContainer(code: string | string | undefined | null): Contain
     for (const alias of container.aliases) {
       if (typeof alias === 'string' && alias === code) {
         return container;
-      } else if (alias instanceof RegExp && alias.test(code)) {
+      }
+      if (alias instanceof RegExp && alias.test(code)) {
         return container;
       }
     }
@@ -394,7 +395,8 @@ export function findVideoCodec(code: string | string | undefined | null): VideoC
     for (const alias of codec.aliases) {
       if (typeof alias === 'string' && alias === code) {
         return codec;
-      } else if (alias instanceof RegExp && alias.test(code)) {
+      }
+      if (alias instanceof RegExp && alias.test(code)) {
         return codec;
       }
     }
@@ -433,7 +435,8 @@ export function findAudioCodec(code: string | string | undefined | null): AudioC
     for (const alias of codec.aliases) {
       if (typeof alias === 'string' && alias === code) {
         return codec;
-      } else if (alias instanceof RegExp && alias.test(code)) {
+      }
+      if (alias instanceof RegExp && alias.test(code)) {
         return codec;
       }
     }

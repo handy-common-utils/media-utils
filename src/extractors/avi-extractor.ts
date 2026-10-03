@@ -94,15 +94,15 @@ export async function extractFromAvi(
 
     let totalDataWritten = 0;
     // Estimate total size for progress reporting only
-    let estimatedTotalSize = 0;
-    if (audioStream.durationInSeconds && audioStream.bitrate) {
-      estimatedTotalSize = Math.floor((audioStream.durationInSeconds * audioStream.bitrate) / 8);
-    }
+    const estimatedTotalSize =
+      audioStream.durationInSeconds && audioStream.bitrate ? Math.floor((audioStream.durationInSeconds * audioStream.bitrate) / 8) : 0;
     function reportProgress() {
-      if (options.onProgress && estimatedTotalSize > 0) {
-        const progress = Math.min(100, Math.floor((totalDataWritten / estimatedTotalSize) * 100));
-        options.onProgress(progress);
+      if (!(options.onProgress && estimatedTotalSize > 0)) {
+        return;
       }
+
+      const progress = Math.min(100, Math.floor((totalDataWritten / estimatedTotalSize) * 100));
+      options.onProgress(progress);
     }
 
     if (audioStream.codec === 'mp3') {
@@ -110,13 +110,15 @@ export async function extractFromAvi(
       await parseAvi(input, {
         ...options,
         onSamples: async (streamNumber, samples) => {
-          if (streamNumber === targetAviStreamNumber) {
-            for (const sample of samples) {
-              await writer.write(sample);
-              totalDataWritten += sample.length;
-            }
-            reportProgress();
+          if (streamNumber !== targetAviStreamNumber) {
+            return;
           }
+
+          for (const sample of samples) {
+            await writer.write(sample);
+            totalDataWritten += sample.length;
+          }
+          reportProgress();
         },
       });
     } else if (isPCM(audioStream.codec)) {
@@ -128,15 +130,17 @@ export async function extractFromAvi(
         ...options,
         onSamples: async (streamNumber, samples) => {
           // Check if this is an audio chunk for our stream
-          if (streamNumber === targetAviStreamNumber) {
-            for (const sample of samples) {
-              // Extract raw audio data from this chunk
-              // For PCM: This is raw samples that will be written to WAV
-              wavWriter.appendData(sample);
-              totalDataWritten += sample.length;
-            }
-            reportProgress();
+          if (streamNumber !== targetAviStreamNumber) {
+            return;
           }
+
+          for (const sample of samples) {
+            // Extract raw audio data from this chunk
+            // For PCM: This is raw samples that will be written to WAV
+            wavWriter.appendData(sample);
+            totalDataWritten += sample.length;
+          }
+          reportProgress();
         },
       });
 

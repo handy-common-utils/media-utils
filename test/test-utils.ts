@@ -181,7 +181,7 @@ export interface GetMediaInfoTestCase {
  * @param testCases Array of test cases to search
  * @param filename The filename to find in the test cases
  * @returns The test case matching the filename
- * @throws Error if no test case with the given filename is found
+ * @throws {Error} if no test case with the given filename is found
  */
 export function getGetMediaInfoTestCase(testCases: GetMediaInfoTestCase[], filename: string): GetMediaInfoTestCase {
   const result = testCases.find((tc) => tc.filename === filename);
@@ -196,7 +196,7 @@ export function getGetMediaInfoTestCase(testCases: GetMediaInfoTestCase[], filen
  * @param testCases Array of test cases to search
  * @param filenames Array of filenames to find in the test cases
  * @returns Array of test cases matching the given filenames
- * @throws Error if any filename does not have a matching test case
+ * @throws {Error} if any filename does not have a matching test case
  */
 export function getGetMediaInfoTestCases(testCases: GetMediaInfoTestCase[], ...filenames: string[]): GetMediaInfoTestCase[] {
   const results: GetMediaInfoTestCase[] = [];
@@ -308,10 +308,9 @@ export function runExtractAudioTestCases(testCases: ExtractAudioTestCase[]) {
         assertFileSize(outputFile(outputFilename), minSizeKB, maxSizeKB);
         const info = await getMediaInfoFromFile(outputFile(outputFilename), { useParser: 'media-utils' });
         expect(info).toEqual(expectedMediaInfo);
-        fs.renameSync(
-          outputFile(outputFilename),
-          outputFile(outputFilename.replace(/\.audio$/, `.${toContainer(toAudioCodec(info.audioStreams[0].codec).defaultContainer).fileExtension}`)),
-        );
+        const renamedExtension = `.${toContainer(toAudioCodec(info.audioStreams[0].codec).defaultContainer).fileExtension}`;
+        const renamedFilename = (outputFilename.endsWith('.audio') ? outputFilename.slice(0, -'.audio'.length) : outputFilename) + renamedExtension;
+        fs.renameSync(outputFile(outputFilename), outputFile(renamedFilename));
         addExtractAudioTestReportItem({ succeeded: true, filename, fileRemark, testRemark }, sourceMediaInfo, expectedMediaInfo);
       }
 
@@ -332,13 +331,13 @@ function trackAllBranches<T extends ReadableStream>(stream: T) {
 
     s.tee = function () {
       // 1. Call the native tee to get [s1, s2]
-      const results = originalTee.call(this) as [T, T];
+      const results = originalTee.call(s) as [T, T];
 
       // 2. Add these specific branches to our master list
       allBranches.push(...results);
 
       // 3. RECURSION: Enhance the new branches so their .tee() is also tracked
-      results.forEach((branch) => enhanceStream(branch));
+      for (const branch of results) enhanceStream(branch);
 
       return results;
     };
@@ -364,7 +363,7 @@ async function isReadableStreamNotOpen(stream: ReadableStream) {
   const reader = stream.getReader();
 
   const closedPromise = reader.closed.then(() => true);
-  const isClosed = (await PromiseUtils.promiseState(closedPromise)) === 'Pending' ? true : await closedPromise;
+  const isClosed = (await PromiseUtils.promiseState(closedPromise)) === 'Pending' || (await closedPromise);
 
   if (!isClosed) {
     // console.log('isReadableStreamNotOpen: stream is not closed');

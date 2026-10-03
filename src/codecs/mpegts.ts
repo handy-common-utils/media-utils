@@ -127,13 +127,15 @@ const AUDIO_TYPE_MAP: Record<number, string> = {
  * @param info The AudioStreamInfo object that will be updated with parsed data
  */
 export function parseLanguageDescriptorTagBody(body: Uint8Array, info: Partial<AudioStreamInfo>) {
-  if (body.length >= 4) {
-    info.language = readAscii(body, 0, 3);
-    const audioTypeCode = body[3];
-    if (audioTypeCode !== 0) {
-      // 0 is "Undefined"
-      info.audioType = AUDIO_TYPE_MAP[audioTypeCode];
-    }
+  if (!(body.length >= 4)) {
+    return;
+  }
+
+  info.language = readAscii(body, 0, 3);
+  const audioTypeCode = body[3];
+  if (audioTypeCode !== 0) {
+    // 0 is "Undefined"
+    info.audioType = AUDIO_TYPE_MAP[audioTypeCode];
   }
 }
 /**
@@ -259,18 +261,22 @@ export function guessAudioHeaderInPES(data: Uint8Array, streamInfo: Partial<Audi
  * @param info The AudioStreamInfo object that will be updated with parsed data
  */
 export function parseDtsDescriptorTagBody(body: Uint8Array, info: Partial<AudioStreamInfo>) {
-  if (body.length >= 1) {
-    const sampleRateCode = body[0] >> 4;
-    const bitRateCode = body[0] & 0x0f;
-
-    info.sampleRate = DTS_SAMPLE_RATE_TABLE[sampleRateCode] ?? 0;
-    info.bitrate = (DTS_BITRATE_TABLE[bitRateCode] ?? 0) * 1000; // convert kbps → bps
+  if (body.length < 1) {
+    return;
   }
 
-  if (body.length >= 2) {
-    const surroundCode = body[1] >> 5;
-    info.surroundMode = DTS_SURROUND_TABLE[surroundCode] ?? 'Unknown';
+  const sampleRateCode = body[0] >> 4;
+  const bitRateCode = body[0] & 0x0f;
+
+  info.sampleRate = DTS_SAMPLE_RATE_TABLE[sampleRateCode] ?? 0;
+  info.bitrate = (DTS_BITRATE_TABLE[bitRateCode] ?? 0) * 1000; // convert kbps → bps
+
+  if (body.length < 2) {
+    return;
   }
+
+  const surroundCode = body[1] >> 5;
+  info.surroundMode = DTS_SURROUND_TABLE[surroundCode] ?? 'Unknown';
 }
 
 /**
@@ -281,7 +287,7 @@ export function parseDtsDescriptorTagBody(body: Uint8Array, info: Partial<AudioS
  * @param searchRange Number of bytes to scan for frame sync
  * @param fallbackToRawAAC Whether to fallback to raw AAC if no valid header is found
  * @returns The offset of the first frame found
- * @throws UnsupportedFormatError if the data is not a valid AAC header
+ * @throws {UnsupportedFormatError} if the data is not a valid AAC header
  */
 export function parseAacHeaderInPES(data: Uint8Array, streamInfo: Partial<AudioStreamInfo>, searchRange = 20, fallbackToRawAAC = false): number {
   // console.error('parseAacHeaderInPES', toHexString(data.subarray(0, 80)));
@@ -352,7 +358,7 @@ export function parseAacHeaderInPES(data: Uint8Array, streamInfo: Partial<AudioS
  * @param streamInfo The AudioStreamInfo object that will be updated with parsed data
  * @param searchRange Number of bytes to scan for frame sync
  * @returns The offset of the first frame found
- * @throws UnsupportedFormatError if the data is not a valid MP2/MP3 header
+ * @throws {UnsupportedFormatError} if the data is not a valid MP2/MP3 header
  */
 export function parseMp2OrMp3HeaderInPES(data: Uint8Array, streamInfo: Partial<AudioStreamInfo>, searchRange = 20): number {
   // console.error('parseMp2OrMp3HeaderInPES', toHexString(data.subarray(0, 80)));
@@ -393,7 +399,7 @@ export function parseMp2OrMp3HeaderInPES(data: Uint8Array, streamInfo: Partial<A
  * Parses H.264 NAL unit bytes to extract width, height, and codec details
  * @param data H.264 NAL unit bytes
  * @param streamInfo The VideoStreamInfo object that will be updated with parsed data
- * @throws UnsupportedFormatError if the data is not a valid H.264 NAL unit
+ * @throws {UnsupportedFormatError} if the data is not a valid H.264 NAL unit
  */
 export function parseH264HeaderInPES(data: Uint8Array, streamInfo: Partial<VideoStreamInfo>) {
   if (data.length < 5) {
@@ -403,38 +409,38 @@ export function parseH264HeaderInPES(data: Uint8Array, streamInfo: Partial<Video
   // Look for SPS NAL unit (type 7)
   // Start code prefix: 00 00 01 or 00 00 00 01
   for (let i = 0; i < Math.min(data.length - 5, 4096); i++) {
-    if (data[i] === 0x00 && data[i + 1] === 0x00) {
-      let nalStart = -1;
-      if (data[i + 2] === 0x01) {
-        nalStart = i + 3;
-      } else if (data[i + 2] === 0x00 && data[i + 3] === 0x01) {
-        nalStart = i + 4;
-      }
+    if (!(data[i] === 0x00 && data[i + 1] === 0x00)) {
+      continue;
+    }
 
-      if (nalStart !== -1) {
-        if (data.length < nalStart + 5) {
-          continue;
-        }
-        try {
-          const nalType = data[nalStart] & 0x1f;
-          if (nalType === 7) {
-            // SPS
-            // Found SPS, parse it
-            // We need to pass the data starting from nalStart + 1 (after header)
-            // But parseSPS expects the RBSP (Raw Byte Sequence Payload) which is handled inside it?
-            // No, parseSPS in h264.ts takes the NAL unit payload (after header byte)
-            const spsData = data.subarray(nalStart + 1);
-            const info = parseSPS(spsData);
+    let nalStart = -1;
+    if (data[i + 2] === 0x01) {
+      nalStart = i + 3;
+    } else if (data[i + 2] === 0x00 && data[i + 3] === 0x01) {
+      nalStart = i + 4;
+    }
 
-            if (info.width) streamInfo.width = info.width;
-            if (info.height) streamInfo.height = info.height;
-            if (info.codecDetail) streamInfo.codecDetail = info.codecDetail;
-            return;
-          }
-        } catch {
-          // Ignore
-        }
+    if (nalStart === -1 || data.length < nalStart + 5) {
+      continue;
+    }
+    try {
+      const nalType = data[nalStart] & 0x1f;
+      if (nalType === 7) {
+        // SPS
+        // Found SPS, parse it
+        // We need to pass the data starting from nalStart + 1 (after header)
+        // But parseSPS expects the RBSP (Raw Byte Sequence Payload) which is handled inside it?
+        // No, parseSPS in h264.ts takes the NAL unit payload (after header byte)
+        const spsData = data.subarray(nalStart + 1);
+        const info = parseSPS(spsData);
+
+        if (info.width) streamInfo.width = info.width;
+        if (info.height) streamInfo.height = info.height;
+        if (info.codecDetail) streamInfo.codecDetail = info.codecDetail;
+        return;
       }
+    } catch {
+      // Ignore
     }
   }
 
@@ -446,7 +452,7 @@ export function parseH264HeaderInPES(data: Uint8Array, streamInfo: Partial<Video
  * Parses MPEG-2 Video Header
  * @param data Data containing the sequence header (starting with 0x000001B3)
  * @param streamInfo The VideoStreamInfo object that will be updated with parsed data
- * @throws UnsupportedFormatError if valid sequence header is not found
+ * @throws {UnsupportedFormatError} if valid sequence header is not found
  */
 export function parseMpeg2VideoHeaderInPES(data: Uint8Array, streamInfo: Partial<VideoStreamInfo>) {
   if (data.length < 12) {

@@ -264,7 +264,7 @@ export async function parseAvi(stream: ReadableStream<Uint8Array>, options?: Par
               // Extract stream number from chunk ID (first 2 characters)
               // Examples: "00dc" -> stream 0, "01wb" -> stream 1
               const streamNumberStr = dataChunkId.slice(0, 2);
-              const streamNumber = Number.parseInt(streamNumberStr, 10);
+              const streamNumber = Number(streamNumberStr);
 
               // Extract chunk data
               const chunkData = buffer.slice(offset, offset + dataChunkSize);
@@ -287,7 +287,7 @@ export async function parseAvi(stream: ReadableStream<Uint8Array>, options?: Par
       if (chunkSize % 2) offset++; // Word alignment
 
       // Stop after reading headers, unless we are extracting samples
-      if (!options?.onSamples && aviHeader && (videoStreams.length > 0 || audioStreams.length > 0)) {
+      if (aviHeader && !options?.onSamples && (videoStreams.length > 0 || audioStreams.length > 0)) {
         break;
       }
     }
@@ -312,7 +312,7 @@ export async function parseAvi(stream: ReadableStream<Uint8Array>, options?: Par
     }
 
     // Add video streams
-    videoStreams.forEach((stream, index) => {
+    for (const [index, stream] of videoStreams.entries()) {
       const fps = stream.header.rate && stream.header.scale ? stream.header.rate / stream.header.scale : undefined;
       const duration = fps && stream.header.length > 0 ? stream.header.length / fps : mediaInfo.durationInSeconds;
 
@@ -325,10 +325,10 @@ export async function parseAvi(stream: ReadableStream<Uint8Array>, options?: Par
         fps,
         durationInSeconds: duration,
       });
-    });
+    }
 
     // Add audio streams
-    audioStreams.forEach((stream, index) => {
+    for (const [index, stream] of audioStreams.entries()) {
       const duration =
         stream.format.avgBytesPerSec > 0 && stream.header.length > 0
           ? (stream.header.length * stream.header.scale) / stream.header.rate
@@ -352,7 +352,7 @@ export async function parseAvi(stream: ReadableStream<Uint8Array>, options?: Par
           samplesPerBlock: stream.format.adpcmDetails?.samplesPerBlock,
         },
       });
-    });
+    }
     mediaInfo.durationInSeconds = Math.max(
       mediaInfo.durationInSeconds ?? -1,
       ...mediaInfo.videoStreams.map((s) => s.durationInSeconds ?? -1),

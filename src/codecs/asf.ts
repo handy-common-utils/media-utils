@@ -50,7 +50,7 @@ export function calculateFieldSizes(...lengthTypes: number[]): number {
   for (const type of lengthTypes) {
     switch (type) {
       case 0: {
-        total += 0;
+        // total += 0;
         break;
       }
       case 1: {

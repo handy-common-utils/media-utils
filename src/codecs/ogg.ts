@@ -129,10 +129,12 @@ export class OggMuxer {
     for (let i = 0; i < 3; i++) {
       const headerSize = i < 2 ? sizes[i] : data.length - offset;
 
-      if (offset + headerSize <= data.length) {
-        headers.push(data.subarray(offset, offset + headerSize));
-        offset += headerSize;
+      if (!(offset + headerSize <= data.length)) {
+        continue;
       }
+
+      headers.push(data.subarray(offset, offset + headerSize));
+      offset += headerSize;
     }
 
     return headers;

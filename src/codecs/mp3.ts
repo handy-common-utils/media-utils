@@ -47,7 +47,7 @@ const SAMPLE_RATE_TABLE: (number | undefined)[][] = [
  * @param data The MP3 data with frame header
  * @param offset The offset of the frame in the buffer
  * @returns Audio stream information extracted from the MP3 frame header
- * @throws UnsupportedFormatError if the data is not a valid MP3 frame header
+ * @throws {UnsupportedFormatError} if the data is not a valid MP3 frame header
  */
 export function parseMP3Header(data: Uint8Array, offset: number = 0): Omit<AudioStreamInfo, 'id' | 'durationInSeconds'> {
   if (data.length < 4) {
@@ -144,13 +144,7 @@ export function parseMP3Header(data: Uint8Array, offset: number = 0): Omit<Audio
  * @returns True if the bytes match an MP3 frame sync pattern
  */
 export function isMp3FrameSync(data: Uint8Array, offset: number): boolean {
-  if (offset + 2 > data.length) {
-    return false;
-  }
-  if (data[offset] !== 0xff) {
-    return false;
-  }
-  return (data[offset + 1] & 0xe0) === 0xe0;
+  return offset + 2 <= data.length && data[offset] === 0xff && (data[offset + 1] & 0xe0) === 0xe0;
 }
 
 /**
@@ -183,7 +177,7 @@ export function getMp3SamplesPerFrame(data: Uint8Array, offset: number = 0): num
  * @param data The MP3 data with a frame header
  * @param offset The offset of the frame header
  * @returns Frame length in bytes
- * @throws UnsupportedFormatError if the frame header is invalid
+ * @throws {UnsupportedFormatError} if the frame header is invalid
  */
 export function getMp3FrameLength(data: Uint8Array, offset: number = 0): number {
   const version = (data[offset + 1] >> 3) & 0x03;
@@ -193,10 +187,9 @@ export function getMp3FrameLength(data: Uint8Array, offset: number = 0): number 
   if (layerNumber === 1) {
     return Math.floor(((12 * bitrate!) / sampleRate! + padding!) * 4);
   }
-  if (layerNumber === 3 && version !== 3) {
-    return Math.floor((72 * bitrate!) / sampleRate! + padding!);
-  }
-  return Math.floor((144 * bitrate!) / sampleRate! + padding!);
+  return layerNumber === 3 && version !== 3
+    ? Math.floor((72 * bitrate!) / sampleRate! + padding!)
+    : Math.floor((144 * bitrate!) / sampleRate! + padding!);
 }
 
 /**
@@ -238,7 +231,7 @@ export function parseVBRHeader(data: Uint8Array): VBRHeaderInfo {
     // eslint-disable-next-line unicorn/prefer-code-point
     const tag = String.fromCharCode(data[offset], data[offset + 1], data[offset + 2], data[offset + 3]);
 
-    if (tag === 'Xing' || tag === 'Info' || tag === 'LAME') {
+    if (['Xing', 'Info', 'LAME'].includes(tag)) {
       result.headerType = tag as 'Xing' | 'Info' | 'LAME';
 
       // Flags at offset+4 (4 bytes, big-endian)
@@ -270,6 +263,7 @@ export function parseVBRHeader(data: Uint8Array): VBRHeaderInfo {
 
       // TOC field (100 bytes) - if flag bit 2 is set
       if (flags & 0x0004) {
+        // eslint-disable-next-line no-useless-assignment
         fieldOffset += 100;
       }
 

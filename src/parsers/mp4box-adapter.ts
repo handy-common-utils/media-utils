@@ -69,19 +69,21 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
               return;
             }
 
-            if (value) {
-              const buffer = value.buffer as ArrayBuffer & {
-                fileStart: number;
-              };
-              buffer.fileStart = offset;
-              mp4file.appendBuffer(buffer);
-              offset += value.length;
+            if (!value) {
+              return;
+            }
 
-              if (infoFound) {
-                reader.cancel();
-              } else {
-                readChunk();
-              }
+            const buffer = value.buffer as ArrayBuffer & {
+              fileStart: number;
+            };
+            buffer.fileStart = offset;
+            mp4file.appendBuffer(buffer);
+            offset += value.length;
+
+            if (infoFound) {
+              reader.cancel();
+            } else {
+              readChunk();
             }
           })
           .catch((error) => {
@@ -105,10 +107,12 @@ export function mp4boxInfoToMediaInfo(info: Movie, mp4file?: ISOFile): GetMediaI
   // For mp3 in mov, mp4box is unable to put the mp3 track into audioTracks.
   // Here's the patch:
   for (const track of info.otherTracks) {
-    if (track.codec === 'mp3' && !info.audioTracks.some((audioTrack) => audioTrack.id === track.id)) {
-      info.audioTracks.push(track);
-      info.audioTracks.sort((a, b) => a.id - b.id);
+    if (track.codec !== 'mp3' || info.audioTracks.some((audioTrack) => audioTrack.id === track.id)) {
+      continue;
     }
+
+    info.audioTracks.push(track);
+    info.audioTracks.sort((a, b) => a.id - b.id);
   }
 
   const videoStreams: VideoStreamInfo[] = info.videoTracks.map((track) => ({

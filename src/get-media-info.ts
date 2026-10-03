@@ -53,7 +53,7 @@ export async function getMediaInfo(stream: ReadableStream<Uint8Array>, optionsIn
       try {
         parser = await Mp4BoxAdapter.newInstance();
       } catch (error) {
-        throw new Error(`Very likely NPM package mp4box is not installed: ${error}`);
+        throw new Error(`Very likely NPM package mp4box is not installed: ${error}`, { cause: error });
       }
       break;
     }
@@ -61,7 +61,7 @@ export async function getMediaInfo(stream: ReadableStream<Uint8Array>, optionsIn
       try {
         parser = await RemotionAdapter.newInstance();
       } catch (error) {
-        throw new Error(`Very likely NPM package @remotion/media-parser is not installed: ${error}`);
+        throw new Error(`Very likely NPM package @remotion/media-parser is not installed: ${error}`, { cause: error });
       }
       break;
     }
@@ -69,7 +69,7 @@ export async function getMediaInfo(stream: ReadableStream<Uint8Array>, optionsIn
       try {
         parser = await IsoBoxerAdapter.newInstance();
       } catch (error) {
-        throw new Error(`Very likely NPM package codem-isoboxer is not installed: ${error}`);
+        throw new Error(`Very likely NPM package codem-isoboxer is not installed: ${error}`, { cause: error });
       }
       break;
     }

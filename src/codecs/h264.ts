@@ -32,17 +32,7 @@ export function parseSPS(data: Uint8Array): Partial<VideoStreamInfo> {
   const levelIdc = reader.readBits(8);
   const _seqParameterSetId = reader.readUE();
 
-  if (
-    profileIdc === 100 ||
-    profileIdc === 110 ||
-    profileIdc === 122 ||
-    profileIdc === 244 ||
-    profileIdc === 44 ||
-    profileIdc === 83 ||
-    profileIdc === 86 ||
-    profileIdc === 118 ||
-    profileIdc === 128
-  ) {
+  if ([100, 110, 122, 244, 44, 83, 86, 118, 128].includes(profileIdc)) {
     const chromaFormatIdc = reader.readUE();
     if (chromaFormatIdc === 3) {
       reader.readBit(); // separate_colour_plane_flag
@@ -52,39 +42,22 @@ export function parseSPS(data: Uint8Array): Partial<VideoStreamInfo> {
     reader.readBit(); // qpprime_y_zero_transform_bypass_flag
     const seqScalingMatrixPresentFlag = reader.readBit();
     if (seqScalingMatrixPresentFlag) {
-      if (chromaFormatIdc === 3) {
-        const scalingListCount = 12;
-        for (let i = 0; i < scalingListCount; i++) {
-          const seqScalingListPresentFlag = reader.readBit();
-          if (seqScalingListPresentFlag) {
-            let lastScale = 8;
-            let nextScale = 8;
-            const sizeOfScalingList = i < 6 ? 16 : 64;
-            for (let j = 0; j < sizeOfScalingList; j++) {
-              if (nextScale !== 0) {
-                const deltaScale = reader.readSE();
-                nextScale = (lastScale + deltaScale + 256) % 256;
-              }
-              lastScale = nextScale === 0 ? lastScale : nextScale;
-            }
-          }
+      const scalingListCount = chromaFormatIdc === 3 ? 12 : 8;
+      for (let i = 0; i < scalingListCount; i++) {
+        const seqScalingListPresentFlag = reader.readBit();
+        if (!seqScalingListPresentFlag) {
+          continue;
         }
-      } else {
-        const scalingListCount = 8;
-        for (let i = 0; i < scalingListCount; i++) {
-          const seqScalingListPresentFlag = reader.readBit();
-          if (seqScalingListPresentFlag) {
-            let lastScale = 8;
-            let nextScale = 8;
-            const sizeOfScalingList = i < 6 ? 16 : 64;
-            for (let j = 0; j < sizeOfScalingList; j++) {
-              if (nextScale !== 0) {
-                const deltaScale = reader.readSE();
-                nextScale = (lastScale + deltaScale + 256) % 256;
-              }
-              lastScale = nextScale === 0 ? lastScale : nextScale;
-            }
+
+        let lastScale = 8;
+        let nextScale = 8;
+        const sizeOfScalingList = i < 6 ? 16 : 64;
+        for (let j = 0; j < sizeOfScalingList; j++) {
+          if (nextScale !== 0) {
+            const deltaScale = reader.readSE();
+            nextScale = (lastScale + deltaScale + 256) % 256;
           }
+          lastScale = nextScale === 0 ? lastScale : nextScale;
         }
       }
     }

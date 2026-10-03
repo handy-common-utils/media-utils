@@ -50,11 +50,8 @@ export async function extractFromMpegTs(
         for (const sample of samples) {
           if (!sample || sample.length === 0) continue;
 
-          if (stream.codec === 'aac') {
-            // AAC in MPEG-TS is already in ADTS frames
-            await writer.write(sample);
-          } else if (stream.codec === 'mp3' || stream.codec === 'mp2') {
-            // MP3/MP2 frames can be written directly
+          if (['aac', 'mp3', 'mp2'].includes(stream.codec)) {
+            // AAC in MPEG-TS is already in ADTS frames; MP3/MP2 frames can be written directly
             await writer.write(sample);
           }
         }

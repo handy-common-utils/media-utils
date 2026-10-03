@@ -272,18 +272,20 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
     const sniffMp3At = async (track: TrackContext, startOffset: number, endOffset: number) => {
       if (track.codec !== 'mp3' || track.mp3Sniffed || !track.stco || track.stco.length === 0) return;
       const firstSampleOffset = track.stco[0];
-      if (firstSampleOffset >= startOffset && firstSampleOffset < endOffset) {
-        if (firstSampleOffset > offset) await skip(firstSampleOffset - offset);
-        if (await ensureBytes(10)) {
-          try {
-            const mp3Header = buffer.slice(bufferOffset, bufferOffset + 10);
-            const mp3Info = parseMP3Header(mp3Header);
-            track.channelCount = mp3Info.channelCount;
-            if (!track.sampleRate || track.sampleRate === 0) track.sampleRate = mp3Info.sampleRate;
-            track.mp3Sniffed = true;
-          } catch {
-            // Failed to parse MP3 header
-          }
+      if (!(firstSampleOffset >= startOffset && firstSampleOffset < endOffset)) {
+        return;
+      }
+
+      if (firstSampleOffset > offset) await skip(firstSampleOffset - offset);
+      if (await ensureBytes(10)) {
+        try {
+          const mp3Header = buffer.slice(bufferOffset, bufferOffset + 10);
+          const mp3Info = parseMP3Header(mp3Header);
+          track.channelCount = mp3Info.channelCount;
+          if (!track.sampleRate || track.sampleRate === 0) track.sampleRate = mp3Info.sampleRate;
+          track.mp3Sniffed = true;
+        } catch {
+          // Failed to parse MP3 header
         }
       }
     };
@@ -356,7 +358,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
 
           // If we don't need to extract samples or table info, and we don't need to sniff MP3,
           // we can stop early to save bandwidth/time.
-          if (!options?.onSamples && !options?.sampleTableInfo && tracks.length > 0 && !hasMp3Track) {
+          if (!hasMp3Track && tracks.length > 0 && !options?.onSamples && !options?.sampleTableInfo) {
             if (logger.isDebug) logger.debug(`Stop parsing when having ${tracks.length} tracks and seeing MDAT at ${atomStart}`);
             shouldKeepParsing = false;
             break;
@@ -424,9 +426,11 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
               for (let i = 0; i < chunk.samplesPerChunk; i++) {
                 let size = chunk.sampleSize || 0;
                 if (size === 0) {
-                  if (!track.stsz?.entries[chunk.sampleStartIndex + i])
+                  const entry = track.stsz?.entries[chunk.sampleStartIndex + i];
+                  if (!entry) {
                     throw new UnsupportedFormatError(`Missing sample size for index ${chunk.sampleStartIndex + i}`);
-                  size = track.stsz!.entries[chunk.sampleStartIndex + i];
+                  }
+                  size = entry;
                 }
 
                 if (await ensureBytes(size)) {
@@ -462,7 +466,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
 
           // If moov hasn't been seen yet (media-first file), buffer the start of mdat.
           // This allows us to sniff the audio header later after we've parsed the moov atom.
-          if (tracks.length === 0 && !mdatInitialData) {
+          if (!mdatInitialData && tracks.length === 0) {
             const dataToBuffer = Math.min(atomSize - 8, 4096);
             if (dataToBuffer > 0 && (await ensureBytes(dataToBuffer))) {
               mdatInitialData = buffer.slice(bufferOffset, bufferOffset + dataToBuffer);
@@ -629,11 +633,13 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
                 const entries: number[] | undefined = options?.onSamples || options?.sampleTableInfo ? [] : undefined;
 
                 for (let i = 0; i < sampleCount; i++) {
-                  if (await ensureBytes(4)) {
-                    const size = readUInt32BE();
-                    totalBytes += size;
-                    if (entries) entries.push(size);
+                  if (!(await ensureBytes(4))) {
+                    continue;
                   }
+
+                  const size = readUInt32BE();
+                  totalBytes += size;
+                  if (entries) entries.push(size);
                 }
                 currentTrack.totalBytes = totalBytes;
 
@@ -677,11 +683,13 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
             const count = readUInt32BE();
             currentTrack.co64 = [];
             for (let i = 0; i < count; i++) {
-              if (await ensureBytes(8)) {
-                const high = readUInt32BE();
-                const low = readUInt32BE();
-                currentTrack.co64.push(high * 0x100000000 + low);
+              if (!(await ensureBytes(8))) {
+                continue;
               }
+
+              const high = readUInt32BE();
+              const low = readUInt32BE();
+              currentTrack.co64.push(high * 0x100000000 + low);
             }
           }
           const parsedSoFar = offset - atomStart;
@@ -726,9 +734,8 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
               while (remaining >= 8) {
                 if (!(await ensureBytes(8))) break;
                 const subAtomSize = readUInt32BE();
-                const subAtomType = readString(4);
-
                 if (subAtomSize < 8 || subAtomSize > remaining) break;
+                const subAtomType = readString(4);
 
                 if (subAtomType === 'avcC') {
                   // AVC Configuration Box
@@ -910,9 +917,8 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
                 if (!(await ensureBytes(8))) break;
                 const subAtomStart = offset;
                 const subAtomSize = readUInt32BE();
-                const subAtomType = readString(4);
-
                 if (subAtomSize < 8 || subAtomSize > remainingInMp4a) break;
+                const subAtomType = readString(4);
 
                 if (subAtomType === ATOM_ESDS) {
                   await parseEsds(subAtomSize);
@@ -923,11 +929,10 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
                     if (!(await ensureBytes(8))) break;
                     const waveSubStart = offset;
                     const waveSubSize = readUInt32BE();
-                    const waveSubType = readString(4);
-
                     if (waveSubSize < 8 || waveSubSize > remainingInWave) break;
+                    const waveSubtype = readString(4);
 
-                    if (waveSubType === ATOM_ESDS) {
+                    if (waveSubtype === ATOM_ESDS) {
                       await parseEsds(waveSubSize);
                     } else {
                       const parsedWaveSub = offset - waveSubStart;
@@ -1007,22 +1012,28 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
     // find the first MP3 sample and determine the actual channel count.
     if (mdatInitialData) {
       for (const track of tracks) {
-        if (track.codec === 'mp3' && !track.mp3Sniffed && track.stco && track.stco.length > 0) {
-          const firstSampleOffset = track.stco[0];
-          if (firstSampleOffset >= mdatInitialDataOffset && firstSampleOffset < mdatInitialDataOffset + mdatInitialData.length) {
-            const bufferStart = firstSampleOffset - mdatInitialDataOffset;
-            if (bufferStart + 10 <= mdatInitialData.length) {
-              try {
-                const mp3Header = mdatInitialData.slice(bufferStart, bufferStart + 10);
-                const mp3Info = parseMP3Header(mp3Header);
-                track.channelCount = mp3Info.channelCount;
-                if (!track.sampleRate || track.sampleRate === 0) track.sampleRate = mp3Info.sampleRate;
-                track.mp3Sniffed = true;
-              } catch {
-                // Ignore
-              }
-            }
-          }
+        if (!(track.codec === 'mp3' && !track.mp3Sniffed && track.stco && track.stco.length > 0)) {
+          continue;
+        }
+
+        const firstSampleOffset = track.stco[0];
+        if (firstSampleOffset < mdatInitialDataOffset || firstSampleOffset >= mdatInitialDataOffset + mdatInitialData.length) {
+          continue;
+        }
+
+        const bufferStart = firstSampleOffset - mdatInitialDataOffset;
+        if (bufferStart + 10 > mdatInitialData.length) {
+          continue;
+        }
+
+        try {
+          const mp3Header = mdatInitialData.slice(bufferStart, bufferStart + 10);
+          const mp3Info = parseMP3Header(mp3Header);
+          track.channelCount = mp3Info.channelCount;
+          if (!track.sampleRate || track.sampleRate === 0) track.sampleRate = mp3Info.sampleRate;
+          track.mp3Sniffed = true;
+        } catch {
+          // Ignore
         }
       }
     }
@@ -1053,7 +1064,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
           bitsPerSample: t.bitsPerSample || undefined,
           bitrate: t.bitrate || (t.totalBytes && t.duration ? Math.round((t.totalBytes * 8) / t.duration) : undefined),
           durationInSeconds: t.duration || mediaInfo.durationInSeconds,
-          ...(t.profile ? { profile: t.profile } : {}),
+          ...(t.profile && { profile: t.profile }),
         };
 
         // Include sample tables if requested

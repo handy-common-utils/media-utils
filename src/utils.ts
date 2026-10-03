@@ -3,10 +3,7 @@
 import { ConsoleLineLogger, LineLogger } from '@handy-common-utils/misc-utils';
 
 function env(): Record<string, string | undefined> {
-  if (typeof process !== 'undefined') {
-    return process.env;
-  }
-  return {};
+  return typeof process === 'undefined' ? {} : process.env;
 }
 
 /**
@@ -52,16 +49,12 @@ export function getGlobalLogger(): ConsoleLineLogger {
 export function setupGlobalLogger(flags: { quiet?: boolean; debug?: boolean } | undefined | null): ConsoleLineLogger {
   logger = LineLogger.console({
     ...flags,
-    ...(env().MEDIA_UTILS_LOG_QUIET
-      ? {
-          quiet: env().MEDIA_UTILS_LOG_QUIET?.toLowerCase() === 'true',
-        }
-      : undefined),
-    ...(env().MEDIA_UTILS_LOG_DEBUG
-      ? {
-          debug: env().MEDIA_UTILS_LOG_DEBUG?.toLowerCase() === 'true',
-        }
-      : undefined),
+    ...(env().MEDIA_UTILS_LOG_QUIET && {
+      quiet: env().MEDIA_UTILS_LOG_QUIET?.toLowerCase() === 'true',
+    }),
+    ...(env().MEDIA_UTILS_LOG_DEBUG && {
+      debug: env().MEDIA_UTILS_LOG_DEBUG?.toLowerCase() === 'true',
+    }),
   });
   return logger;
 }

@@ -9,7 +9,7 @@ import { readBeginning, UnsupportedFormatError } from '../utils';
  * @param stream The input media stream
  * @param _options Optional options for the parser
  * @returns Media information without the parser field
- * @throws UnsupportedFormatError if the stream is not a valid OGG file
+ * @throws {UnsupportedFormatError} if the stream is not a valid OGG file
  */
 export async function parseOgg(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<GetMediaInfoResult, 'parser'>> {
   const reader = stream.getReader();

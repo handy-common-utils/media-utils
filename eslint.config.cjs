@@ -5,7 +5,7 @@ const config = buildESLintConfig({ defaultSourceType: 'commonjs' });
 
 module.exports = defineConfig([
   {
-    ignores: ['dist', 'coverage', 'report', 'node_modules'],
+    ignores: ['dist', 'coverage', 'report', 'node_modules', 'package'],
   },
   ...config,
   {

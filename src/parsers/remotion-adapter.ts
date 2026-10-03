@@ -38,14 +38,16 @@ export class RemotionAdapter implements MediaParserAdapter {
     while (bytesRead < MAX_PROBE_SIZE) {
       const { done, value } = await reader.read();
       if (done) break;
-      if (value) {
-        chunks.push(value);
-        bytesRead += value.length;
+      if (!value) {
+        continue;
       }
+
+      chunks.push(value);
+      bytesRead += value.length;
     }
     reader.cancel();
 
-    const blob = new Blob(chunks);
+    const blob = new Blob(chunks as any);
     const file = new File([blob], 'input.media');
 
     const result = await this.mediaParser.parseMedia({

@@ -222,8 +222,8 @@ export class MkvParser {
     if (offset >= this.buffer.length) return { length: 0 };
 
     const byte = this.buffer[offset];
-    let width = 0;
-    let mask = 0;
+    let width: number;
+    let mask: number;
 
     if (byte >= 0x80) {
       width = 1;
@@ -360,6 +360,10 @@ export class MkvParser {
     const flags = data[offset];
     offset += 1;
 
+    if (trackId === undefined || !this.onSamples) {
+      return;
+    }
+
     const isKeyframe = (flags & 0x80) !== 0;
     const lacing = (flags >> 1) & 0x03;
 
@@ -367,80 +371,78 @@ export class MkvParser {
     const relTime = (timecode << 16) >> 16;
     const absTime = ((this.currentClusterTime + relTime) * this.timecodeScale) / 1000000000; // seconds
 
-    if (this.onSamples && trackId !== undefined) {
-      const frames: Uint8Array[] = [];
+    const frames: Uint8Array[] = [];
 
-      if (lacing === 0) {
-        // No lacing
-        frames.push(data.subarray(offset));
-      } else {
-        const numFrames = data[offset] + 1;
-        offset++;
-        const sizes: number[] = [];
+    if (lacing === 0) {
+      // No lacing
+      frames.push(data.subarray(offset));
+    } else {
+      const numFrames = data[offset] + 1;
+      offset++;
+      const sizes: number[] = [];
 
-        switch (lacing) {
-          case 1: {
-            // Xiph lacing
-            for (let i = 0; i < numFrames - 1; i++) {
-              let size = 0;
-              while (data[offset] === 255) {
-                size += 255;
-                offset++;
-              }
-              size += data[offset];
+      switch (lacing) {
+        case 1: {
+          // Xiph lacing
+          for (let i = 0; i < numFrames - 1; i++) {
+            let size = 0;
+            while (data[offset] === 255) {
+              size += 255;
               offset++;
-              sizes.push(size);
             }
-            break;
+            size += data[offset];
+            offset++;
+            sizes.push(size);
           }
-          case 3: {
-            // EBML lacing
-            const firstSize = this.readVintFromBuffer(data, offset);
-            offset += firstSize.length;
-            sizes.push(firstSize.value);
-            let lastSize = firstSize.value;
-
-            for (let i = 1; i < numFrames - 1; i++) {
-              const diff = this.readVintFromBuffer(data, offset);
-              offset += diff.length;
-
-              // Decode signed VINT for difference
-              const range = 2 ** (diff.length * 7 - 1) - 1;
-              const difference = diff.value - range;
-
-              lastSize += difference;
-              sizes.push(lastSize);
-            }
-            break;
-          }
-          case 2: {
-            // Fixed-size lacing
-            const remaining = data.length - offset;
-            const size = remaining / numFrames;
-            for (let i = 0; i < numFrames - 1; i++) {
-              sizes.push(size);
-            }
-            break;
-          }
+          break;
         }
+        case 3: {
+          // EBML lacing
+          const firstSize = this.readVintFromBuffer(data, offset);
+          offset += firstSize.length;
+          sizes.push(firstSize.value);
+          let lastSize = firstSize.value;
 
-        for (const size of sizes) {
-          frames.push(data.subarray(offset, offset + size));
-          offset += size;
+          for (let i = 1; i < numFrames - 1; i++) {
+            const diff = this.readVintFromBuffer(data, offset);
+            offset += diff.length;
+
+            // Decode signed VINT for difference
+            const range = 2 ** (diff.length * 7 - 1) - 1;
+            const difference = diff.value - range;
+
+            lastSize += difference;
+            sizes.push(lastSize);
+          }
+          break;
         }
-        frames.push(data.subarray(offset));
+        case 2: {
+          // Fixed-size lacing
+          const remaining = data.length - offset;
+          const size = remaining / numFrames;
+          for (let i = 0; i < numFrames - 1; i++) {
+            sizes.push(size);
+          }
+          break;
+        }
       }
 
-      this.onSamples(
-        trackId,
-        frames.map((frameData) => ({
-          trackId,
-          data: frameData,
-          isKeyframe,
-          time: absTime,
-        })),
-      );
+      for (const size of sizes) {
+        frames.push(data.subarray(offset, offset + size));
+        offset += size;
+      }
+      frames.push(data.subarray(offset));
     }
+
+    this.onSamples(
+      trackId,
+      frames.map((frameData) => ({
+        trackId,
+        data: frameData,
+        isKeyframe,
+        time: absTime,
+      })),
+    );
   }
 
   private processBlock(data: Uint8Array) {
@@ -464,7 +466,7 @@ export class MkvParser {
     const relTime = (timecode << 16) >> 16;
     const absTime = ((this.currentClusterTime + relTime) * this.timecodeScale) / 1000000000;
 
-    if (this.onSamples && trackId !== undefined) {
+    if (trackId !== undefined && this.onSamples) {
       this.onSamples(trackId, [
         {
           trackId,
@@ -478,8 +480,8 @@ export class MkvParser {
 
   private readVintFromBuffer(buffer: Uint8Array, offset: number): { value: number; length: number } {
     const byte = buffer[offset];
-    let width = 0;
-    let mask = 0;
+    let width: number;
+    let mask: number;
 
     if (byte >= 0x80) {
       width = 1;
@@ -521,7 +523,7 @@ export class MkvParser {
     const audioStreams: AudioStreamInfo[] = [];
     const videoStreams: VideoStreamInfo[] = [];
 
-    this.tracks.forEach((track) => {
+    for (const track of this.tracks.values()) {
       if (track.type === 2 && track.audio) {
         // Extract codec-specific metadata from CodecPrivate
         const codecMetadata = this.extractAudioCodecMetadata(track.codecId, track.codecPrivate, track.audio);
@@ -533,7 +535,7 @@ export class MkvParser {
           sampleRate: codecMetadata.sampleRate ?? track.audio.samplingFrequency,
           channelCount: codecMetadata.channelCount ?? track.audio.channels,
           bitsPerSample: codecMetadata.bitsPerSample ?? track.audio.bitDepth,
-          ...(codecMetadata.bitrate ? { bitrate: codecMetadata.bitrate } : undefined),
+          ...(codecMetadata.bitrate && { bitrate: codecMetadata.bitrate }),
           durationInSeconds: (this.duration * this.timecodeScale) / 1000000000,
         });
       } else if (track.type === 1 && track.video) {
@@ -546,7 +548,7 @@ export class MkvParser {
           durationInSeconds: (this.duration * this.timecodeScale) / 1000000000,
         });
       }
-    });
+    }
 
     if (!this.docType) {
       throw new UnsupportedFormatError('Not Matroska/WebM: DocType not found');
@@ -657,7 +659,7 @@ export class MkvParser {
 
             result.channelCount = channelCount;
             // Note: Opus always outputs at 48kHz, but we store the original sample rate for reference
-            if (inputSampleRate > 0 && inputSampleRate !== 48000) {
+            if (inputSampleRate !== 48000 && inputSampleRate > 0) {
               result.sampleRate = inputSampleRate;
             }
           }

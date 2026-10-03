@@ -10,7 +10,7 @@ import { readBeginning, setupGlobalLogger, UnsupportedFormatError } from '../uti
  * @param stream The input media stream
  * @param options Optional options for the parser
  * @returns Media information without the parser field
- * @throws UnsupportedFormatError if the stream is not a valid WAV file
+ * @throws {UnsupportedFormatError} if the stream is not a valid WAV file
  */
 export async function parseWav(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<Omit<GetMediaInfoResult, 'parser'>> {
   const logger = setupGlobalLogger(options);
@@ -39,12 +39,11 @@ export async function parseWav(stream: ReadableStream<Uint8Array>, options?: Get
   while (fmtOffset < buffer.length - 8) {
     // eslint-disable-next-line unicorn/prefer-code-point
     const chunkId = String.fromCharCode(buffer[fmtOffset], buffer[fmtOffset + 1], buffer[fmtOffset + 2], buffer[fmtOffset + 3]);
-    const chunkSize = buffer[fmtOffset + 4] | (buffer[fmtOffset + 5] << 8) | (buffer[fmtOffset + 6] << 16) | (buffer[fmtOffset + 7] << 24);
-
     if (chunkId === 'fmt ') {
       break;
     }
 
+    const chunkSize = buffer[fmtOffset + 4] | (buffer[fmtOffset + 5] << 8) | (buffer[fmtOffset + 6] << 16) | (buffer[fmtOffset + 7] << 24);
     fmtOffset += 8 + chunkSize;
   }
 

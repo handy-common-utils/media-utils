@@ -93,7 +93,7 @@ async function countMp3FramesToEnd(
     audioBytes += scanResult.audioBytes;
     offset = scanResult.nextOffset;
 
-    if (!scanResult.needsMoreData || done) {
+    if (done || !scanResult.needsMoreData) {
       break;
     }
 
@@ -116,7 +116,7 @@ async function countMp3FramesToEnd(
  * @param stream The input media stream
  * @param _options Optional options for the parser
  * @returns Media information without the parser field
- * @throws UnsupportedFormatError if the stream is not a valid MP3 file
+ * @throws {UnsupportedFormatError} if the stream is not a valid MP3 file
  */
 export async function parseMp3(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<Omit<GetMediaInfoResult, 'parser'>> {
   const reader = stream.getReader();
@@ -124,7 +124,6 @@ export async function parseMp3(stream: ReadableStream<Uint8Array>, _options?: Ge
   try {
     const initialRead = await ensureBufferData(reader, undefined, undefined, INITIAL_READ_SIZE);
     const buffer = initialRead.buffer;
-    let streamBytesRead = initialRead.bytesRead;
 
     if (buffer.length === 0) {
       throw new UnsupportedFormatError('Not an MP3 file: insufficient data');
@@ -134,6 +133,8 @@ export async function parseMp3(stream: ReadableStream<Uint8Array>, _options?: Ge
     if (audioFrameOffset >= buffer.length) {
       throw new UnsupportedFormatError('Not an MP3 file: no frame header found after ID3 tag');
     }
+
+    let streamBytesRead = initialRead.bytesRead;
 
     const audioStream = parseMP3Header(buffer, audioFrameOffset);
 

@@ -125,6 +125,7 @@ export function parseEsds(data: Uint8Array): EsdsInfo | undefined {
     const dsiLength = dsiLengthInfo.length;
     offset += dsiLengthInfo.headerSize;
     decoderSpecificInfo = data.subarray(offset, offset + dsiLength);
+    // eslint-disable-next-line no-useless-assignment
     offset += dsiLength;
 
     if (objectTypeIndication === 0x6b && decoderSpecificInfo.length >= 4) {

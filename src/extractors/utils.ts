@@ -11,11 +11,11 @@ export function findAudioStreamToBeExtracted<S extends { id: number }, M extends
   mediaInfo: M,
   options: { trackId?: number; streamIndex?: number },
 ): M['audioStreams'][number] {
-  let stream: M['audioStreams'][number];
-
   if (!Array.isArray(mediaInfo?.audioStreams) || mediaInfo.audioStreams.length === 0) {
     throw new Error('No audio streams/tracks found');
   }
+
+  let stream: M['audioStreams'][number];
 
   if (options?.trackId) {
     const streamFound = mediaInfo.audioStreams.find((t: any) => t.id === options.trackId);

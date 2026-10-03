@@ -162,6 +162,7 @@ function buildFilePropertiesObject(metadata: AudioMetadata & { totalDataPackets:
   offset += writeUInt32LE(buf, offset, metadata.packetSize); // Maximum
 
   // Maximum Bitrate (DWORD) - Use from source if available
+  // eslint-disable-next-line no-useless-assignment
   offset += writeUInt32LE(buf, offset, metadata.maxBitrate);
 
   return buf;
@@ -642,6 +643,7 @@ function buildDataObject(
 
     // c. Stream Payload Data
     packetBuf.set(payloadData, offset);
+    // eslint-disable-next-line no-useless-assignment
     offset += PAYLOAD_DATA_SIZE;
 
     // d. Padding Data (remaining space is implicitly 0x00)
@@ -746,6 +748,7 @@ function buildHeaderObject(metadata: AudioMetadata & { dataObjectSize: number; t
 
   // 4. Header Extension Object
   headerBuf.set(headerExtension, offset);
+  // eslint-disable-next-line no-useless-assignment
   offset += headerExtension.length;
 
   return headerBuf;

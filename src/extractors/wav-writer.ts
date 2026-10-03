@@ -51,7 +51,7 @@ export class WavWriter {
     // For PCM: byteRate = sampleRate * blockAlign
     // For ADPCM: byteRate = (sampleRate * blockAlign) / samplesPerBlock
     let byteRate: number;
-    if (this.audioStream.codecDetails?.samplesPerBlock && blockAlign) {
+    if (blockAlign && this.audioStream.codecDetails?.samplesPerBlock) {
       byteRate = Math.floor((sampleRate * blockAlign) / this.audioStream.codecDetails.samplesPerBlock);
     } else {
       // If we have bitrate, use it (bitrate is in bits/sec, byteRate is bytes/sec)

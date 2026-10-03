@@ -143,3 +143,4 @@ dist/
 api-docs/
 test/output/
 test/sample-media-files/large_*.*
+package/

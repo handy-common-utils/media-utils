@@ -46,16 +46,16 @@ export async function extractFromMxf(
     const targetEssenceTrackNumber = audioStream.codecDetails?.essenceTrackNumber || 0x1601;
 
     let totalDataWritten = 0;
-    let estimatedTotalSize = 0;
-    if (audioStream.durationInSeconds && audioStream.bitrate) {
-      estimatedTotalSize = Math.floor((audioStream.durationInSeconds * audioStream.bitrate) / 8);
-    }
+    const estimatedTotalSize =
+      audioStream.durationInSeconds && audioStream.bitrate ? Math.floor((audioStream.durationInSeconds * audioStream.bitrate) / 8) : 0;
 
     function reportProgress() {
-      if (options.onProgress && estimatedTotalSize > 0) {
-        const progress = Math.min(100, Math.floor((totalDataWritten / estimatedTotalSize) * 100));
-        options.onProgress(progress);
+      if (!(options.onProgress && estimatedTotalSize > 0)) {
+        return;
       }
+
+      const progress = Math.min(100, Math.floor((totalDataWritten / estimatedTotalSize) * 100));
+      options.onProgress(progress);
     }
 
     const wavWriter = new WavWriter(writer, audioStream);
@@ -64,11 +64,13 @@ export async function extractFromMxf(
       ...options,
       onSamples: async ({ streamInfo, data }) => {
         // streamInfo.id in onSamples is the essenceTrackNumber (e.g. 0x1601)
-        if (streamInfo.id === targetEssenceTrackNumber) {
-          wavWriter.appendData(data);
-          totalDataWritten += data.length;
-          reportProgress();
+        if (streamInfo.id !== targetEssenceTrackNumber) {
+          return;
         }
+
+        wavWriter.appendData(data);
+        totalDataWritten += data.length;
+        reportProgress();
       },
     });
 

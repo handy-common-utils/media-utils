@@ -118,9 +118,9 @@ export function parseAudioMuxElement(br: BitReader, assertMuxVersions: [number, 
   const otherDataPresent = br.readBits(1);
   if (otherDataPresent) {
     let otherDataLenBits = 0;
+    let temp: number;
     if (audioMuxVersion === 1) {
       // Variable length via 2-bit escLen mechanism
-      let temp: number;
       do {
         temp = br.readBits(2);
         otherDataLenBits += temp;
@@ -128,7 +128,6 @@ export function parseAudioMuxElement(br: BitReader, assertMuxVersions: [number, 
     } else {
       // audioMuxVersion === 0
       // 8-bit chunks
-      let temp: number;
       do {
         temp = br.readBits(8);
         otherDataLenBits += temp;

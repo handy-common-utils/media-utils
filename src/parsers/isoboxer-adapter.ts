@@ -37,10 +37,12 @@ export class IsoBoxerAdapter implements MediaParserAdapter {
     while (bytesRead < MAX_PROBE_SIZE) {
       const { done, value } = await reader.read();
       if (done) break;
-      if (value) {
-        chunks.push(value);
-        bytesRead += value.length;
+      if (!value) {
+        continue;
       }
+
+      chunks.push(value);
+      bytesRead += value.length;
     }
     reader.cancel();
 

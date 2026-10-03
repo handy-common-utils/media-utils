@@ -24,7 +24,7 @@ export interface PayloadMetadata {
   /**
    * Whether this payload belongs to a key frame
    */
-  isKeyFrame: boolean;
+  isKeyframe: boolean;
   /**
    * The send time of the Data Packet in milliseconds
    */
@@ -92,12 +92,11 @@ export type AsfMediaInfo = Omit<GetMediaInfoResult, 'parser'> & {
  * @param stream The input media stream
  * @param options Optional options for the parser, including extraction settings
  * @returns Media information without the parser field
- * @throws UnsupportedFormatError if the stream is not a valid ASF file
+ * @throws {UnsupportedFormatError} if the stream is not a valid ASF file
  */
 export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: ParseAsfOptions): Promise<AsfMediaInfo> {
   const logger = setupGlobalLogger(options);
   if (logger.isDebug) logger.debug('Starting parsing ASF');
-  let bytesRead = 0;
   const shouldExtractPayload = options?.extractStreams && options?.extractStreams.length > 0 && options?.onPayload;
   const extractStreamSet = new Set(options?.extractStreams);
 
@@ -163,7 +162,7 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
   if (firstDone || !firstValue || firstValue.length < 50) {
     throw new UnsupportedFormatError('Not an ASF file: insufficient data');
   }
-  bytesRead += firstValue.length;
+  let bytesRead = firstValue.length;
 
   const data = firstValue;
 
@@ -209,30 +208,30 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
 
   //  Scan for Stream Properties Object
   while (offset + 24 < data.length && offset < headerSize) {
+    // 3.3 Stream Properties Object (mandatory, one per stream)
+    // +---------------------------------+------------+------------+
+    // | Field Name                      | Field Type | Size (bits)|
+    // +---------------------------------+------------+------------+
+    // | Object ID                       | GUID       | 128        |
+    // | Object Size                     | QWORD      | 64         |
+    // | Stream Type                     | GUID       | 128        |
+    // | Error Correction Type           | GUID       | 128        |
+    // | Time Offset                     | QWORD      | 64         |
+    // | Type-Specific Data Length       | DWORD      | 32         |
+    // | Error Correction Data Length    | DWORD      | 32         |
+    // | Flags                           | WORD       | 16         |
+    // |   - Stream Number               |            | 7 (LSB)    |
+    // |   - Reserved                    |            | 8          |
+    // |   - Encrypted Content Flag      |            | 1          |
+    // | Reserved                        | DWORD      | 32         |
+    // | Type-Specific Data              | BYTE       | varies     |
+    // | Error Correction Data           | BYTE       | varies     |
+    // +---------------------------------+------------+------------+
+
+    // Object size (8 bytes, little-endian) at offset 16
+    const objectSize = Number(readUInt64LE(data, offset + 16));
+
     if (matchesGuid(data, offset, AsfGuid.STREAM_PROPERTIES)) {
-      // 3.3 Stream Properties Object (mandatory, one per stream)
-      // +---------------------------------+------------+------------+
-      // | Field Name                      | Field Type | Size (bits)|
-      // +---------------------------------+------------+------------+
-      // | Object ID                       | GUID       | 128        |
-      // | Object Size                     | QWORD      | 64         |
-      // | Stream Type                     | GUID       | 128        |
-      // | Error Correction Type           | GUID       | 128        |
-      // | Time Offset                     | QWORD      | 64         |
-      // | Type-Specific Data Length       | DWORD      | 32         |
-      // | Error Correction Data Length    | DWORD      | 32         |
-      // | Flags                           | WORD       | 16         |
-      // |   - Stream Number               |            | 7 (LSB)    |
-      // |   - Reserved                    |            | 8          |
-      // |   - Encrypted Content Flag      |            | 1          |
-      // | Reserved                        | DWORD      | 32         |
-      // | Type-Specific Data              | BYTE       | varies     |
-      // | Error Correction Data           | BYTE       | varies     |
-      // +---------------------------------+------------+------------+
-
-      // Object size (8 bytes, little-endian) at offset 16
-      const objectSize = Number(readUInt64LE(data, offset + 16));
-
       // Stream Type GUID at offset 24 (16 bytes)
       const isAudio = matchesGuid(data, offset + 24, AsfGuid.AUDIO_STREAM);
       const isVideo = matchesGuid(data, offset + 24, AsfGuid.VIDEO_STREAM);
@@ -303,8 +302,6 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
           fps: undefined,
         });
       }
-
-      offset += objectSize;
     } else if (matchesGuid(data, offset, AsfGuid.FILE_PROPERTIES)) {
       // 3.2 File Properties Object (mandatory, one only)
       // +--------------------------+------------+------------+
@@ -328,8 +325,6 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
       // | Maximum Bitrate          | DWORD      | 32         |
       // +--------------------------+------------+------------+
 
-      // Object size (8 bytes, little-endian) at offset 16
-      const objectSize = Number(readUInt64LE(data, offset + 16));
       if (offset + objectSize > data.length) throw new UnsupportedFormatError(`Insufficient data for File Properties Object at offset ${offset}`);
 
       const flags = readUInt32LE(data, offset + 88);
@@ -340,7 +335,6 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
       filePlayDuration = Number(readUInt64LE(data, offset + 64));
       fileSendDuration = Number(readUInt64LE(data, offset + 72));
       filePreroll = Number(readUInt64LE(data, offset + 80));
-      filePacketSize = readUInt32LE(data, offset + 100);
 
       if (!broadcastFlag) {
         // Specifies the time needed to play the file in 100-nanosecond units.
@@ -370,8 +364,6 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
         );
       }
       filePacketSize = maxPacketSize;
-
-      offset += objectSize;
     } else if (matchesGuid(data, offset, AsfGuid.HEADER_EXTENSION)) {
       // Header Extension Object
       const extensionDataSize = readUInt32LE(data, offset + 42);
@@ -391,14 +383,9 @@ export async function parseAsf(stream: ReadableStream<Uint8Array>, options?: Par
           extOffset += extObjSize;
         }
       }
-      const objectSize = Number(readUInt64LE(data, offset + 16));
-      offset += objectSize;
-    } else {
-      // Unknown / uninterested object
-      // Skip this object - read its size
-      const objectSize = Number(readUInt64LE(data, offset + 16));
-      offset += objectSize;
     }
+
+    offset += objectSize;
   }
 
   if (audioStreams.length === 0 && videoStreams.length === 0) {
@@ -554,7 +541,6 @@ function parsePacket(
   // 5.2.1 Error Correction Data
   let errorCorrectionOrLengthTypeFlags = buffer[offset++];
 
-  let errorCorrectionDataLength = 0;
   const errorCorrectionPresent = (errorCorrectionOrLengthTypeFlags & 0x80) !== 0;
   if (errorCorrectionPresent) {
     // Bits 5-6: Error Correction Length Type
@@ -568,7 +554,7 @@ function parsePacket(
         `Invalid ASF Data Packet: Unsupported Error Correction Flags: 0x${errorCorrectionOrLengthTypeFlags.toString(16)}`,
       );
     }
-    errorCorrectionDataLength = errorCorrectionOrLengthTypeFlags & 0x0f;
+    const errorCorrectionDataLength = errorCorrectionOrLengthTypeFlags & 0x0f;
     if (errorCorrectionDataLength !== 2) {
       throw new UnsupportedFormatError(`Invalid ASF Data Packet: InvalidError Correction Data Length: ${errorCorrectionDataLength}`);
     }
@@ -623,10 +609,7 @@ function parsePacket(
   // Packet Length = (Size of Error Correction Data) + (Size of Payload Parsing Information) + (Size of All Payloads) + (Size of Padding Data)
   // Packet Length = (Size of Error Correction Data) + (Size of Payload Parsing Information) + (Size of All Payloads) + (Size of Padding Data)
   const packetLengthResult = readVarLengthField(buffer, offset, packetLengthType);
-  let packetLength = packetLengthResult.value;
-  if (packetLengthType === 0 && fixedPacketSize) {
-    packetLength = fixedPacketSize;
-  }
+  const packetLength = packetLengthType === 0 && fixedPacketSize ? fixedPacketSize : packetLengthResult.value;
   offset += packetLengthResult.size;
 
   // Sequence
@@ -651,15 +634,12 @@ function parsePacket(
   offset += 2;
 
   // 5.2.3 Payload Data
-  let numPayloads = 1;
-  let payloadLengthType = 0;
-
   if (multiplePayloadsPresent) {
     if (offset + 1 >= buffer.length)
       throw new UnsupportedFormatError(`Invalid ASF Data Packet: insufficient data for multi-payload flags: ${offset} + 1 > ${buffer.length}`);
     const payloadFlags = buffer[offset++];
-    numPayloads = payloadFlags & 0x3f;
-    payloadLengthType = (payloadFlags >> 6) & 0x03;
+    const numPayloads = payloadFlags & 0x3f;
+    const payloadLengthType = (payloadFlags >> 6) & 0x03;
 
     for (let p = 0; p < numPayloads; p++) {
       // Conservative check: ensure we have at least minimum bytes for payload header
@@ -725,7 +705,7 @@ function parsePacket(
       // Stream Number
       const streamNumberByte = buffer[offset++];
       const streamNumber = streamNumberByte & 0x7f;
-      const isKeyFrame = (streamNumberByte & 0x80) !== 0;
+      const isKeyframe = (streamNumberByte & 0x80) !== 0;
 
       // Media Object Number
       // For Video (WMV): A "Media Object" is one single Video Frame.
@@ -778,7 +758,7 @@ function parsePacket(
                 isMultiPayload: true,
                 isSubPayload: true,
                 isCompressedPayload,
-                isKeyFrame,
+                isKeyframe,
                 packetSendTime,
                 packetDuration,
                 mediaObjectNumber,
@@ -810,7 +790,7 @@ function parsePacket(
               isMultiPayload: true,
               isSubPayload: false,
               isCompressedPayload,
-              isKeyFrame,
+              isKeyframe,
               packetSendTime,
               packetDuration,
               mediaObjectNumber,
@@ -822,8 +802,6 @@ function parsePacket(
         offset += payloadDataLength;
       }
     }
-    offset += paddingLength;
-    return { bytesConsumed: offset };
   } else {
     // 5.3.3.1 Single payload
     // +---------------------------+-----------------------+-------------+
@@ -864,7 +842,7 @@ function parsePacket(
     // Stream Number (with keyframe flag in bit 7)
     const streamNumberByte = buffer[offset++];
     const streamNumber = streamNumberByte & 0x7f;
-    const isKeyFrame = (streamNumberByte & 0x80) !== 0;
+    const isKeyframe = (streamNumberByte & 0x80) !== 0;
 
     // Media Object Number
     const mediaObjectNumberResult = readVarLengthField(buffer, offset, mediaObjectNumberLengthType);
@@ -900,7 +878,7 @@ function parsePacket(
               isMultiPayload: false,
               isSubPayload: true,
               isCompressedPayload,
-              isKeyFrame,
+              isKeyframe,
               packetSendTime,
               packetDuration,
               mediaObjectNumber,
@@ -938,7 +916,7 @@ function parsePacket(
             isMultiPayload: false,
             isSubPayload: false,
             isCompressedPayload,
-            isKeyFrame,
+            isKeyframe,
             packetSendTime,
             packetDuration,
             mediaObjectNumber,
@@ -949,10 +927,10 @@ function parsePacket(
       }
       offset += payloadDataLength;
     }
-
-    // Skip padding
-    offset += paddingLength;
-
-    return { bytesConsumed: offset };
   }
+
+  // Skip padding
+  offset += paddingLength;
+
+  return { bytesConsumed: offset };
 }

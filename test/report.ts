@@ -14,7 +14,7 @@ import { ExtractAudioTestReportItem, GetMediaInfoTestReportItem, TestReportData 
  * @returns A new Map with entries sorted by key.
  */
 function toSortedMap<T>(originalMap: Map<string, T>): Map<string, T> {
-  const entriesArray = [...originalMap.entries()];
+  const entriesArray = [...originalMap];
   entriesArray.sort((a, b) => a[0].localeCompare(b[0]));
   return new Map(entriesArray);
 }
@@ -28,7 +28,7 @@ function summariseGetMediaInfo(items: GetMediaInfoTestReportItem[], parser: stri
     const key = `${item.container}|${item.videoCodec}|${item.audioCodec}|${item.fileRemark}`;
     if (summary.has(key)) {
       const value = summary.get(key)!;
-      value.succeeded = value.succeeded && item.succeeded;
+      value.succeeded &&= item.succeeded;
     } else {
       summary.set(key, item);
     }
@@ -58,7 +58,7 @@ function summariseExtractAudio(items: ExtractAudioTestReportItem[]) {
     const key = `${item.container}|${item.videoCodec}|${item.audioCodec}|${item.fileRemark}|${item.extractedAudioCodec}`;
     if (summary.has(key)) {
       const value = summary.get(key)!;
-      value.succeeded = value.succeeded && item.succeeded;
+      value.succeeded &&= item.succeeded;
     } else {
       summary.set(key, item);
     }

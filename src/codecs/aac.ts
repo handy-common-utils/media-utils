@@ -223,7 +223,7 @@ export function parseAudioSpecificConfig(
   // -----------------------------------------
   // AAC profile detection
   // -----------------------------------------
-  let codecDetail = 'aac-latm';
+  let codecDetail: string;
 
   switch (audioObjectType) {
     case 2: {
