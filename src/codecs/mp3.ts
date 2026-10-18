@@ -187,9 +187,7 @@ export function getMp3FrameLength(data: Uint8Array, offset: number = 0): number 
   if (layerNumber === 1) {
     return Math.floor(((12 * bitrate!) / sampleRate! + padding!) * 4);
   }
-  return layerNumber === 3 && version !== 3
-    ? Math.floor((72 * bitrate!) / sampleRate! + padding!)
-    : Math.floor((144 * bitrate!) / sampleRate! + padding!);
+  return Math.floor(((layerNumber === 3 && version !== 3 ? 72 : 144) * bitrate!) / sampleRate! + padding!);
 }
 
 /**

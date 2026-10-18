@@ -229,6 +229,7 @@ export class MpegTsParser {
         // Not enough data to verify
         return false;
       }
+      // eslint-disable-next-line unicorn/prefer-combined-guards
       if (this.buffer[nextSyncPos] !== SYNC_BYTE) {
         // Pattern broken
         return false;
@@ -242,6 +243,7 @@ export class MpegTsParser {
     if (this.tsPacketsProcessed < 200) return false;
 
     // PAT should have been parsed and we should have PMT PIDs
+    // eslint-disable-next-line unicorn/prefer-combined-guards
     if (this.allPmtDetails.size === 0) return false;
 
     // All PMT should have been found
@@ -385,6 +387,7 @@ export class MpegTsParser {
     if (streamDetails.pesBuffer.length < 9) return false;
 
     // When PUSI is not set, it is guaranteed that the full payload is a part of the previous PES packet.
+    // eslint-disable-next-line unicorn/prefer-combined-guards
     if (!payloadUnitStartIndicator) {
       return false;
     }
@@ -399,7 +402,7 @@ export class MpegTsParser {
     const checkAvailableData = async ({
       pesLength,
       pesStart,
-      frameDataOffset,
+      frameDataOffset = 0,
       onKnownLengthData,
     }: {
       pesLength: number;
@@ -414,7 +417,7 @@ export class MpegTsParser {
         // Data is complete
         if (nextPesStart < streamDetails.pesBuffer.length) {
           streamDetails.pesPayloadStartOffsetInPesBuffer = undefined;
-          if (onKnownLengthData) await onKnownLengthData(pesStart + 6 + (frameDataOffset ?? 0), nextPesStart);
+          if (onKnownLengthData) await onKnownLengthData(pesStart + 6 + frameDataOffset, nextPesStart);
           return { shouldBreakNotContinue: false, nextIndex: nextPesStart - 1 };
         }
         // Wait for more data

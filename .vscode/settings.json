@@ -15,9 +15,5 @@
     "wmalossless",
     "wmapro",
     "wmav"
-  ],
-  "eslint.options": {
-    "flags": ["v10_config_lookup_from_file"]
-  },
-  "eslint.useFlatConfig": true
+  ]
 }

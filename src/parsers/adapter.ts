@@ -6,7 +6,7 @@ import { ParsingError } from '../utils';
 /**
  * Interface for media parser adapters.
  * Adapters bridge the gap between the generic media info extraction logic
- * and specific parser implementations (like mp4box or @remotion/media-parser).
+ * and specific parser implementations (like mp4box or `@remotion/media-parser`).
  */
 export interface MediaParserAdapter {
   /**

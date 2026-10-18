@@ -1,3 +1,4 @@
+/* eslint-disable max-depth */
 import { getAacProfileName, parseAudioSpecificConfig } from '../codecs/aac';
 import { BitReader, readUInt16BE as readUInt16BE_bin, readUInt32BE as readUInt32BE_bin, readUtf8, toHex } from '../codecs/binary';
 import { parseMP3Header } from '../codecs/mp3';
@@ -206,6 +207,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
     return value;
   }
 
+  // eslint-disable-next-line unicorn/no-unnecessary-parameters
   function readString(length: number): string {
     const str = readUtf8(buffer, bufferOffset, length);
     bufferOffset += length;
