@@ -216,9 +216,10 @@ export function getGetMediaInfoTestCases(testCases: GetMediaInfoTestCase[], ...f
  * @param useParser The useParser option that overrides test case configurations
  */
 export function runGetMediaInfoTestCases(testCases: GetMediaInfoTestCase[], useParser?: GetMediaInfoOptions['useParser']) {
-  for (const { shouldFail, filename, options, expectedMediaInfo, fileRemark, testRemark } of testCases) {
+  for (const testCase of testCases) {
+    const { shouldFail, filename, options, expectedMediaInfo, fileRemark, testRemark } = testCase;
     const optionsWithUseParser = { ...options, useParser };
-    it(`should getMediaInfo ${shouldFail ? 'fail' : 'work'} with ${filename}${fileRemark ? ` (${fileRemark})` : ''}${testRemark ? ` - ${testRemark}` : ''}`, async () => {
+    it(`should getMediaInfo ${shouldFail ? 'fail' : 'work'} with stream of ${filename}${fileRemark ? ` (${fileRemark})` : ''}${testRemark ? ` - ${testRemark}` : ''}`, async () => {
       const { stream: inputStream, getBranches } = trackAllBranches(await createReadableStreamFromFile(sampleFile(filename)));
 
       if (shouldFail) {
@@ -246,6 +247,41 @@ export function runGetMediaInfoTestCases(testCases: GetMediaInfoTestCase[], useP
       // console.log('all branches:', branches);
       for (const branch of branches) {
         expect(await isReadableStreamNotOpen(branch)).toBe(true);
+      }
+    }, 10000);
+
+    it(`should getMediaInfo ${shouldFail ? 'fail' : 'work'} with Blob of ${filename}${fileRemark ? ` (${fileRemark})` : ''}${testRemark ? ` - ${testRemark}` : ''}`, async () => {
+      const blob = await fs.openAsBlob(sampleFile(filename));
+
+      if (shouldFail) {
+        try {
+          await getMediaInfo(blob, optionsWithUseParser);
+          expect('').toEqual('getMediaInfoFromFile is expected to fail');
+        } catch (error) {
+          expect(error).toBeInstanceOf(Error);
+          expect(error).toHaveProperty('isUnsupportedFormatError', true);
+          addGetMediaInfoTestReportItem(
+            { succeeded: false, filename, fileRemark, testRemark, parser: optionsWithUseParser.useParser ?? 'auto' },
+            expectedMediaInfo,
+          );
+        }
+      } else {
+        const info = await getMediaInfo(blob, optionsWithUseParser);
+        const expectedBytesRead = testCase.expectedMediaInfo.bytesRead;
+        expect(info).toEqual({
+          ...testCase.expectedMediaInfo,
+          ...expectedBytesRead && { bytesRead: expect.any(Number) },
+        });
+        if (expectedBytesRead) {
+          // Since the fixture could be based on stream input, but getMediaInfoFromFile now uses Blob input, the bytesRead may be less than the expected value, but not more.
+          expect(info.bytesRead).toBeLessThanOrEqual(
+            typeof expectedBytesRead === 'number' ? expectedBytesRead : (expectedBytesRead as any).sample,
+          );
+        }
+        addGetMediaInfoTestReportItem(
+          { succeeded: true, filename, fileRemark, testRemark, parser: optionsWithUseParser.useParser ?? 'auto' },
+          expectedMediaInfo,
+        );
       }
     }, 10000);
   }
@@ -276,8 +312,9 @@ export interface ExtractAudioTestCase {
  * @param testCases Array of test case configurations
  */
 export function runExtractAudioTestCases(testCases: ExtractAudioTestCase[]) {
-  for (const { shouldFail, filename, options, expectedMediaInfo, fileRemark, testRemark, minSizeKB, maxSizeKB } of testCases) {
-    it(`should extractAudio ${shouldFail ? 'fail' : 'work'} with ${filename}${fileRemark ? ` (${fileRemark})` : ''}${testRemark ? ` - ${testRemark}` : ''}`, async () => {
+  for (const testCase of testCases) {
+    const { shouldFail, filename, options, expectedMediaInfo, fileRemark, testRemark, minSizeKB, maxSizeKB } = testCase;
+    it(`should extractAudio ${shouldFail ? 'fail' : 'work'} with stream of ${filename}${fileRemark ? ` (${fileRemark})` : ''}${testRemark ? ` - ${testRemark}` : ''}`, async () => {
       let sourceMediaInfo: GetMediaInfoResult;
       try {
         sourceMediaInfo = await getMediaInfoFromFile(sampleFile(filename), { useParser: 'media-utils' });
@@ -317,6 +354,54 @@ export function runExtractAudioTestCases(testCases: ExtractAudioTestCase[]) {
       for (const branch of getBranches()) {
         expect(await isReadableStreamNotOpen(branch)).toBe(true);
       }
+      expect(await isWritableStreamClosed(outputStream)).toBe(true);
+    }, 10000);
+
+    it(`should extractAudio ${shouldFail ? 'fail' : 'work'} with Blob of ${filename}${fileRemark ? ` (${fileRemark})` : ''}${testRemark ? ` - ${testRemark}` : ''}`, async () => {
+      let sourceMediaInfo: GetMediaInfoResult;
+      try {
+        sourceMediaInfo = await getMediaInfoFromFile(sampleFile(filename), { useParser: 'media-utils' });
+      } catch (error) {
+        console.error(`Failed to get media info for source file ${filename}: ${error}`);
+        sourceMediaInfo = {
+          parser: 'auto',
+          container: 'unknown',
+          audioStreams: [],
+          videoStreams: [],
+        };
+      }
+
+      const outputFilename = `extracted-from-${filename}.audio`;
+      const blob = await fs.openAsBlob(sampleFile(filename));
+      const outputStream = await createWritableStreamFromFile(outputFile(outputFilename));
+      if (shouldFail) {
+        try {
+          await extractAudio(blob, outputStream, { ...options, useParser: 'media-utils' });
+          expect('').toEqual('extractAudio is expected to fail');
+        } catch (error) {
+          expect(error).toBeInstanceOf(Error);
+          expect(error).toHaveProperty('isUnsupportedFormatError', true);
+          addExtractAudioTestReportItem({ succeeded: false, filename, fileRemark, testRemark }, sourceMediaInfo);
+        }
+      } else {
+        await extractAudio(blob, outputStream, { ...options, useParser: 'media-utils' });
+        assertFileSize(outputFile(outputFilename), minSizeKB, maxSizeKB);
+        const info = await getMediaInfoFromFile(outputFile(outputFilename), { useParser: 'media-utils' });
+        expect(info).toEqual({
+          ...testCase.expectedMediaInfo,
+          bytesRead: expect.any(Number),
+        });
+        const expectedBytesRead = testCase.expectedMediaInfo.bytesRead;
+        // Since the fixture could be based on stream input, but getMediaInfoFromFile now uses Blob input, the bytesRead may be less than the expected value, but not more.
+        expect(info.bytesRead).toBeLessThanOrEqual(
+          expectedBytesRead == null ? Infinity : typeof expectedBytesRead === 'number' ? expectedBytesRead : (expectedBytesRead as any).sample,
+        );
+        const renamedExtension = `.${toContainer(toAudioCodec(info.audioStreams[0].codec).defaultContainer).fileExtension}`;
+        const renamedFilename = (outputFilename.endsWith('.audio') ? outputFilename.slice(0, -'.audio'.length) : outputFilename) + renamedExtension;
+        fs.renameSync(outputFile(outputFilename), outputFile(renamedFilename));
+        addExtractAudioTestReportItem({ succeeded: true, filename, fileRemark, testRemark }, sourceMediaInfo, expectedMediaInfo);
+      }
+
       expect(await isWritableStreamClosed(outputStream)).toBe(true);
     }, 10000);
   }

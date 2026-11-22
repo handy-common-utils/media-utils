@@ -2,8 +2,9 @@ import type { ES_Descriptor, ISOFile, Movie } from 'mp4box';
 
 import { getAacProfileName } from '../codecs/aac';
 import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
+import { openInputStream } from '../input-streams';
 import { AudioStreamInfo, toAudioCodec, toContainer, toVideoCodec, VideoStreamInfo } from '../media-info';
-import { ParsingError, setupGlobalLogger, UnsupportedFormatError } from '../utils';
+import { MediaInput, ParsingError, setupGlobalLogger, UnsupportedFormatError } from '../utils';
 import { MediaParserAdapter } from './adapter';
 
 export class Mp4BoxAdapter implements MediaParserAdapter {
@@ -14,7 +15,8 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
     return new Mp4BoxAdapter(mp4box as any);
   }
 
-  async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<GetMediaInfoResult> {
+  async parse(input: MediaInput, options?: GetMediaInfoOptions): Promise<GetMediaInfoResult> {
+    const { stream, close } = openInputStream(input, options?.maxBytesToRead);
     try {
       return await this.parseWithoutErrorHandling(stream, options);
     } catch (error) {
@@ -26,6 +28,8 @@ export class Mp4BoxAdapter implements MediaParserAdapter {
       }
 
       throw error;
+    } finally {
+      close();
     }
   }
 

@@ -1,7 +1,8 @@
 import { EsdsInfo, parseEsds } from '../codecs/mp4';
 import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
+import { openInputStream } from '../input-streams';
 import { AudioStreamInfo, toAudioCodec, toContainer, toVideoCodec, VideoStreamInfo } from '../media-info';
-import { ParsingError, UnsupportedFormatError } from '../utils';
+import { MediaInput, ParsingError, UnsupportedFormatError } from '../utils';
 import { MediaParserAdapter } from './adapter';
 
 export class IsoBoxerAdapter implements MediaParserAdapter {
@@ -13,7 +14,8 @@ export class IsoBoxerAdapter implements MediaParserAdapter {
     return new IsoBoxerAdapter(ISOBoxer);
   }
 
-  async parse(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<GetMediaInfoResult> {
+  async parse(input: MediaInput, options?: GetMediaInfoOptions): Promise<GetMediaInfoResult> {
+    const { stream, close } = openInputStream(input, options?.maxBytesToRead);
     try {
       return await this.parseWithoutErrorHandling(stream, options);
     } catch (error) {
@@ -25,12 +27,15 @@ export class IsoBoxerAdapter implements MediaParserAdapter {
       }
 
       throw error;
+    } finally {
+      close();
     }
   }
 
-  private async parseWithoutErrorHandling(stream: ReadableStream<Uint8Array>, _options?: GetMediaInfoOptions): Promise<GetMediaInfoResult> {
+  private async parseWithoutErrorHandling(stream: ReadableStream<Uint8Array>, options?: GetMediaInfoOptions): Promise<GetMediaInfoResult> {
     // The first 1MB of the file is read and then fed to the parser
-    const MAX_PROBE_SIZE = 1 * 1024 * 1024; // 1MB
+    // Never try to read beyond maxBytesToRead, so that what is within the limit can still be parsed
+    const MAX_PROBE_SIZE = Math.min(1 * 1024 * 1024, options?.maxBytesToRead ?? Infinity); // 1MB
     const chunks: Uint8Array[] = [];
     const reader = stream.getReader();
     let bytesRead = 0;
