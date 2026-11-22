@@ -122,7 +122,7 @@ it can also automatically integrate with other well-known Javascript parsers as 
 - `media-utils` (built-in): This is the recommended default, all popular formats are supported.
 - `mp4box`: [mp4box](https://www.npmjs.com/package/mp4box), handles only MP4/MOV containers.
 - `isoboxer`: [codem-isoboxer](https://www.npmjs.com/package/codem-isoboxer), handles only MP4/MOV containers.
-- `remotion`: [@remotion/media-parser](https://www.npmjs.com/package/@remotion/media-parser), handles more formats
+- `remotion`: [@remotion/media-parser](https://www.npmjs.com/package/@remotion/media-parser), handles more formats than mp4box and isoboxer.
 
 If you install any of these packages, `getMediaInfo()` will use them as a fallback mechanism.
 
@@ -206,9 +206,62 @@ await extractAudio(inputStream, outputStream, {
 });
 ```
 
+## Input: Stream or Blob
+
+`getMediaInfo()` and `extractAudio()` accept either a Web `ReadableStream` or a `Blob`.
+A `File` in the browser is also a `Blob`, and in Node.js 19.8 or later `fs.openAsBlob(path)` opens a file as a `Blob`.
+Both give the same results; they differ in how much data is read and kept in memory.
+
+|                                                                                    | `ReadableStream`                                                                                        | `Blob` (including `File`)                                                                 |
+| :--------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------- |
+| Supported formats, parsers and results                                             | All                                                                                                     | All (same results, except `bytesRead`, see below)                                         |
+| `maxBytesToRead` / `maxBytesToReadForMediaInfo`, `sampleTableInfo` and the `mediaInfo` option of `extractAudio()` | Supported                                                                                               | Supported                                                                                 |
+| Reading                                                                            | Forward only, once                                                                                      | From any position, as many times as needed                                                |
+| Data read for detecting the format                                                 | Kept in memory while detecting, so that another parser can start again from the beginning               | Not kept, each parser opens its own stream from the `Blob`                                |
+| MP4/MOV with the `moov` box after the `mdat` box                                   | The whole file is read, and kept in memory while detecting (use `maxBytesToRead` to fail early instead) | The `mdat` box is skipped without being read (with the 'media-utils' parser)              |
+| `bytesRead` in the result                                                          | Bytes read, including the ones read only to skip them                                                   | Bytes actually read, skipped bytes are not counted                                        |
+| `maxBytesToRead` applies to                                                        | The total read from the stream                                                                          | Each parsing attempt                                                                      |
+| `extractAudio()` without `mediaInfo`                                               | The stream is teed: what detection reads is kept until the extraction has processed it                  | The `Blob` is read once for detecting and once more for extracting, nothing extra is kept |
+
+Notes:
+
+- For most files, detection reads only the header, so the difference is small. It matters for MP4/MOV files with the `moov`
+  box at the end (not "fast start"), and for formats whose parser reads the whole file (MXF, and MP3 without a VBR header):
+  with a stream, all of it goes through memory.
+- Only the built-in 'media-utils' MP4/MOV parser skips data in a `Blob`. The third-party parsers (`mp4box`, `remotion`, `isoboxer`)
+  read a `Blob` from the beginning like a stream.
+- `getMediaInfoFromFile()`, `extractAudioFromFile()` and `extractAudioFromFileToFile()` read the file as a `Blob` (using Node.js `fs.openAsBlob()`).
+
+### Reading large files with limited memory
+
+- **Use a `Blob` when you can**, for example a `File` from `<input type="file">` or drag and drop, rather than `file.stream()`.
+- **With a stream, use `maxBytesToRead`.** If the information can't be determined within that number of bytes,
+  `MaxBytesExceededError` is thrown instead of reading (and keeping) more.
+- **Detect once, extract once.** Pass the result of `getMediaInfo(input, { useParser: 'media-utils', sampleTableInfo: true })`
+  to `extractAudio()` as the `mediaInfo` option. Detection is then skipped, and the input is read only once for extracting the audio.
+
+```typescript
+import { extractAudio, getMediaInfo } from '@handy-common-utils/media-utils';
+
+// In the browser, file comes from <input type="file"> or drag and drop
+try {
+  const mediaInfo = await getMediaInfo(file, { useParser: 'media-utils', sampleTableInfo: true, maxBytesToRead: 4 * 1024 * 1024 });
+  await extractAudio(file, outputWritableStream, { mediaInfo });
+} catch (error) {
+  if ((error as any)?.isMaxBytesExceededError || (error as any)?.isUnsupportedFormatError) {
+    // can't extract the audio, use the original file
+  } else {
+    throw error;
+  }
+}
+```
+
 ## Errors
 
 In case the input is corrupted or the format or codec is not recognisable, `UnsupportedFormatError` would be thrown.
+
+In case the `maxBytesToRead` option is used and the media information can't be determined within that number of bytes,
+`MaxBytesExceededError` would be thrown.
 
 ## Logging Control
 
@@ -273,25 +326,37 @@ import { readFromStreamToFile } from '@handy-common-utils/media-utils';
 await readFromStreamToFile(myStream, 'path/to/output.mp4');
 ```
 
+## Environment Compatibility
+
+| Platform | Minimum for Stream APIs (`getMediaInfo`, `extractAudio`) | Minimum for File APIs (`*FromFile`, `*FromFileToFile`) |
+| :--- | :--- | :--- |
+| **Node.js** | **18.0.0** (released 2022) | **19.8.0** (released 2023) |
+| **Chrome / Edge** | **93+** (released 2021) | *N/A (Node-only)* |
+| **Firefox** | **100+** (released 2022) *(91+ for `getMediaInfo` only, released 2021)* | *N/A (Node-only)* |
+| **Safari** | **15.4+** (released 2022) | *N/A (Node-only)* |
+
+> **Browser Safety**: The Node-only functions (`getMediaInfoFromFile`, `extractAudioFromFile`, `extractAudioFromFileToFile`, etc.) import Node.js built-ins (`node:fs`, `node:path`, `node:stream`) lazily inside their function bodies. Modern bundlers (such as Vite, Webpack, or Rollup) targeting the browser will bundle the library cleanly without build-time errors unless those Node-only functions are actually invoked in browser code.
+
 # API
 
 <!-- API start -->
-
 <a name="readmemd"></a>
 
 ## @handy-common-utils/media-utils
 
 ### Modules
 
-| Module                                    | Description |
-| ----------------------------------------- | ----------- |
-| [extract-audio](#extract-audioreadmemd)   | -           |
-| [get-media-info](#get-media-inforeadmemd) | -           |
-| [index](#indexreadmemd)                   | -           |
-| [media-info](#media-inforeadmemd)         | -           |
-| [utils](#utilsreadmemd)                   | -           |
+| Module | Description |
+| ------ | ------ |
+| [extract-audio](#extract-audioreadmemd) | - |
+| [get-media-info](#get-media-inforeadmemd) | - |
+| [index](#indexreadmemd) | - |
+| [input-streams](#input-streamsreadmemd) | - |
+| [media-info](#media-inforeadmemd) | - |
+| [utils](#utilsreadmemd) | - |
 
 ## Extract Audio
+
 
 <a id="extract-audioreadmemd"></a>
 
@@ -299,19 +364,20 @@ await readFromStreamToFile(myStream, 'path/to/output.mp4');
 
 #### Interfaces
 
-| Interface                                                            | Description |
-| -------------------------------------------------------------------- | ----------- |
-| [ExtractAudioOptions](#extract-audiointerfacesextractaudiooptionsmd) | -           |
+| Interface | Description |
+| ------ | ------ |
+| [ExtractAudioOptions](#extract-audiointerfacesextractaudiooptionsmd) | - |
 
 #### Functions
 
-| Function                                                                          | Description                                                                                                                   |
-| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| [extractAudio](#extract-audiofunctionsextractaudiomd)                             | Extract raw audio data from the input                                                                                         |
-| [extractAudioFromFile](#extract-audiofunctionsextractaudiofromfilemd)             | Extract raw audio data from a file This function works in Node.js environment but not in browser.                             |
+| Function | Description |
+| ------ | ------ |
+| [extractAudio](#extract-audiofunctionsextractaudiomd) | Extract raw audio data from the input |
+| [extractAudioFromFile](#extract-audiofunctionsextractaudiofromfilemd) | Extract raw audio data from a file The file is read as a Blob (using Node.js `fs.openAsBlob()`), which avoids buffering large amounts of data in memory. This function works in Node.js environment but not in browser. |
 | [extractAudioFromFileToFile](#extract-audiofunctionsextractaudiofromfiletofilemd) | Extract raw audio data from a file and write to an output file This function works in Node.js environment but not in browser. |
 
 ### Functions
+
 
 <a id="extract-audiofunctionsextractaudiomd"></a>
 
@@ -321,19 +387,29 @@ await readFromStreamToFile(myStream, 'path/to/output.mp4');
 
 Extract raw audio data from the input
 
+How the input is read:
+- If the `mediaInfo` option is provided, the input is read only once, for extracting the audio.
+- Otherwise, if the input is a Blob, it is read once for detecting the format (large parts can be skipped
+  without being read, see [MediaInput](#utilstype-aliasesmediainputmd)), and then once more for extracting the audio.
+- Otherwise (the input is a stream without `mediaInfo`), the stream is teed: one branch for detecting the format and
+  the other for extracting the audio. Everything read for detecting the format is kept in memory until the extraction
+  has processed it. For an MP4/MOV file with the `moov` box after the `mdat` box, that is the whole file.
+  Use the `maxBytesToReadForMediaInfo` option to limit it.
+
 ##### Parameters
 
-| Parameter       | Type                                                                   | Description                                       |
-| --------------- | ---------------------------------------------------------------------- | ------------------------------------------------- |
-| `input`         | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>                  | The input data provided through a readable stream |
-| `output`        | `WritableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>                  | The output stream to write extracted audio to     |
-| `optionsInput?` | [`ExtractAudioOptions`](#extract-audiointerfacesextractaudiooptionsmd) | Options for the extraction process                |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `input` | [`MediaInput`](#utilstype-aliasesmediainputmd) | The input data provided through a readable stream or a Blob (a File in the browser is also a Blob) |
+| `output` | `WritableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\> | The output stream to write extracted audio to |
+| `optionsInput?` | [`ExtractAudioOptions`](#extract-audiointerfacesextractaudiooptionsmd) | Options for the extraction process |
 
 ##### Returns
 
 `Promise`\<`void`\>
 
 Promise that resolves when extraction is complete
+
 
 <a id="extract-audiofunctionsextractaudiofromfilemd"></a>
 
@@ -342,19 +418,21 @@ Promise that resolves when extraction is complete
 > **extractAudioFromFile**(`filePath`, `output`, `options?`): `Promise`\<`void`\>
 
 Extract raw audio data from a file
+The file is read as a Blob (using Node.js `fs.openAsBlob()`), which avoids buffering large amounts of data in memory.
 This function works in Node.js environment but not in browser.
 
 ##### Parameters
 
-| Parameter  | Type                                                                   | Description                                   |
-| ---------- | ---------------------------------------------------------------------- | --------------------------------------------- |
-| `filePath` | `string`                                                               | The path to the media file                    |
-| `output`   | `WritableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>                  | The output stream to write extracted audio to |
-| `options?` | [`ExtractAudioOptions`](#extract-audiointerfacesextractaudiooptionsmd) | Options for the extraction process            |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `filePath` | `string` | The path to the media file |
+| `output` | `WritableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\> | The output stream to write extracted audio to |
+| `options?` | [`ExtractAudioOptions`](#extract-audiointerfacesextractaudiooptionsmd) | Options for the extraction process |
 
 ##### Returns
 
 `Promise`\<`void`\>
+
 
 <a id="extract-audiofunctionsextractaudiofromfiletofilemd"></a>
 
@@ -367,17 +445,18 @@ This function works in Node.js environment but not in browser.
 
 ##### Parameters
 
-| Parameter        | Type                                                                   | Description                        |
-| ---------------- | ---------------------------------------------------------------------- | ---------------------------------- |
-| `inputFilePath`  | `string`                                                               | The path to the input media file   |
-| `outputFilePath` | `string`                                                               | The path to the output audio file  |
-| `options?`       | [`ExtractAudioOptions`](#extract-audiointerfacesextractaudiooptionsmd) | Options for the extraction process |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `inputFilePath` | `string` | The path to the input media file |
+| `outputFilePath` | `string` | The path to the output audio file |
+| `options?` | [`ExtractAudioOptions`](#extract-audiointerfacesextractaudiooptionsmd) | Options for the extraction process |
 
 ##### Returns
 
 `Promise`\<`void`\>
 
 ### Interfaces
+
 
 <a id="extract-audiointerfacesextractaudiooptionsmd"></a>
 
@@ -389,16 +468,19 @@ This function works in Node.js environment but not in browser.
 
 ##### Properties
 
-| Property                                    | Type                                                                      | Description                                                                                                                                                                                                           | Inherited from                                                                             |
-| ------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| <a id="api-debug"></a> `debug?`             | `boolean`                                                                 | Whether to enable debug logging. Default value is false.                                                                                                                                                              | -                                                                                          |
-| <a id="api-onprogress"></a> `onProgress?`   | (`progress`) => `void`                                                    | Optional callback to receive progress updates (0-100).                                                                                                                                                                | -                                                                                          |
-| <a id="api-quiet"></a> `quiet?`             | `boolean`                                                                 | Whether to suppress console output. Default value is true.                                                                                                                                                            | -                                                                                          |
-| <a id="api-streamindex"></a> `streamIndex?` | `number`                                                                  | The index of the stream/track to extract audio from. If this option is provided, `trackId` is ignored. If `trackId` is not provided and this option is not specified, the first audio stream/track will be extracted. | -                                                                                          |
-| <a id="api-trackid"></a> `trackId?`         | `number`                                                                  | The ID of the track to extract audio from If this option is provided, `streamIndex` is ignored. If both `trackId` and `streamIndex` are not provided, the first audio stream/track will be extracted.                 | -                                                                                          |
-| <a id="api-useparser"></a> `useParser?`     | `"auto"` \| `"mp4box"` \| `"remotion"` \| `"isoboxer"` \| `"media-utils"` | Which parser library/package to use The default is 'auto', which will try to use mp4box first and fallback to remotion if mp4box fails.                                                                               | [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd).[`useParser`](#useparser) |
+| Property | Type | Description | Inherited from |
+| ------ | ------ | ------ | ------ |
+| <a id="api-property-debug"></a> `debug?` | `boolean` | Whether to enable debug logging. Default value is false. | - |
+| <a id="api-property-maxbytestoreadformediainfo"></a> `maxBytesToReadForMediaInfo?` | `number` | The maximum number of bytes that can be read from the input for detecting its format, see `GetMediaInfoOptions.maxBytesToRead`. It does not limit the reading for extracting the audio, and it is ignored when `mediaInfo` is provided. When the input is a stream, the bytes read for detecting the format are kept in memory until the extraction has processed them, so this option also limits the memory used. Default: no limit. | - |
+| <a id="api-property-mediainfo"></a> `mediaInfo?` | [`GetMediaInfoResult`](#get-media-infotype-aliasesgetmediainforesultmd) | Media information of the input, obtained earlier from the same input by `getMediaInfo(input, { useParser: 'media-utils', sampleTableInfo: true })`. When provided, the input is not parsed again for detecting its format. The input is then read only once, from the beginning to the end, and nothing read from it is kept in memory apart from the data being processed. It must be the result for exactly the same input. `sampleTableInfo: true` is required for MP4/MOV inputs. A result for a different input can't be detected, and gives a corrupted output or an error. | - |
+| <a id="api-property-onprogress"></a> `onProgress?` | (`progress`) => `void` | Optional callback to receive progress updates (0-100). | - |
+| <a id="api-property-quiet"></a> `quiet?` | `boolean` | Whether to suppress console output. Default value is true. | - |
+| <a id="api-property-streamindex"></a> `streamIndex?` | `number` | The index of the stream/track to extract audio from. If this option is provided, `trackId` is ignored. If `trackId` is not provided and this option is not specified, the first audio stream/track will be extracted. | - |
+| <a id="api-property-trackid"></a> `trackId?` | `number` | The ID of the track to extract audio from If this option is provided, `streamIndex` is ignored. If both `trackId` and `streamIndex` are not provided, the first audio stream/track will be extracted. | - |
+| <a id="api-property-useparser"></a> `useParser?` | `"auto"` \| `"mp4box"` \| `"remotion"` \| `"isoboxer"` \| `"media-utils"` | Which parser library/package to use The default is 'auto', which will try to use mp4box first and fallback to remotion if mp4box fails. | [`ParserRelatedOptions`](#utilsinterfacesparserrelatedoptionsmd).[`useParser`](#api-property-useparser) |
 
 ## Get Media Info
+
 
 <a id="get-media-inforeadmemd"></a>
 
@@ -406,40 +488,42 @@ This function works in Node.js environment but not in browser.
 
 #### Type Aliases
 
-| Type Alias                                                              | Description |
-| ----------------------------------------------------------------------- | ----------- |
-| [GetMediaInfoOptions](#get-media-infotype-aliasesgetmediainfooptionsmd) | -           |
-| [GetMediaInfoResult](#get-media-infotype-aliasesgetmediainforesultmd)   | -           |
+| Type Alias | Description |
+| ------ | ------ |
+| [GetMediaInfoOptions](#get-media-infotype-aliasesgetmediainfooptionsmd) | - |
+| [GetMediaInfoResult](#get-media-infotype-aliasesgetmediainforesultmd) | - |
 
 #### Functions
 
-| Function                                                               | Description                                                                                            |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| [getMediaInfo](#get-media-infofunctionsgetmediainfomd)                 | Get media information from a stream                                                                    |
-| [getMediaInfoFromFile](#get-media-infofunctionsgetmediainfofromfilemd) | Get media information from a file path. This function works in Node.js environment but not in browser. |
+| Function | Description |
+| ------ | ------ |
+| [getMediaInfo](#get-media-infofunctionsgetmediainfomd) | Get media information from a stream or a Blob |
+| [getMediaInfoFromFile](#get-media-infofunctionsgetmediainfofromfilemd) | Get media information from a file path. The file is read as a Blob (using Node.js `fs.openAsBlob()`), which allows random access without keeping much data in memory. This function works in Node.js environment but not in browser. |
 
 ### Functions
+
 
 <a id="get-media-infofunctionsgetmediainfomd"></a>
 
 #### Function: getMediaInfo()
 
-> **getMediaInfo**(`stream`, `optionsInput?`): `Promise`\<[`GetMediaInfoResult`](#get-media-infotype-aliasesgetmediainforesultmd)\>
+> **getMediaInfo**(`input`, `optionsInput?`): `Promise`\<[`GetMediaInfoResult`](#get-media-infotype-aliasesgetmediainforesultmd)\>
 
-Get media information from a stream
+Get media information from a stream or a Blob
 
 ##### Parameters
 
-| Parameter       | Type                                                                      | Description                                                                                                                             |
-| --------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `stream`        | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>                     | The input Web ReadableStream (not Node Readable). To convert a Node Readable to Web ReadableStream, use `Readable.toWeb(nodeReadable)`. |
-| `optionsInput?` | [`GetMediaInfoOptions`](#get-media-infotype-aliasesgetmediainfooptionsmd) | Options for the parser                                                                                                                  |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `input` | [`MediaInput`](#utilstype-aliasesmediainputmd) | The input, either a Web ReadableStream (not Node Readable) or a Blob (a File in the browser is also a Blob). To convert a Node Readable to Web ReadableStream, use `Readable.toWeb(nodeReadable)`. To open a file as a Blob in Node.js, use `fs.openAsBlob(path)`. A Blob is read without keeping much data in memory, see [MediaInput](#utilstype-aliasesmediainputmd). |
+| `optionsInput?` | [`GetMediaInfoOptions`](#get-media-infotype-aliasesgetmediainfooptionsmd) | Options for the parser |
 
 ##### Returns
 
 `Promise`\<[`GetMediaInfoResult`](#get-media-infotype-aliasesgetmediainforesultmd)\>
 
 The media information
+
 
 <a id="get-media-infofunctionsgetmediainfofromfilemd"></a>
 
@@ -448,14 +532,16 @@ The media information
 > **getMediaInfoFromFile**(`filePath`, `options?`): `Promise`\<[`GetMediaInfoResult`](#get-media-infotype-aliasesgetmediainforesultmd)\>
 
 Get media information from a file path.
+The file is read as a Blob (using Node.js `fs.openAsBlob()`), which allows random access
+without keeping much data in memory.
 This function works in Node.js environment but not in browser.
 
 ##### Parameters
 
-| Parameter  | Type                                                                      | Description                |
-| ---------- | ------------------------------------------------------------------------- | -------------------------- |
-| `filePath` | `string`                                                                  | The path to the media file |
-| `options?` | [`GetMediaInfoOptions`](#get-media-infotype-aliasesgetmediainfooptionsmd) | Options for the parser     |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `filePath` | `string` | The path to the media file |
+| `options?` | [`GetMediaInfoOptions`](#get-media-infotype-aliasesgetmediainfooptionsmd) | Options for the parser |
 
 ##### Returns
 
@@ -465,6 +551,7 @@ The media information
 
 ### Type Aliases
 
+
 <a id="get-media-infotype-aliasesgetmediainfooptionsmd"></a>
 
 #### Type Alias: GetMediaInfoOptions
@@ -473,10 +560,13 @@ The media information
 
 ##### Type Declaration
 
-| Name     | Type      | Description                                                |
-| -------- | --------- | ---------------------------------------------------------- |
-| `debug?` | `boolean` | Whether to enable debug logging. Default value is false.   |
+| Name | Type | Description |
+| ------ | ------ | ------ |
+| `debug?` | `boolean` | Whether to enable debug logging. Default value is false. |
+| `maxBytesToRead?` | `number` | The maximum number of bytes (a positive integer) that can be read from the input for determining the media information. If a parser needs to read more than this, a MaxBytesExceededError is thrown (its `isMaxBytesExceededError` is true, and no other parser is tried after it). When the input is a stream, the limit applies to the total number of bytes read from the stream. Because the data read from a stream is kept in memory while parsing (so that another parser can be tried from the beginning of the stream), this option also limits the memory used for a stream input. When the input is a Blob, nothing is kept in memory, and the limit applies to each parsing attempt. Bytes skipped without being read (see [MediaInput](#utilstype-aliasesmediainputmd)) are not counted. Parsers read in blocks (usually 64 KB, and 1 MB for the third-party parsers), and some formats are read to the end (for example MXF, and MP3 without a VBR header), or for some megabytes (MPEG-TS). MP4/MOV files with the `moov` box after the `mdat` box are read to the end too, unless the input is a Blob. So a limit of a few megabytes is recommended, and such files fail with it. Default: no limit. |
 | `quiet?` | `boolean` | Whether to suppress console output. Default value is true. |
+| `sampleTableInfo?` | `boolean` | Whether to keep and return the sample table information (`sampleTableInfo`) of MP4/MOV audio streams. It is needed when the result is passed to `extractAudio()` as the `mediaInfo` option for an MP4/MOV input. Only the 'media-utils' parser supports it; other parsers ignore it. Ignored for other formats. Default: false (sample tables are not returned to save memory) |
+
 
 <a id="get-media-infotype-aliasesgetmediainforesultmd"></a>
 
@@ -486,12 +576,13 @@ The media information
 
 ##### Type Declaration
 
-| Name         | Type                                                                                                                 | Description                                                                                             |
-| ------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `bytesRead?` | `number`                                                                                                             | Number of bytes read from the stream. In most cases, the parser does not need to read the whole stream. |
-| `parser`     | `Exclude`\<[`GetMediaInfoOptions`](#get-media-infotype-aliasesgetmediainfooptionsmd)\[`"useParser"`\], `undefined`\> | -                                                                                                       |
+| Name | Type | Description |
+| ------ | ------ | ------ |
+| `bytesRead?` | `number` | Number of bytes read from the stream. In most cases, the parser does not need to read the whole stream. |
+| `parser` | `Exclude`\<[`GetMediaInfoOptions`](#get-media-infotype-aliasesgetmediainfooptionsmd)\[`"useParser"`\], `undefined`\> | - |
 
 ## Index
+
 
 <a id="indexreadmemd"></a>
 
@@ -505,7 +596,7 @@ The media information
 
 Re-exports [allAudioCodecs](#media-infofunctionsallaudiocodecsmd)
 
----
+***
 
 <a id="api-allcontainers"></a>
 
@@ -513,7 +604,7 @@ Re-exports [allAudioCodecs](#media-infofunctionsallaudiocodecsmd)
 
 Re-exports [allContainers](#media-infofunctionsallcontainersmd)
 
----
+***
 
 <a id="api-allvideocodecs"></a>
 
@@ -521,7 +612,7 @@ Re-exports [allContainers](#media-infofunctionsallcontainersmd)
 
 Re-exports [allVideoCodecs](#media-infofunctionsallvideocodecsmd)
 
----
+***
 
 <a id="api-audiocodecdetails"></a>
 
@@ -529,7 +620,7 @@ Re-exports [allVideoCodecs](#media-infofunctionsallvideocodecsmd)
 
 Re-exports [AudioCodecDetails](#media-infoclassesaudiocodecdetailsmd)
 
----
+***
 
 <a id="api-audiocodectype"></a>
 
@@ -537,7 +628,7 @@ Re-exports [AudioCodecDetails](#media-infoclassesaudiocodecdetailsmd)
 
 Re-exports [AudioCodecType](#media-infotype-aliasesaudiocodectypemd)
 
----
+***
 
 <a id="api-audiostreaminfo"></a>
 
@@ -545,7 +636,7 @@ Re-exports [AudioCodecType](#media-infotype-aliasesaudiocodectypemd)
 
 Re-exports [AudioStreamInfo](#media-infointerfacesaudiostreaminfomd)
 
----
+***
 
 <a id="api-containerdetails"></a>
 
@@ -553,7 +644,7 @@ Re-exports [AudioStreamInfo](#media-infointerfacesaudiostreaminfomd)
 
 Re-exports [ContainerDetails](#media-infoclassescontainerdetailsmd)
 
----
+***
 
 <a id="api-containertype"></a>
 
@@ -561,7 +652,7 @@ Re-exports [ContainerDetails](#media-infoclassescontainerdetailsmd)
 
 Re-exports [ContainerType](#media-infotype-aliasescontainertypemd)
 
----
+***
 
 <a id="api-createreadablestreamfromfile"></a>
 
@@ -569,7 +660,7 @@ Re-exports [ContainerType](#media-infotype-aliasescontainertypemd)
 
 Re-exports [createReadableStreamFromFile](#utilsfunctionscreatereadablestreamfromfilemd)
 
----
+***
 
 <a id="api-createwritablestreamfromfile"></a>
 
@@ -577,7 +668,7 @@ Re-exports [createReadableStreamFromFile](#utilsfunctionscreatereadablestreamfro
 
 Re-exports [createWritableStreamFromFile](#utilsfunctionscreatewritablestreamfromfilemd)
 
----
+***
 
 <a id="api-ensurebufferdata"></a>
 
@@ -585,7 +676,7 @@ Re-exports [createWritableStreamFromFile](#utilsfunctionscreatewritablestreamfro
 
 Re-exports [ensureBufferData](#utilsfunctionsensurebufferdatamd)
 
----
+***
 
 <a id="api-extractaudio"></a>
 
@@ -593,7 +684,7 @@ Re-exports [ensureBufferData](#utilsfunctionsensurebufferdatamd)
 
 Re-exports [extractAudio](#extract-audiofunctionsextractaudiomd)
 
----
+***
 
 <a id="api-extractaudiofromfile"></a>
 
@@ -601,7 +692,7 @@ Re-exports [extractAudio](#extract-audiofunctionsextractaudiomd)
 
 Re-exports [extractAudioFromFile](#extract-audiofunctionsextractaudiofromfilemd)
 
----
+***
 
 <a id="api-extractaudiofromfiletofile"></a>
 
@@ -609,7 +700,7 @@ Re-exports [extractAudioFromFile](#extract-audiofunctionsextractaudiofromfilemd)
 
 Re-exports [extractAudioFromFileToFile](#extract-audiofunctionsextractaudiofromfiletofilemd)
 
----
+***
 
 <a id="api-extractaudiooptions"></a>
 
@@ -617,7 +708,7 @@ Re-exports [extractAudioFromFileToFile](#extract-audiofunctionsextractaudiofromf
 
 Re-exports [ExtractAudioOptions](#extract-audiointerfacesextractaudiooptionsmd)
 
----
+***
 
 <a id="api-findaudiocodec"></a>
 
@@ -625,7 +716,7 @@ Re-exports [ExtractAudioOptions](#extract-audiointerfacesextractaudiooptionsmd)
 
 Re-exports [findAudioCodec](#media-infofunctionsfindaudiocodecmd)
 
----
+***
 
 <a id="api-findcontainer"></a>
 
@@ -633,7 +724,7 @@ Re-exports [findAudioCodec](#media-infofunctionsfindaudiocodecmd)
 
 Re-exports [findContainer](#media-infofunctionsfindcontainermd)
 
----
+***
 
 <a id="api-findvideocodec"></a>
 
@@ -641,7 +732,7 @@ Re-exports [findContainer](#media-infofunctionsfindcontainermd)
 
 Re-exports [findVideoCodec](#media-infofunctionsfindvideocodecmd)
 
----
+***
 
 <a id="api-getgloballogger"></a>
 
@@ -649,7 +740,7 @@ Re-exports [findVideoCodec](#media-infofunctionsfindvideocodecmd)
 
 Re-exports [getGlobalLogger](#utilsfunctionsgetgloballoggermd)
 
----
+***
 
 <a id="api-getmediainfo"></a>
 
@@ -657,7 +748,7 @@ Re-exports [getGlobalLogger](#utilsfunctionsgetgloballoggermd)
 
 Re-exports [getMediaInfo](#get-media-infofunctionsgetmediainfomd)
 
----
+***
 
 <a id="api-getmediainfofromfile"></a>
 
@@ -665,7 +756,7 @@ Re-exports [getMediaInfo](#get-media-infofunctionsgetmediainfomd)
 
 Re-exports [getMediaInfoFromFile](#get-media-infofunctionsgetmediainfofromfilemd)
 
----
+***
 
 <a id="api-getmediainfooptions"></a>
 
@@ -673,7 +764,7 @@ Re-exports [getMediaInfoFromFile](#get-media-infofunctionsgetmediainfofromfilemd
 
 Re-exports [GetMediaInfoOptions](#get-media-infotype-aliasesgetmediainfooptionsmd)
 
----
+***
 
 <a id="api-getmediainforesult"></a>
 
@@ -681,7 +772,15 @@ Re-exports [GetMediaInfoOptions](#get-media-infotype-aliasesgetmediainfooptionsm
 
 Re-exports [GetMediaInfoResult](#get-media-infotype-aliasesgetmediainforesultmd)
 
----
+***
+
+<a id="api-isblobinput"></a>
+
+##### isBlobInput
+
+Re-exports [isBlobInput](#utilsfunctionsisblobinputmd)
+
+***
 
 <a id="api-ispcm"></a>
 
@@ -689,7 +788,7 @@ Re-exports [GetMediaInfoResult](#get-media-infotype-aliasesgetmediainforesultmd)
 
 Re-exports [isPCM](#media-infofunctionsispcmmd)
 
----
+***
 
 <a id="api-iswma"></a>
 
@@ -697,7 +796,15 @@ Re-exports [isPCM](#media-infofunctionsispcmmd)
 
 Re-exports [isWMA](#media-infofunctionsiswmamd)
 
----
+***
+
+<a id="api-maxbytesexceedederror"></a>
+
+##### MaxBytesExceededError
+
+Re-exports [MaxBytesExceededError](#utilsclassesmaxbytesexceedederrormd)
+
+***
 
 <a id="api-mediainfo"></a>
 
@@ -705,7 +812,15 @@ Re-exports [isWMA](#media-infofunctionsiswmamd)
 
 Re-exports [MediaInfo](#media-infointerfacesmediainfomd)
 
----
+***
+
+<a id="api-mediainput"></a>
+
+##### MediaInput
+
+Re-exports [MediaInput](#utilstype-aliasesmediainputmd)
+
+***
 
 <a id="api-parserrelatedoptions"></a>
 
@@ -713,7 +828,7 @@ Re-exports [MediaInfo](#media-infointerfacesmediainfomd)
 
 Re-exports [ParserRelatedOptions](#utilsinterfacesparserrelatedoptionsmd)
 
----
+***
 
 <a id="api-parsingerror"></a>
 
@@ -721,7 +836,7 @@ Re-exports [ParserRelatedOptions](#utilsinterfacesparserrelatedoptionsmd)
 
 Re-exports [ParsingError](#utilsinterfacesparsingerrormd)
 
----
+***
 
 <a id="api-readbeginning"></a>
 
@@ -729,7 +844,7 @@ Re-exports [ParsingError](#utilsinterfacesparsingerrormd)
 
 Re-exports [readBeginning](#utilsfunctionsreadbeginningmd)
 
----
+***
 
 <a id="api-readfromstreamtofile"></a>
 
@@ -737,7 +852,7 @@ Re-exports [readBeginning](#utilsfunctionsreadbeginningmd)
 
 Re-exports [readFromStreamToFile](#utilsfunctionsreadfromstreamtofilemd)
 
----
+***
 
 <a id="api-setupgloballogger"></a>
 
@@ -745,7 +860,7 @@ Re-exports [readFromStreamToFile](#utilsfunctionsreadfromstreamtofilemd)
 
 Re-exports [setupGlobalLogger](#utilsfunctionssetupgloballoggermd)
 
----
+***
 
 <a id="api-toaudiocodec"></a>
 
@@ -753,7 +868,7 @@ Re-exports [setupGlobalLogger](#utilsfunctionssetupgloballoggermd)
 
 Re-exports [toAudioCodec](#media-infofunctionstoaudiocodecmd)
 
----
+***
 
 <a id="api-tocontainer"></a>
 
@@ -761,7 +876,7 @@ Re-exports [toAudioCodec](#media-infofunctionstoaudiocodecmd)
 
 Re-exports [toContainer](#media-infofunctionstocontainermd)
 
----
+***
 
 <a id="api-tovideocodec"></a>
 
@@ -769,7 +884,7 @@ Re-exports [toContainer](#media-infofunctionstocontainermd)
 
 Re-exports [toVideoCodec](#media-infofunctionstovideocodecmd)
 
----
+***
 
 <a id="api-unsupportedformaterror"></a>
 
@@ -777,7 +892,7 @@ Re-exports [toVideoCodec](#media-infofunctionstovideocodecmd)
 
 Re-exports [UnsupportedFormatError](#utilsclassesunsupportedformaterrormd)
 
----
+***
 
 <a id="api-videocodecdetails"></a>
 
@@ -785,7 +900,7 @@ Re-exports [UnsupportedFormatError](#utilsclassesunsupportedformaterrormd)
 
 Re-exports [VideoCodecDetails](#media-infoclassesvideocodecdetailsmd)
 
----
+***
 
 <a id="api-videocodectype"></a>
 
@@ -793,7 +908,7 @@ Re-exports [VideoCodecDetails](#media-infoclassesvideocodecdetailsmd)
 
 Re-exports [VideoCodecType](#media-infotype-aliasesvideocodectypemd)
 
----
+***
 
 <a id="api-videostreaminfo"></a>
 
@@ -801,7 +916,239 @@ Re-exports [VideoCodecType](#media-infotype-aliasesvideocodectypemd)
 
 Re-exports [VideoStreamInfo](#media-infointerfacesvideostreaminfomd)
 
+## Input Streams
+
+
+<a id="input-streamsreadmemd"></a>
+
+### input-streams
+
+#### Interfaces
+
+| Interface | Description |
+| ------ | ------ |
+| [LimitedStream](#input-streamsinterfaceslimitedstreammd) | A stream that counts and limits the bytes read from an underlying stream. |
+| [RandomAccessInput](#input-streamsinterfacesrandomaccessinputmd) | Random access to the input, available when the input is a Blob. |
+| [ReadCounter](#input-streamsinterfacesreadcountermd) | Shared byte counter used by [createLimitedStream](#input-streamsfunctionscreatelimitedstreammd). |
+
+#### Functions
+
+| Function | Description |
+| ------ | ------ |
+| [createLimitedStream](#input-streamsfunctionscreatelimitedstreammd) | Wraps a stream so that the bytes read are counted, and the stream errors with [MaxBytesExceededError](#utilsclassesmaxbytesexceedederrormd) when more than `counter.maxBytesToRead` bytes would be needed. |
+| [createRandomAccessInput](#input-streamsfunctionscreaterandomaccessinputmd) | Creates the random access helper for a Blob, with all the streams sharing the same counter. |
+| [openInputStream](#input-streamsfunctionsopeninputstreammd) | Opens a stream from the beginning of the input. If the input is a Blob, a new stream is created from it and the limit is applied to it. If the input is a stream, it is returned as is (the limit, if any, is applied by the caller). |
+| [validateMaxBytesToRead](#input-streamsfunctionsvalidatemaxbytestoreadmd) | Validates the `maxBytesToRead` option. |
+
+### Functions
+
+
+<a id="input-streamsfunctionscreatelimitedstreammd"></a>
+
+#### Function: createLimitedStream()
+
+> **createLimitedStream**(`source`, `counter`): [`LimitedStream`](#input-streamsinterfaceslimitedstreammd)
+
+**`Internal`**
+
+Wraps a stream so that the bytes read are counted, and the stream errors with [MaxBytesExceededError](#utilsclassesmaxbytesexceedederrormd)
+when more than `counter.maxBytesToRead` bytes would be needed.
+
+Bytes are pulled from the underlying stream only when the returned stream is read (high water mark 0),
+so that nothing is read ahead.
+Several limited streams can share the same counter, the limit then applies to the total.
+
+##### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `source` | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\> | The underlying stream |
+| `counter` | [`ReadCounter`](#input-streamsinterfacesreadcountermd) | The counter, possibly shared |
+
+##### Returns
+
+[`LimitedStream`](#input-streamsinterfaceslimitedstreammd)
+
+The limited stream and a function for cancelling the underlying stream
+
+
+<a id="input-streamsfunctionscreaterandomaccessinputmd"></a>
+
+#### Function: createRandomAccessInput()
+
+> **createRandomAccessInput**(`blob`, `counter`): [`RandomAccessInput`](#input-streamsinterfacesrandomaccessinputmd)
+
+**`Internal`**
+
+Creates the random access helper for a Blob, with all the streams sharing the same counter.
+
+##### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `blob` | `Blob` | The Blob |
+| `counter` | [`ReadCounter`](#input-streamsinterfacesreadcountermd) | The counter, which also carries the limit |
+
+##### Returns
+
+[`RandomAccessInput`](#input-streamsinterfacesrandomaccessinputmd)
+
+The random access helper
+
+
+<a id="input-streamsfunctionsopeninputstreammd"></a>
+
+#### Function: openInputStream()
+
+> **openInputStream**(`input`, `maxBytesToRead?`): `object`
+
+**`Internal`**
+
+Opens a stream from the beginning of the input.
+If the input is a Blob, a new stream is created from it and the limit is applied to it.
+If the input is a stream, it is returned as is (the limit, if any, is applied by the caller).
+
+##### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `input` | [`MediaInput`](#utilstype-aliasesmediainputmd) | The input |
+| `maxBytesToRead?` | `number` | Optional limit, only applied when the input is a Blob |
+
+##### Returns
+
+`object`
+
+The stream, and a function to be called when done, which cancels the stream if it was opened from a Blob
+
+| Name | Type |
+| ------ | ------ |
+| `close()` | () => `void` |
+| `stream` | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\> |
+
+
+<a id="input-streamsfunctionsvalidatemaxbytestoreadmd"></a>
+
+#### Function: validateMaxBytesToRead()
+
+> **validateMaxBytesToRead**(`maxBytesToRead`): `number` \| `undefined`
+
+Validates the `maxBytesToRead` option.
+
+##### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `maxBytesToRead` | `number` \| `null` \| `undefined` | The value of the option |
+
+##### Returns
+
+`number` \| `undefined`
+
+The value if it is valid, or undefined if there is no limit
+
+### Interfaces
+
+
+<a id="input-streamsinterfaceslimitedstreammd"></a>
+
+#### Interface: LimitedStream
+
+**`Internal`**
+
+A stream that counts and limits the bytes read from an underlying stream.
+
+##### Properties
+
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| <a id="api-property-stream"></a> `stream` | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\> | The stream to be read |
+
+##### Methods
+
+<a id="api-cancelsource"></a>
+
+###### cancelSource()
+
+> **cancelSource**(): `void`
+
+Stops reading from the underlying stream and cancels it immediately, without waiting for the cancellation to complete.
+(Cancelling a branch of a teed stream doesn't complete until the other branch is cancelled too.)
+The limited stream closes, as if the underlying stream had ended.
+
+####### Returns
+
+`void`
+
+
+<a id="input-streamsinterfacesrandomaccessinputmd"></a>
+
+#### Interface: RandomAccessInput
+
+**`Internal`**
+
+Random access to the input, available when the input is a Blob.
+
+##### Properties
+
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| <a id="api-property-size"></a> `size` | `number` | Total size of the input in bytes |
+
+##### Methods
+
+<a id="api-close"></a>
+
+###### close()
+
+> **close**(): `void`
+
+Cancels all the streams opened by `streamFrom()`, whether or not their readers have been released.
+
+####### Returns
+
+`void`
+
+***
+
+<a id="api-streamfrom"></a>
+
+###### streamFrom()
+
+> **streamFrom**(`offset`): `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>
+
+Opens a new stream that starts at the given offset
+
+####### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `offset` | `number` | The offset from the beginning of the input |
+
+####### Returns
+
+`ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>
+
+The stream
+
+
+<a id="input-streamsinterfacesreadcountermd"></a>
+
+#### Interface: ReadCounter
+
+**`Internal`**
+
+Shared byte counter used by [createLimitedStream](#input-streamsfunctionscreatelimitedstreammd).
+
+##### Properties
+
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| <a id="api-property-bytesread"></a> `bytesRead` | `number` | Number of bytes passed through so far |
+| <a id="api-property-maxbytestoread"></a> `maxBytesToRead?` | `number` | Maximum number of bytes allowed to pass through, undefined means no limit |
+
 ## Media Info
+
 
 <a id="media-inforeadmemd"></a>
 
@@ -809,45 +1156,46 @@ Re-exports [VideoStreamInfo](#media-infointerfacesvideostreaminfomd)
 
 #### Classes
 
-| Class                                                      | Description |
-| ---------------------------------------------------------- | ----------- |
-| [AudioCodecDetails](#media-infoclassesaudiocodecdetailsmd) | -           |
-| [ContainerDetails](#media-infoclassescontainerdetailsmd)   | -           |
-| [VideoCodecDetails](#media-infoclassesvideocodecdetailsmd) | -           |
+| Class | Description |
+| ------ | ------ |
+| [AudioCodecDetails](#media-infoclassesaudiocodecdetailsmd) | - |
+| [ContainerDetails](#media-infoclassescontainerdetailsmd) | - |
+| [VideoCodecDetails](#media-infoclassesvideocodecdetailsmd) | - |
 
 #### Interfaces
 
-| Interface                                                 | Description |
-| --------------------------------------------------------- | ----------- |
-| [AudioStreamInfo](#media-infointerfacesaudiostreaminfomd) | -           |
-| [MediaInfo](#media-infointerfacesmediainfomd)             | -           |
-| [VideoStreamInfo](#media-infointerfacesvideostreaminfomd) | -           |
+| Interface | Description |
+| ------ | ------ |
+| [AudioStreamInfo](#media-infointerfacesaudiostreaminfomd) | - |
+| [MediaInfo](#media-infointerfacesmediainfomd) | - |
+| [VideoStreamInfo](#media-infointerfacesvideostreaminfomd) | - |
 
 #### Type Aliases
 
-| Type Alias                                                | Description |
-| --------------------------------------------------------- | ----------- |
-| [AudioCodecType](#media-infotype-aliasesaudiocodectypemd) | -           |
-| [ContainerType](#media-infotype-aliasescontainertypemd)   | -           |
-| [VideoCodecType](#media-infotype-aliasesvideocodectypemd) | -           |
+| Type Alias | Description |
+| ------ | ------ |
+| [AudioCodecType](#media-infotype-aliasesaudiocodectypemd) | - |
+| [ContainerType](#media-infotype-aliasescontainertypemd) | - |
+| [VideoCodecType](#media-infotype-aliasesvideocodectypemd) | - |
 
 #### Functions
 
-| Function                                               | Description                                               |
-| ------------------------------------------------------ | --------------------------------------------------------- |
-| [allAudioCodecs](#media-infofunctionsallaudiocodecsmd) | Get all audio codecs with their details                   |
-| [allContainers](#media-infofunctionsallcontainersmd)   | Get all containers with their details                     |
-| [allVideoCodecs](#media-infofunctionsallvideocodecsmd) | Get all video codecs with their details                   |
-| [findAudioCodec](#media-infofunctionsfindaudiocodecmd) | Find the matching audio codec for a given code            |
-| [findContainer](#media-infofunctionsfindcontainermd)   | Find the matching container for a given code              |
-| [findVideoCodec](#media-infofunctionsfindvideocodecmd) | Find the matching video codec for a given code            |
-| [isPCM](#media-infofunctionsispcmmd)                   | Check if the audio codec is a PCM (including ADPCM) codec |
-| [isWMA](#media-infofunctionsiswmamd)                   | Check if the audio codec is a WMA codec                   |
-| [toAudioCodec](#media-infofunctionstoaudiocodecmd)     | Find the matching audio codec for a given code            |
-| [toContainer](#media-infofunctionstocontainermd)       | Find the matching container for a given code              |
-| [toVideoCodec](#media-infofunctionstovideocodecmd)     | Find the matching video codec for a given code            |
+| Function | Description |
+| ------ | ------ |
+| [allAudioCodecs](#media-infofunctionsallaudiocodecsmd) | Get all audio codecs with their details |
+| [allContainers](#media-infofunctionsallcontainersmd) | Get all containers with their details |
+| [allVideoCodecs](#media-infofunctionsallvideocodecsmd) | Get all video codecs with their details |
+| [findAudioCodec](#media-infofunctionsfindaudiocodecmd) | Find the matching audio codec for a given code |
+| [findContainer](#media-infofunctionsfindcontainermd) | Find the matching container for a given code |
+| [findVideoCodec](#media-infofunctionsfindvideocodecmd) | Find the matching video codec for a given code |
+| [isPCM](#media-infofunctionsispcmmd) | Check if the audio codec is a PCM (including ADPCM) codec |
+| [isWMA](#media-infofunctionsiswmamd) | Check if the audio codec is a WMA codec |
+| [toAudioCodec](#media-infofunctionstoaudiocodecmd) | Find the matching audio codec for a given code |
+| [toContainer](#media-infofunctionstocontainermd) | Find the matching container for a given code |
+| [toVideoCodec](#media-infofunctionstovideocodecmd) | Find the matching video codec for a given code |
 
 ### Classes
+
 
 <a id="media-infoclassesaudiocodecdetailsmd"></a>
 
@@ -855,9 +1203,9 @@ Re-exports [VideoStreamInfo](#media-infointerfacesvideostreaminfomd)
 
 ##### Type Parameters
 
-| Type Parameter         |
-| ---------------------- |
-| `T` _extends_ `string` |
+| Type Parameter |
+| ------ |
+| <a id="api-type-parameter-t"></a> `T` *extends* `string` |
 
 ##### Constructors
 
@@ -869,11 +1217,11 @@ Re-exports [VideoStreamInfo](#media-infointerfacesvideostreaminfomd)
 
 ####### Parameters
 
-| Parameter          | Type                                                                                                                                                                                                                              |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `code`             | `T`                                                                                                                                                                                                                               |
+| Parameter | Type |
+| ------ | ------ |
+| `code` | `T` |
 | `defaultContainer` | `"unknown"` \| `"mp4"` \| `"mov"` \| `"m4a"` \| `"webm"` \| `"mkv"` \| `"avi"` \| `"mpegts"` \| `"mxf"` \| `"wma"` \| `"asf"` \| `"ogg"` \| `"aac"` \| `"mp3"` \| `"flac"` \| `"wav"` \| `"ac3"` \| `"mp2"` \| `"mp1"` \| `"dts"` |
-| `aliases`          | (`string` \| `RegExp`)[]                                                                                                                                                                                                          |
+| `aliases` | (`string` \| `RegExp`)[] |
 
 ####### Returns
 
@@ -881,11 +1229,12 @@ Re-exports [VideoStreamInfo](#media-infointerfacesvideostreaminfomd)
 
 ##### Properties
 
-| Property                                             | Modifier   | Type                                                                                                                                                                                                                              |
-| ---------------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a id="api-aliases"></a> `aliases`                   | `readonly` | (`string` \| `RegExp`)[]                                                                                                                                                                                                          |
-| <a id="api-code"></a> `code`                         | `readonly` | `T`                                                                                                                                                                                                                               |
-| <a id="api-defaultcontainer"></a> `defaultContainer` | `readonly` | `"unknown"` \| `"mp4"` \| `"mov"` \| `"m4a"` \| `"webm"` \| `"mkv"` \| `"avi"` \| `"mpegts"` \| `"mxf"` \| `"wma"` \| `"asf"` \| `"ogg"` \| `"aac"` \| `"mp3"` \| `"flac"` \| `"wav"` \| `"ac3"` \| `"mp2"` \| `"mp1"` \| `"dts"` |
+| Property | Modifier | Type |
+| ------ | ------ | ------ |
+| <a id="api-property-aliases"></a> `aliases` | `public readonly` | (`string` \| `RegExp`)[] |
+| <a id="api-property-code"></a> `code` | `public readonly` | `T` |
+| <a id="api-property-defaultcontainer"></a> `defaultContainer` | `public readonly` | `"unknown"` \| `"mp4"` \| `"mov"` \| `"m4a"` \| `"webm"` \| `"mkv"` \| `"avi"` \| `"mpegts"` \| `"mxf"` \| `"wma"` \| `"asf"` \| `"ogg"` \| `"aac"` \| `"mp3"` \| `"flac"` \| `"wav"` \| `"ac3"` \| `"mp2"` \| `"mp1"` \| `"dts"` |
+
 
 <a id="media-infoclassescontainerdetailsmd"></a>
 
@@ -893,9 +1242,9 @@ Re-exports [VideoStreamInfo](#media-infointerfacesvideostreaminfomd)
 
 ##### Type Parameters
 
-| Type Parameter         |
-| ---------------------- |
-| `T` _extends_ `string` |
+| Type Parameter |
+| ------ |
+| <a id="api-type-parameter-t"></a> `T` *extends* `string` |
 
 ##### Constructors
 
@@ -907,11 +1256,11 @@ Re-exports [VideoStreamInfo](#media-infointerfacesvideostreaminfomd)
 
 ####### Parameters
 
-| Parameter       | Type                     |
-| --------------- | ------------------------ |
-| `code`          | `T`                      |
-| `fileExtension` | `string`                 |
-| `aliases`       | (`string` \| `RegExp`)[] |
+| Parameter | Type |
+| ------ | ------ |
+| `code` | `T` |
+| `fileExtension` | `string` |
+| `aliases` | (`string` \| `RegExp`)[] |
 
 ####### Returns
 
@@ -919,11 +1268,12 @@ Re-exports [VideoStreamInfo](#media-infointerfacesvideostreaminfomd)
 
 ##### Properties
 
-| Property                                       | Modifier   | Type                     |
-| ---------------------------------------------- | ---------- | ------------------------ |
-| <a id="api-aliases"></a> `aliases`             | `readonly` | (`string` \| `RegExp`)[] |
-| <a id="api-code"></a> `code`                   | `readonly` | `T`                      |
-| <a id="api-fileextension"></a> `fileExtension` | `readonly` | `string`                 |
+| Property | Modifier | Type |
+| ------ | ------ | ------ |
+| <a id="api-property-aliases"></a> `aliases` | `public readonly` | (`string` \| `RegExp`)[] |
+| <a id="api-property-code"></a> `code` | `public readonly` | `T` |
+| <a id="api-property-fileextension"></a> `fileExtension` | `public readonly` | `string` |
+
 
 <a id="media-infoclassesvideocodecdetailsmd"></a>
 
@@ -931,9 +1281,9 @@ Re-exports [VideoStreamInfo](#media-infointerfacesvideostreaminfomd)
 
 ##### Type Parameters
 
-| Type Parameter         |
-| ---------------------- |
-| `T` _extends_ `string` |
+| Type Parameter |
+| ------ |
+| <a id="api-type-parameter-t"></a> `T` *extends* `string` |
 
 ##### Constructors
 
@@ -945,9 +1295,9 @@ Re-exports [VideoStreamInfo](#media-infointerfacesvideostreaminfomd)
 
 ####### Parameters
 
-| Parameter | Type                     |
-| --------- | ------------------------ |
-| `code`    | `T`                      |
+| Parameter | Type |
+| ------ | ------ |
+| `code` | `T` |
 | `aliases` | (`string` \| `RegExp`)[] |
 
 ####### Returns
@@ -956,12 +1306,13 @@ Re-exports [VideoStreamInfo](#media-infointerfacesvideostreaminfomd)
 
 ##### Properties
 
-| Property                           | Modifier   | Type                     |
-| ---------------------------------- | ---------- | ------------------------ |
-| <a id="api-aliases"></a> `aliases` | `readonly` | (`string` \| `RegExp`)[] |
-| <a id="api-code"></a> `code`       | `readonly` | `T`                      |
+| Property | Modifier | Type |
+| ------ | ------ | ------ |
+| <a id="api-property-aliases"></a> `aliases` | `public readonly` | (`string` \| `RegExp`)[] |
+| <a id="api-property-code"></a> `code` | `public readonly` | `T` |
 
 ### Functions
+
 
 <a id="media-infofunctionsallaudiocodecsmd"></a>
 
@@ -977,6 +1328,7 @@ Get all audio codecs with their details
 
 Array of audio codec details
 
+
 <a id="media-infofunctionsallcontainersmd"></a>
 
 #### Function: allContainers()
@@ -990,6 +1342,7 @@ Get all containers with their details
 [`ContainerDetails`](#media-infoclassescontainerdetailsmd)\<`"unknown"` \| `"mp4"` \| `"mov"` \| `"m4a"` \| `"webm"` \| `"mkv"` \| `"avi"` \| `"mpegts"` \| `"mxf"` \| `"wma"` \| `"asf"` \| `"ogg"` \| `"aac"` \| `"mp3"` \| `"flac"` \| `"wav"` \| `"ac3"` \| `"mp2"` \| `"mp1"` \| `"dts"`\>[]
 
 Array of container details
+
 
 <a id="media-infofunctionsallvideocodecsmd"></a>
 
@@ -1005,6 +1358,7 @@ Get all video codecs with their details
 
 Array of video codec details
 
+
 <a id="media-infofunctionsfindaudiocodecmd"></a>
 
 #### Function: findAudioCodec()
@@ -1015,15 +1369,16 @@ Find the matching audio codec for a given code
 
 ##### Parameters
 
-| Parameter | Type                              | Description                                                                                  |
-| --------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
-| `code`    | `string` \| `null` \| `undefined` | A code which could be a codec identifier (e.g., "mp4a.40.2", "opus", "mp3") or anything else |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `code` | `string` \| `null` \| `undefined` | A code which could be a codec identifier (e.g., "mp4a.40.2", "opus", "mp3") or anything else |
 
 ##### Returns
 
 [`AudioCodecDetails`](#media-infoclassesaudiocodecdetailsmd)\<`"unknown"` \| `"aac"` \| `"mp3"` \| `"flac"` \| `"ac3"` \| `"mp2"` \| `"mp1"` \| `"dts"` \| `"opus"` \| `"aac_latm"` \| `"wmav1"` \| `"wmav2"` \| `"wmapro"` \| `"wmalossless"` \| `"vorbis"` \| `"pcm_u8"` \| `"pcm_s16le"` \| `"pcm_s24le"` \| `"pcm_s32le"` \| `"pcm_s16be"` \| `"pcm_s24be"` \| `"pcm_s32be"` \| `"pcm_f32le"` \| `"pcm_alaw"` \| `"pcm_mulaw"` \| `"alac"` \| `"adpcm_ms"` \| `"adpcm_ima_wav"` \| `"eac3"`\> \| `undefined`
 
 Details of the audio codec found, or undefined if no matching codec can be found.
+
 
 <a id="media-infofunctionsfindcontainermd"></a>
 
@@ -1035,15 +1390,16 @@ Find the matching container for a given code
 
 ##### Parameters
 
-| Parameter | Type                              | Description                                                                                  |
-| --------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
-| `code`    | `string` \| `null` \| `undefined` | A code which could be a MP4 brand identifier (e.g., "isom", "iso2", "mp41") or anything else |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `code` | `string` \| `null` \| `undefined` | A code which could be a MP4 brand identifier (e.g., "isom", "iso2", "mp41") or anything else |
 
 ##### Returns
 
 [`ContainerDetails`](#media-infoclassescontainerdetailsmd)\<`"unknown"` \| `"mp4"` \| `"mov"` \| `"m4a"` \| `"webm"` \| `"mkv"` \| `"avi"` \| `"mpegts"` \| `"mxf"` \| `"wma"` \| `"asf"` \| `"ogg"` \| `"aac"` \| `"mp3"` \| `"flac"` \| `"wav"` \| `"ac3"` \| `"mp2"` \| `"mp1"` \| `"dts"`\> \| `undefined`
 
 Details of the container found, or undefined if no matching container can be found.
+
 
 <a id="media-infofunctionsfindvideocodecmd"></a>
 
@@ -1055,15 +1411,16 @@ Find the matching video codec for a given code
 
 ##### Parameters
 
-| Parameter | Type                              | Description                                                                             |
-| --------- | --------------------------------- | --------------------------------------------------------------------------------------- |
-| `code`    | `string` \| `null` \| `undefined` | A code which could be a codec identifier (e.g., "avc", "hevc", "vp09") or anything else |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `code` | `string` \| `null` \| `undefined` | A code which could be a codec identifier (e.g., "avc", "hevc", "vp09") or anything else |
 
 ##### Returns
 
 [`VideoCodecDetails`](#media-infoclassesvideocodecdetailsmd)\<`"unknown"` \| `"h264"` \| `"hevc"` \| `"vp8"` \| `"vp9"` \| `"wmv2"` \| `"av1"` \| `"prores"` \| `"mpeg4"` \| `"mpeg2video"` \| `"theora"` \| `"mjpeg"` \| `"msmpeg4v2"` \| `"mpeg1video"`\> \| `undefined`
 
 Details of the video codec found, or undefined if no matching codec can be found.
+
 
 <a id="media-infofunctionsispcmmd"></a>
 
@@ -1075,8 +1432,8 @@ Check if the audio codec is a PCM (including ADPCM) codec
 
 ##### Parameters
 
-| Parameter    | Type                              | Description              |
-| ------------ | --------------------------------- | ------------------------ |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
 | `audioCodec` | `string` \| `null` \| `undefined` | The audio codec to check |
 
 ##### Returns
@@ -1084,6 +1441,7 @@ Check if the audio codec is a PCM (including ADPCM) codec
 `boolean`
 
 True if the audio codec is a PCM codec, false otherwise
+
 
 <a id="media-infofunctionsiswmamd"></a>
 
@@ -1095,8 +1453,8 @@ Check if the audio codec is a WMA codec
 
 ##### Parameters
 
-| Parameter    | Type                              | Description              |
-| ------------ | --------------------------------- | ------------------------ |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
 | `audioCodec` | `string` \| `null` \| `undefined` | The audio codec to check |
 
 ##### Returns
@@ -1104,6 +1462,7 @@ Check if the audio codec is a WMA codec
 `boolean`
 
 True if the audio codec is a WMA codec, false otherwise
+
 
 <a id="media-infofunctionstoaudiocodecmd"></a>
 
@@ -1115,15 +1474,16 @@ Find the matching audio codec for a given code
 
 ##### Parameters
 
-| Parameter | Type                              | Description                                                                                  |
-| --------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
-| `code`    | `string` \| `null` \| `undefined` | A code which could be a codec identifier (e.g., "mp4a.40.2", "opus", "mp3") or anything else |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `code` | `string` \| `null` \| `undefined` | A code which could be a codec identifier (e.g., "mp4a.40.2", "opus", "mp3") or anything else |
 
 ##### Returns
 
 [`AudioCodecDetails`](#media-infoclassesaudiocodecdetailsmd)\<`"unknown"` \| `"aac"` \| `"mp3"` \| `"flac"` \| `"ac3"` \| `"mp2"` \| `"mp1"` \| `"dts"` \| `"opus"` \| `"aac_latm"` \| `"wmav1"` \| `"wmav2"` \| `"wmapro"` \| `"wmalossless"` \| `"vorbis"` \| `"pcm_u8"` \| `"pcm_s16le"` \| `"pcm_s24le"` \| `"pcm_s32le"` \| `"pcm_s16be"` \| `"pcm_s24be"` \| `"pcm_s32be"` \| `"pcm_f32le"` \| `"pcm_alaw"` \| `"pcm_mulaw"` \| `"alac"` \| `"adpcm_ms"` \| `"adpcm_ima_wav"` \| `"eac3"`\>
 
 Details of the audio codec found, or throws an error if no matching codec can be found.
+
 
 <a id="media-infofunctionstocontainermd"></a>
 
@@ -1135,15 +1495,16 @@ Find the matching container for a given code
 
 ##### Parameters
 
-| Parameter | Type                                            | Description                                                                  |
-| --------- | ----------------------------------------------- | ---------------------------------------------------------------------------- |
-| `code`    | `string` \| `string`[] \| `null` \| `undefined` | A code or an array of MP4 brand identifiers (e.g., ["isom", "iso2", "mp41"]) |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `code` | `string` \| `string`[] \| `null` \| `undefined` | A code or an array of MP4 brand identifiers (e.g., ["isom", "iso2", "mp41"]) |
 
 ##### Returns
 
 [`ContainerDetails`](#media-infoclassescontainerdetailsmd)\<`"unknown"` \| `"mp4"` \| `"mov"` \| `"m4a"` \| `"webm"` \| `"mkv"` \| `"avi"` \| `"mpegts"` \| `"mxf"` \| `"wma"` \| `"asf"` \| `"ogg"` \| `"aac"` \| `"mp3"` \| `"flac"` \| `"wav"` \| `"ac3"` \| `"mp2"` \| `"mp1"` \| `"dts"`\>
 
 Details of the container found, or throws an error if no matching container can be found.
+
 
 <a id="media-infofunctionstovideocodecmd"></a>
 
@@ -1155,9 +1516,9 @@ Find the matching video codec for a given code
 
 ##### Parameters
 
-| Parameter | Type                              | Description                                                                             |
-| --------- | --------------------------------- | --------------------------------------------------------------------------------------- |
-| `code`    | `string` \| `null` \| `undefined` | A code which could be a codec identifier (e.g., "avc", "hevc", "vp09") or anything else |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `code` | `string` \| `null` \| `undefined` | A code which could be a codec identifier (e.g., "avc", "hevc", "vp09") or anything else |
 
 ##### Returns
 
@@ -1167,38 +1528,40 @@ Details of the video codec found, or throws an error if no matching codec can be
 
 ### Interfaces
 
+
 <a id="media-infointerfacesaudiostreaminfomd"></a>
 
 #### Interface: AudioStreamInfo
 
 ##### Properties
 
-| Property                                                | Type                                                                                                                                                                                                                                                                                                                                                                                                                              | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a id="api-audiotype"></a> `audioType?`                 | `string`                                                                                                                                                                                                                                                                                                                                                                                                                          | Such like Music, Effects, Visual impaired / Audio description, Hearing impaired                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| <a id="api-bitrate"></a> `bitrate?`                     | `number`                                                                                                                                                                                                                                                                                                                                                                                                                          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-bitspersample"></a> `bitsPerSample?`         | `number`                                                                                                                                                                                                                                                                                                                                                                                                                          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-channelcount"></a> `channelCount?`           | `number`                                                                                                                                                                                                                                                                                                                                                                                                                          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-codec"></a> `codec`                          | `"unknown"` \| `"aac"` \| `"mp3"` \| `"flac"` \| `"ac3"` \| `"mp2"` \| `"mp1"` \| `"dts"` \| `"opus"` \| `"aac_latm"` \| `"wmav1"` \| `"wmav2"` \| `"wmapro"` \| `"wmalossless"` \| `"vorbis"` \| `"pcm_u8"` \| `"pcm_s16le"` \| `"pcm_s24le"` \| `"pcm_s32le"` \| `"pcm_s16be"` \| `"pcm_s24be"` \| `"pcm_s32be"` \| `"pcm_f32le"` \| `"pcm_alaw"` \| `"pcm_mulaw"` \| `"alac"` \| `"adpcm_ms"` \| `"adpcm_ima_wav"` \| `"eac3"` | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-codecdetail"></a> `codecDetail?`             | `string`                                                                                                                                                                                                                                                                                                                                                                                                                          | Parser-specific codec information                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-codecdetails"></a> `codecDetails?`           | `object`                                                                                                                                                                                                                                                                                                                                                                                                                          | Codec-specific details (stream-level properties) For ADPCM codecs (MS ADPCM, IMA ADPCM, etc.), these properties are constant for the entire audio stream and stored once in the container's format header: - WAV: in the fmt chunk - AVI: in the stream format chunk (strf) - MKV (A_MS/ACM): inside the CodecPrivate WAVEFORMATEX These values do NOT change per block/frame.                                                                                                                                                                                                               |
-| `codecDetails.asvc?`                                    | `number`                                                                                                                                                                                                                                                                                                                                                                                                                          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `codecDetails.blockAlign?`                              | `number`                                                                                                                                                                                                                                                                                                                                                                                                                          | Block align (nBlockAlign) — STREAM LEVEL The size (in bytes) of each encoded ADPCM block. Must remain constant for the whole stream. - Containers expect every read operation to start on a block boundary - ADPCM decoding requires knowing block size ahead of time - Every ADPCM block in the stream must be exactly blockAlign bytes Not stored per block — the block itself does not announce its own length.                                                                                                                                                                           |
-| `codecDetails.bsmod?`                                   | `number`                                                                                                                                                                                                                                                                                                                                                                                                                          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `codecDetails.componentType?`                           | `number`                                                                                                                                                                                                                                                                                                                                                                                                                          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `codecDetails.essenceTrackNumber?`                      | `number`                                                                                                                                                                                                                                                                                                                                                                                                                          | In an MXF file, the video and audio data (the "essence") are stored in packets called KLVs. Every essence KLV starts with a 16-byte Universal Label (UL) that acts as a header. The essenceTrackNumber is a 4-byte value (e.g., 0x15010000 or 0x16010000) that is embedded inside those 16-byte headers to identify which stream the data belongs to. - Prefix 0x15: Usually indicates Video essence. - Prefix 0x16: Usually indicates Sound essence. - The suffix: Differentiates between multiple tracks of the same type (e.g., 0x1601 for the first audio track, 0x1602 for the second). |
-| `codecDetails.formatTag?`                               | `number`                                                                                                                                                                                                                                                                                                                                                                                                                          | Format tag (wFormatTag) — STREAM LEVEL Identifies the codec type: - 0x0001 = PCM - 0x0002 = MS ADPCM - 0x0011 = IMA ADPCM - etc. Stored once in the container's format header, not in each block.                                                                                                                                                                                                                                                                                                                                                                                            |
-| `codecDetails.layer?`                                   | `number`                                                                                                                                                                                                                                                                                                                                                                                                                          | Something like layer I, II, III                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `codecDetails.mainId?`                                  | `number`                                                                                                                                                                                                                                                                                                                                                                                                                          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `codecDetails.padding?`                                 | `number`                                                                                                                                                                                                                                                                                                                                                                                                                          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `codecDetails.samplesPerBlock?`                         | `number`                                                                                                                                                                                                                                                                                                                                                                                                                          | Samples per block — STREAM LEVEL Tells the decoder how many PCM samples will come out of each compressed block. Derived from the codec and blockAlign. Needed because ADPCM uses: - Warm-up samples - 4-bit deltas Also constant for the entire stream. Not stored per block. The block itself contains: - Predictor index - Delta (step size) - Warm-up samples - 4-bit deltas ...but NOT samples-per-block (that's known from the stream header).                                                                                                                                          |
-| <a id="api-durationinseconds"></a> `durationInSeconds?` | `number`                                                                                                                                                                                                                                                                                                                                                                                                                          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-id"></a> `id`                                | `number`                                                                                                                                                                                                                                                                                                                                                                                                                          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-language"></a> `language?`                   | `string`                                                                                                                                                                                                                                                                                                                                                                                                                          | Usually it is ISO-639 string                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| <a id="api-level"></a> `level?`                         | `string`                                                                                                                                                                                                                                                                                                                                                                                                                          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-profile"></a> `profile?`                     | `string`                                                                                                                                                                                                                                                                                                                                                                                                                          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-samplerate"></a> `sampleRate?`               | `number`                                                                                                                                                                                                                                                                                                                                                                                                                          | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-surroundmode"></a> `surroundMode?`           | `string`                                                                                                                                                                                                                                                                                                                                                                                                                          | DTS surround mode                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| <a id="api-property-audiotype"></a> `audioType?` | `string` | Such like Music, Effects, Visual impaired / Audio description, Hearing impaired |
+| <a id="api-property-bitrate"></a> `bitrate?` | `number` | - |
+| <a id="api-property-bitspersample"></a> `bitsPerSample?` | `number` | - |
+| <a id="api-property-channelcount"></a> `channelCount?` | `number` | - |
+| <a id="api-property-codec"></a> `codec` | `"unknown"` \| `"aac"` \| `"mp3"` \| `"flac"` \| `"ac3"` \| `"mp2"` \| `"mp1"` \| `"dts"` \| `"opus"` \| `"aac_latm"` \| `"wmav1"` \| `"wmav2"` \| `"wmapro"` \| `"wmalossless"` \| `"vorbis"` \| `"pcm_u8"` \| `"pcm_s16le"` \| `"pcm_s24le"` \| `"pcm_s32le"` \| `"pcm_s16be"` \| `"pcm_s24be"` \| `"pcm_s32be"` \| `"pcm_f32le"` \| `"pcm_alaw"` \| `"pcm_mulaw"` \| `"alac"` \| `"adpcm_ms"` \| `"adpcm_ima_wav"` \| `"eac3"` | - |
+| <a id="api-property-codecdetail"></a> `codecDetail?` | `string` | Parser-specific codec information |
+| <a id="api-property-codecdetails"></a> `codecDetails?` | `object` | Codec-specific details (stream-level properties) For ADPCM codecs (MS ADPCM, IMA ADPCM, etc.), these properties are constant for the entire audio stream and stored once in the container's format header: - WAV: in the fmt chunk - AVI: in the stream format chunk (strf) - MKV (A_MS/ACM): inside the CodecPrivate WAVEFORMATEX These values do NOT change per block/frame. |
+| `codecDetails.asvc?` | `number` | - |
+| `codecDetails.blockAlign?` | `number` | Block align (nBlockAlign) — STREAM LEVEL The size (in bytes) of each encoded ADPCM block. Must remain constant for the whole stream. - Containers expect every read operation to start on a block boundary - ADPCM decoding requires knowing block size ahead of time - Every ADPCM block in the stream must be exactly blockAlign bytes Not stored per block — the block itself does not announce its own length. |
+| `codecDetails.bsmod?` | `number` | - |
+| `codecDetails.componentType?` | `number` | - |
+| `codecDetails.essenceTrackNumber?` | `number` | In an MXF file, the video and audio data (the "essence") are stored in packets called KLVs. Every essence KLV starts with a 16-byte Universal Label (UL) that acts as a header. The essenceTrackNumber is a 4-byte value (e.g., 0x15010000 or 0x16010000) that is embedded inside those 16-byte headers to identify which stream the data belongs to. - Prefix 0x15: Usually indicates Video essence. - Prefix 0x16: Usually indicates Sound essence. - The suffix: Differentiates between multiple tracks of the same type (e.g., 0x1601 for the first audio track, 0x1602 for the second). |
+| `codecDetails.formatTag?` | `number` | Format tag (wFormatTag) — STREAM LEVEL Identifies the codec type: - 0x0001 = PCM - 0x0002 = MS ADPCM - 0x0011 = IMA ADPCM - etc. Stored once in the container's format header, not in each block. |
+| `codecDetails.layer?` | `number` | Something like layer I, II, III |
+| `codecDetails.mainId?` | `number` | - |
+| `codecDetails.padding?` | `number` | - |
+| `codecDetails.samplesPerBlock?` | `number` | Samples per block — STREAM LEVEL Tells the decoder how many PCM samples will come out of each compressed block. Derived from the codec and blockAlign. Needed because ADPCM uses: - Warm-up samples - 4-bit deltas Also constant for the entire stream. Not stored per block. The block itself contains: - Predictor index - Delta (step size) - Warm-up samples - 4-bit deltas ...but NOT samples-per-block (that's known from the stream header). |
+| <a id="api-property-durationinseconds"></a> `durationInSeconds?` | `number` | - |
+| <a id="api-property-id"></a> `id` | `number` | - |
+| <a id="api-property-language"></a> `language?` | `string` | Usually it is ISO-639 string |
+| <a id="api-property-level"></a> `level?` | `string` | - |
+| <a id="api-property-profile"></a> `profile?` | `string` | - |
+| <a id="api-property-samplerate"></a> `sampleRate?` | `number` | - |
+| <a id="api-property-surroundmode"></a> `surroundMode?` | `string` | DTS surround mode |
+
 
 <a id="media-infointerfacesmediainfomd"></a>
 
@@ -1206,14 +1569,15 @@ Details of the video codec found, or throws an error if no matching codec can be
 
 ##### Properties
 
-| Property                                                | Type                                                                                                                                                                                                                              | Description                           |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| <a id="api-audiostreams"></a> `audioStreams`            | [`AudioStreamInfo`](#media-infointerfacesaudiostreaminfomd)[]                                                                                                                                                                     | -                                     |
-| <a id="api-container"></a> `container`                  | `"unknown"` \| `"mp4"` \| `"mov"` \| `"m4a"` \| `"webm"` \| `"mkv"` \| `"avi"` \| `"mpegts"` \| `"mxf"` \| `"wma"` \| `"asf"` \| `"ogg"` \| `"aac"` \| `"mp3"` \| `"flac"` \| `"wav"` \| `"ac3"` \| `"mp2"` \| `"mp1"` \| `"dts"` | -                                     |
-| <a id="api-containerdetail"></a> `containerDetail?`     | `string`                                                                                                                                                                                                                          | Parser-specific container information |
-| <a id="api-durationinseconds"></a> `durationInSeconds?` | `number`                                                                                                                                                                                                                          | -                                     |
-| <a id="api-mimetype"></a> `mimeType?`                   | `string`                                                                                                                                                                                                                          | -                                     |
-| <a id="api-videostreams"></a> `videoStreams`            | [`VideoStreamInfo`](#media-infointerfacesvideostreaminfomd)[]                                                                                                                                                                     | -                                     |
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| <a id="api-property-audiostreams"></a> `audioStreams` | [`AudioStreamInfo`](#media-infointerfacesaudiostreaminfomd)[] | - |
+| <a id="api-property-container"></a> `container` | `"unknown"` \| `"mp4"` \| `"mov"` \| `"m4a"` \| `"webm"` \| `"mkv"` \| `"avi"` \| `"mpegts"` \| `"mxf"` \| `"wma"` \| `"asf"` \| `"ogg"` \| `"aac"` \| `"mp3"` \| `"flac"` \| `"wav"` \| `"ac3"` \| `"mp2"` \| `"mp1"` \| `"dts"` | - |
+| <a id="api-property-containerdetail"></a> `containerDetail?` | `string` | Parser-specific container information |
+| <a id="api-property-durationinseconds"></a> `durationInSeconds?` | `number` | - |
+| <a id="api-property-mimetype"></a> `mimeType?` | `string` | - |
+| <a id="api-property-videostreams"></a> `videoStreams` | [`VideoStreamInfo`](#media-infointerfacesvideostreaminfomd)[] | - |
+
 
 <a id="media-infointerfacesvideostreaminfomd"></a>
 
@@ -1221,42 +1585,46 @@ Details of the video codec found, or throws an error if no matching codec can be
 
 ##### Properties
 
-| Property                                                | Type                                                                                                                                                                                        | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a id="api-bitrate"></a> `bitrate?`                     | `number`                                                                                                                                                                                    | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-codec"></a> `codec`                          | `"unknown"` \| `"h264"` \| `"hevc"` \| `"vp8"` \| `"vp9"` \| `"wmv2"` \| `"av1"` \| `"prores"` \| `"mpeg4"` \| `"mpeg2video"` \| `"theora"` \| `"mjpeg"` \| `"msmpeg4v2"` \| `"mpeg1video"` | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-codecdetail"></a> `codecDetail?`             | `string`                                                                                                                                                                                    | Parser-specific codec information                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-codecdetails"></a> `codecDetails?`           | `object`                                                                                                                                                                                    | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `codecDetails.essenceTrackNumber?`                      | `number`                                                                                                                                                                                    | In an MXF file, the video and audio data (the "essence") are stored in packets called KLVs. Every essence KLV starts with a 16-byte Universal Label (UL) that acts as a header. The essenceTrackNumber is a 4-byte value (e.g., 0x15010000 or 0x16010000) that is embedded inside those 16-byte headers to identify which stream the data belongs to. - Prefix 0x15: Usually indicates Video essence. - Prefix 0x16: Usually indicates Sound essence. - The suffix: Differentiates between multiple tracks of the same type (e.g., 0x1601 for the first audio track, 0x1602 for the second). |
-| <a id="api-durationinseconds"></a> `durationInSeconds?` | `number`                                                                                                                                                                                    | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-fps"></a> `fps?`                             | `number`                                                                                                                                                                                    | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-height"></a> `height?`                       | `number`                                                                                                                                                                                    | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-id"></a> `id`                                | `number`                                                                                                                                                                                    | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-level"></a> `level?`                         | `string`                                                                                                                                                                                    | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-profile"></a> `profile?`                     | `string`                                                                                                                                                                                    | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| <a id="api-width"></a> `width?`                         | `number`                                                                                                                                                                                    | -                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| <a id="api-property-bitrate"></a> `bitrate?` | `number` | - |
+| <a id="api-property-codec"></a> `codec` | `"unknown"` \| `"h264"` \| `"hevc"` \| `"vp8"` \| `"vp9"` \| `"wmv2"` \| `"av1"` \| `"prores"` \| `"mpeg4"` \| `"mpeg2video"` \| `"theora"` \| `"mjpeg"` \| `"msmpeg4v2"` \| `"mpeg1video"` | - |
+| <a id="api-property-codecdetail"></a> `codecDetail?` | `string` | Parser-specific codec information |
+| <a id="api-property-codecdetails"></a> `codecDetails?` | `object` | - |
+| `codecDetails.essenceTrackNumber?` | `number` | In an MXF file, the video and audio data (the "essence") are stored in packets called KLVs. Every essence KLV starts with a 16-byte Universal Label (UL) that acts as a header. The essenceTrackNumber is a 4-byte value (e.g., 0x15010000 or 0x16010000) that is embedded inside those 16-byte headers to identify which stream the data belongs to. - Prefix 0x15: Usually indicates Video essence. - Prefix 0x16: Usually indicates Sound essence. - The suffix: Differentiates between multiple tracks of the same type (e.g., 0x1601 for the first audio track, 0x1602 for the second). |
+| <a id="api-property-durationinseconds"></a> `durationInSeconds?` | `number` | - |
+| <a id="api-property-fps"></a> `fps?` | `number` | - |
+| <a id="api-property-height"></a> `height?` | `number` | - |
+| <a id="api-property-id"></a> `id` | `number` | - |
+| <a id="api-property-level"></a> `level?` | `string` | - |
+| <a id="api-property-profile"></a> `profile?` | `string` | - |
+| <a id="api-property-width"></a> `width?` | `number` | - |
 
 ### Type Aliases
+
 
 <a id="media-infotype-aliasesaudiocodectypemd"></a>
 
 #### Type Alias: AudioCodecType
 
-> **AudioCodecType** = keyof _typeof_ `audioCodecs`
+> **AudioCodecType** = keyof *typeof* `audioCodecs`
+
 
 <a id="media-infotype-aliasescontainertypemd"></a>
 
 #### Type Alias: ContainerType
 
-> **ContainerType** = keyof _typeof_ `containers`
+> **ContainerType** = keyof *typeof* `containers`
+
 
 <a id="media-infotype-aliasesvideocodectypemd"></a>
 
 #### Type Alias: VideoCodecType
 
-> **VideoCodecType** = keyof _typeof_ `videoCodecs`
+> **VideoCodecType** = keyof *typeof* `videoCodecs`
 
 ## Utils
+
 
 <a id="utilsreadmemd"></a>
 
@@ -1264,30 +1632,84 @@ Details of the video codec found, or throws an error if no matching codec can be
 
 #### Classes
 
-| Class                                                           | Description                                                                       |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Class | Description |
+| ------ | ------ |
+| [MaxBytesExceededError](#utilsclassesmaxbytesexceedederrormd) | Error thrown when the media information could not be determined without reading more than the number of bytes allowed by the `maxBytesToRead` option. |
 | [UnsupportedFormatError](#utilsclassesunsupportedformaterrormd) | Error thrown when a parser encounters an unsupported file format or invalid data. |
 
 #### Interfaces
 
-| Interface                                                      | Description |
-| -------------------------------------------------------------- | ----------- |
-| [ParserRelatedOptions](#utilsinterfacesparserrelatedoptionsmd) | -           |
-| [ParsingError](#utilsinterfacesparsingerrormd)                 | -           |
+| Interface | Description |
+| ------ | ------ |
+| [ParserRelatedOptions](#utilsinterfacesparserrelatedoptionsmd) | - |
+| [ParsingError](#utilsinterfacesparsingerrormd) | - |
+
+#### Type Aliases
+
+| Type Alias | Description |
+| ------ | ------ |
+| [MediaInput](#utilstype-aliasesmediainputmd) | The input of the functions that read media data. It can be a Web ReadableStream, or a Blob (a File in the browser is also a Blob). |
 
 #### Functions
 
-| Function                                                                      | Description                                                                                                                                                                                                                                                                      |
-| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [createReadableStreamFromFile](#utilsfunctionscreatereadablestreamfromfilemd) | Creates a Web ReadableStream from a Node.js file path. This function works in Node.js environment but not in browser.                                                                                                                                                            |
-| [createWritableStreamFromFile](#utilsfunctionscreatewritablestreamfromfilemd) | Creates a Web WritableStream from a Node.js file path. This function works in Node.js environment but not in browser.                                                                                                                                                            |
-| [ensureBufferData](#utilsfunctionsensurebufferdatamd)                         | Ensures that the buffer has enough data by reading from the stream if necessary. This function manages buffer compaction and appending new data.                                                                                                                                 |
-| [getGlobalLogger](#utilsfunctionsgetgloballoggermd)                           | Returns the global logger for the library. If the logger has not been set, it will be initialized default settings which discards all logs. Please note that environment variables MEDIA_UTILS_LOG_QUIET and MEDIA_UTILS_LOG_DEBUG can be used to override the logging behavior. |
-| [readBeginning](#utilsfunctionsreadbeginningmd)                               | Reads the beginning of a stream up to a specified size. This function handles reading, buffering, and closing the reader.                                                                                                                                                        |
-| [readFromStreamToFile](#utilsfunctionsreadfromstreamtofilemd)                 | Reads a Web ReadableStream and writes it to a file. This function works in Node.js environment but not in browser.                                                                                                                                                               |
-| [setupGlobalLogger](#utilsfunctionssetupgloballoggermd)                       | Set the global logger for the library to a new console logger. Please note that environment variables MEDIA_UTILS_LOG_QUIET and MEDIA_UTILS_LOG_DEBUG can be used to override the logging behavior.                                                                              |
+| Function | Description |
+| ------ | ------ |
+| [createReadableStreamFromFile](#utilsfunctionscreatereadablestreamfromfilemd) | Creates a Web ReadableStream from a Node.js file path. This function works in Node.js environment but not in browser. |
+| [createWritableStreamFromFile](#utilsfunctionscreatewritablestreamfromfilemd) | Creates a Web WritableStream from a Node.js file path. This function works in Node.js environment but not in browser. |
+| [ensureBufferData](#utilsfunctionsensurebufferdatamd) | Ensures that the buffer has enough data by reading from the stream if necessary. This function manages buffer compaction and appending new data. |
+| [getGlobalLogger](#utilsfunctionsgetgloballoggermd) | Returns the global logger for the library. If the logger has not been set, it will be initialized default settings which discards all logs. Please note that environment variables MEDIA_UTILS_LOG_QUIET and MEDIA_UTILS_LOG_DEBUG can be used to override the logging behavior. |
+| [isBlobInput](#utilsfunctionsisblobinputmd) | Checks whether the input is a Blob (including File) rather than a ReadableStream. |
+| [readBeginning](#utilsfunctionsreadbeginningmd) | Reads the beginning of a stream up to a specified size. This function handles reading, buffering, and closing the reader. |
+| [readFromStreamToFile](#utilsfunctionsreadfromstreamtofilemd) | Reads a Web ReadableStream and writes it to a file. This function works in Node.js environment but not in browser. |
+| [setupGlobalLogger](#utilsfunctionssetupgloballoggermd) | Set the global logger for the library to a new console logger. Please note that environment variables MEDIA_UTILS_LOG_QUIET and MEDIA_UTILS_LOG_DEBUG can be used to override the logging behavior. |
 
 ### Classes
+
+
+<a id="utilsclassesmaxbytesexceedederrormd"></a>
+
+#### Class: MaxBytesExceededError
+
+Error thrown when the media information could not be determined
+without reading more than the number of bytes allowed by the `maxBytesToRead` option.
+
+##### Extends
+
+- `Error`
+
+##### Implements
+
+- [`ParsingError`](#utilsinterfacesparsingerrormd)
+
+##### Constructors
+
+<a id="api-constructor"></a>
+
+###### Constructor
+
+> **new MaxBytesExceededError**(`maxBytesToRead`): `MaxBytesExceededError`
+
+####### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `maxBytesToRead` | `number` | The limit that has been reached |
+
+####### Returns
+
+`MaxBytesExceededError`
+
+####### Overrides
+
+`Error.constructor`
+
+##### Properties
+
+| Property | Modifier | Type | Default value | Description |
+| ------ | ------ | ------ | ------ | ------ |
+| <a id="api-property-ismaxbytesexceedederror"></a> `isMaxBytesExceededError` | `readonly` | `true` | `true` | - |
+| <a id="api-property-maxbytestoread"></a> `maxBytesToRead` | `readonly` | `number` | `undefined` | The limit that has been reached |
+
 
 <a id="utilsclassesunsupportedformaterrormd"></a>
 
@@ -1313,8 +1735,8 @@ Error thrown when a parser encounters an unsupported file format or invalid data
 
 ####### Parameters
 
-| Parameter | Type     |
-| --------- | -------- |
+| Parameter | Type |
+| ------ | ------ |
 | `message` | `string` |
 
 ####### Returns
@@ -1327,11 +1749,12 @@ Error thrown when a parser encounters an unsupported file format or invalid data
 
 ##### Properties
 
-| Property                                                             | Modifier   | Type   | Default value |
-| -------------------------------------------------------------------- | ---------- | ------ | ------------- |
-| <a id="api-isunsupportedformaterror"></a> `isUnsupportedFormatError` | `readonly` | `true` | `true`        |
+| Property | Modifier | Type | Default value |
+| ------ | ------ | ------ | ------ |
+| <a id="api-property-isunsupportedformaterror"></a> `isUnsupportedFormatError` | `readonly` | `true` | `true` |
 
 ### Functions
+
 
 <a id="utilsfunctionscreatereadablestreamfromfilemd"></a>
 
@@ -1348,8 +1771,8 @@ If the stream is not fully consumed, call `stream.cancel()` to clean up resource
 
 ##### Parameters
 
-| Parameter  | Type     | Description          |
-| ---------- | -------- | -------------------- |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
 | `filePath` | `string` | The path to the file |
 
 ##### Returns
@@ -1357,6 +1780,7 @@ If the stream is not fully consumed, call `stream.cancel()` to clean up resource
 `Promise`\<`ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>\>
 
 A (web) ReadableStream of Uint8Array chunks
+
 
 <a id="utilsfunctionscreatewritablestreamfromfilemd"></a>
 
@@ -1373,8 +1797,8 @@ If the stream is not fully consumed, call `stream.cancel()` to clean up resource
 
 ##### Parameters
 
-| Parameter  | Type     | Description          |
-| ---------- | -------- | -------------------- |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
 | `filePath` | `string` | The path to the file |
 
 ##### Returns
@@ -1382,6 +1806,7 @@ If the stream is not fully consumed, call `stream.cancel()` to clean up resource
 `Promise`\<`WritableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\>\>
 
 A (web) WritableStream of Uint8Array chunks
+
 
 <a id="utilsfunctionsensurebufferdatamd"></a>
 
@@ -1394,18 +1819,19 @@ This function manages buffer compaction and appending new data.
 
 ##### Parameters
 
-| Parameter       | Type                                                               | Description                                                                              |
-| --------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `reader`        | `ReadableStreamDefaultReader`\<`Uint8Array`\<`ArrayBufferLike`\>\> | The ReadableStreamDefaultReader to read from                                             |
-| `buffer?`       | `Uint8Array`\<`ArrayBufferLike`\>                                  | The current data buffer (optional, defaults to empty buffer)                             |
-| `bufferOffset?` | `number`                                                           | The current offset in the buffer (optional, defaults to 0)                               |
-| `size?`         | `number`                                                           | The minimum required size of data available in the buffer (buffer.length - bufferOffset) |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `reader` | `ReadableStreamDefaultReader`\<`Uint8Array`\<`ArrayBufferLike`\>\> | The ReadableStreamDefaultReader to read from |
+| `buffer?` | `Uint8Array`\<`ArrayBufferLike`\> | The current data buffer (optional, defaults to empty buffer) |
+| `bufferOffset?` | `number` | The current offset in the buffer (optional, defaults to 0) |
+| `size?` | `number` | The minimum required size of data available in the buffer (buffer.length - bufferOffset) |
 
 ##### Returns
 
 `Promise`\<\{ `buffer`: `Uint8Array`; `bufferOffset`: `number`; `bytesRead`: `number`; `done`: `boolean`; \}\>
 
 An object containing the updated buffer, bufferOffset, and a boolean indicating if the stream has ended
+
 
 <a id="utilsfunctionsgetgloballoggermd"></a>
 
@@ -1423,27 +1849,50 @@ Please note that environment variables MEDIA_UTILS_LOG_QUIET and MEDIA_UTILS_LOG
 
 The global logger for the library.
 
+
+<a id="utilsfunctionsisblobinputmd"></a>
+
+#### Function: isBlobInput()
+
+> **isBlobInput**(`input`): `input is Blob`
+
+Checks whether the input is a Blob (including File) rather than a ReadableStream.
+
+##### Parameters
+
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `input` | `unknown` | The input |
+
+##### Returns
+
+`input is Blob`
+
+true if the input is a Blob
+
+
 <a id="utilsfunctionsreadbeginningmd"></a>
 
 #### Function: readBeginning()
 
-> **readBeginning**(`reader`, `size`): `Promise`\<`Uint8Array`\<`ArrayBufferLike`\>\>
+> **readBeginning**(`reader`, `size?`): `Promise`\<`Uint8Array`\<`ArrayBufferLike`\>\>
 
 Reads the beginning of a stream up to a specified size.
 This function handles reading, buffering, and closing the reader.
 
 ##### Parameters
 
-| Parameter | Type                                                               | Description                                             |
-| --------- | ------------------------------------------------------------------ | ------------------------------------------------------- |
-| `reader`  | `ReadableStreamDefaultReader`\<`Uint8Array`\<`ArrayBufferLike`\>\> | The ReadableStreamDefaultReader to read from            |
-| `size`    | `number`                                                           | The amount of data to read (optional, defaults to 64KB) |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `reader` | `ReadableStreamDefaultReader`\<`Uint8Array`\<`ArrayBufferLike`\>\> | The ReadableStreamDefaultReader to read from |
+| `size?` | `number` | The amount of data to read (optional, defaults to 64KB) |
 
 ##### Returns
 
 `Promise`\<`Uint8Array`\<`ArrayBufferLike`\>\>
 
 The read data as a Uint8Array
+
 
 <a id="utilsfunctionsreadfromstreamtofilemd"></a>
 
@@ -1456,14 +1905,15 @@ This function works in Node.js environment but not in browser.
 
 ##### Parameters
 
-| Parameter  | Type                                                  | Description                      |
-| ---------- | ----------------------------------------------------- | -------------------------------- |
-| `stream`   | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\> | The readable stream to read from |
-| `filePath` | `string`                                              | The path to the file to write to |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `stream` | `ReadableStream`\<`Uint8Array`\<`ArrayBufferLike`\>\> | The readable stream to read from |
+| `filePath` | `string` | The path to the file to write to |
 
 ##### Returns
 
 `Promise`\<`void`\>
+
 
 <a id="utilsfunctionssetupgloballoggermd"></a>
 
@@ -1476,9 +1926,9 @@ Please note that environment variables MEDIA_UTILS_LOG_QUIET and MEDIA_UTILS_LOG
 
 ##### Parameters
 
-| Parameter | Type                                                                     | Description                              |
-| --------- | ------------------------------------------------------------------------ | ---------------------------------------- |
-| `flags`   | \{ `debug?`: `boolean`; `quiet?`: `boolean`; \} \| `null` \| `undefined` | The flags to pass to the console logger. |
+| Parameter | Type | Description |
+| ------ | ------ | ------ |
+| `flags` | \{ `debug?`: `boolean`; `quiet?`: `boolean`; \} \| `null` \| `undefined` | The flags to pass to the console logger. |
 
 ##### Returns
 
@@ -1487,6 +1937,7 @@ Please note that environment variables MEDIA_UTILS_LOG_QUIET and MEDIA_UTILS_LOG
 The global logger for the library.
 
 ### Interfaces
+
 
 <a id="utilsinterfacesparserrelatedoptionsmd"></a>
 
@@ -1498,9 +1949,10 @@ The global logger for the library.
 
 ##### Properties
 
-| Property                                | Type                                                                      | Description                                                                                                                             |
-| --------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| <a id="api-useparser"></a> `useParser?` | `"auto"` \| `"mp4box"` \| `"remotion"` \| `"isoboxer"` \| `"media-utils"` | Which parser library/package to use The default is 'auto', which will try to use mp4box first and fallback to remotion if mp4box fails. |
+| Property | Type | Description |
+| ------ | ------ | ------ |
+| <a id="api-property-useparser"></a> `useParser?` | `"auto"` \| `"mp4box"` \| `"remotion"` \| `"isoboxer"` \| `"media-utils"` | Which parser library/package to use The default is 'auto', which will try to use mp4box first and fallback to remotion if mp4box fails. |
+
 
 <a id="utilsinterfacesparsingerrormd"></a>
 
@@ -1508,8 +1960,25 @@ The global logger for the library.
 
 ##### Properties
 
-| Property                                                              | Type      |
-| --------------------------------------------------------------------- | --------- |
-| <a id="api-isunsupportedformaterror"></a> `isUnsupportedFormatError?` | `boolean` |
+| Property | Type |
+| ------ | ------ |
+| <a id="api-property-ismaxbytesexceedederror"></a> `isMaxBytesExceededError?` | `boolean` |
+| <a id="api-property-isunsupportedformaterror"></a> `isUnsupportedFormatError?` | `boolean` |
 
+### Type Aliases
+
+
+<a id="utilstype-aliasesmediainputmd"></a>
+
+#### Type Alias: MediaInput
+
+> **MediaInput** = `ReadableStream`\<`Uint8Array`\> \| `Blob`
+
+The input of the functions that read media data.
+It can be a Web ReadableStream, or a Blob (a File in the browser is also a Blob).
+
+A Blob allows random access, so that the data can be read more than once and parts of it can be skipped.
+For example, for an MP4/MOV file with the `moov` box after the `mdat` box,
+the media data in the `mdat` box is skipped instead of being read.
+In Node.js (19.8 or later), a file can be opened as a Blob with `fs.openAsBlob(path)`.
 <!-- API end -->

@@ -3,6 +3,7 @@ import { getAacProfileName, parseAudioSpecificConfig } from '../codecs/aac';
 import { BitReader, readUInt16BE as readUInt16BE_bin, readUInt32BE as readUInt32BE_bin, readUtf8, toHex } from '../codecs/binary';
 import { parseMP3Header } from '../codecs/mp3';
 import { GetMediaInfoOptions, GetMediaInfoResult } from '../get-media-info';
+import { RandomAccessInput } from '../input-streams';
 import { AudioCodecType, AudioStreamInfo, findAudioCodec, findVideoCodec } from '../media-info';
 import { ensureBufferData, setupGlobalLogger, UnsupportedFormatError } from '../utils';
 
@@ -27,6 +28,12 @@ const ATOM_CO64 = 'co64';
 const _ATOM_MP4A = 'mp4a';
 const ATOM_ESDS = 'esds';
 
+/**
+ * When random access is available, skipping at least this number of bytes beyond what has already been buffered
+ * is done by opening a new stream at the target offset, instead of reading and discarding the bytes.
+ */
+const MIN_BYTES_TO_SKIP_BY_SEEKING = 256 * 1024;
+
 export type OnMp4SamplesCallback = (trackId: number, samples: Uint8Array[]) => void | Promise<void>;
 
 export interface ParseMp4Options extends GetMediaInfoOptions {
@@ -37,11 +44,12 @@ export interface ParseMp4Options extends GetMediaInfoOptions {
   onSamples?: OnMp4SamplesCallback;
 
   /**
-   * Whether to keep and return sample table information in MediaInfo.
-   * When true, populates mp4SampleTableInfo in AudioStreamInfo for later extraction use.
-   * Default: false (sample tables are not returned to save memory)
+   * Random access to the input, available when the input is a Blob.
+   * When provided, large parts of the input that don't need to be parsed (such like the 'mdat' box
+   * in front of the 'moov' box) are skipped without being read.
+   * @internal
    */
-  sampleTableInfo?: boolean;
+  randomAccess?: RandomAccessInput;
 }
 
 export type Mp4AudioStreamInfo = AudioStreamInfo & {
@@ -144,10 +152,13 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
   const logger = setupGlobalLogger(options);
   if (logger.isDebug) logger.debug('Starting parsing MP4');
 
-  const reader = stream.getReader();
+  let reader = stream.getReader();
   let buffer: Uint8Array = new Uint8Array(0);
   let bufferOffset = 0;
   let offset = 0;
+  const randomAccess = options?.randomAccess;
+  // Number of bytes skipped by seeking (they are not read)
+  let bytesSkippedBySeeking = 0;
 
   let mdatStart = 0;
   let mdatSize = 0;
@@ -230,8 +241,40 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
     return { tag, length, headerSize };
   }
 
-  // Skip bytes, either from buffer or by refilling
+  /**
+   * Moves to the target offset by opening a new stream from there.
+   * Only possible when random access is available.
+   * @param target - The absolute offset to move to
+   */
+  async function seek(target: number) {
+    const available = buffer.length - bufferOffset;
+    bytesSkippedBySeeking += target - offset - available;
+    if (logger.isDebug) logger.debug(`Seeking from ${offset} to ${target}`);
+    reader.cancel().catch(() => {});
+    reader.releaseLock();
+    reader = randomAccess!.streamFrom(target).getReader();
+    buffer = new Uint8Array(0);
+    bufferOffset = 0;
+    offset = target;
+  }
+
+  // Skip bytes, either from buffer or by refilling, or by seeking when random access is available
   async function skip(bytes: number) {
+    if (randomAccess) {
+      const available = buffer.length - bufferOffset;
+      if (bytes === Infinity) {
+        if (randomAccess.size - offset - available >= MIN_BYTES_TO_SKIP_BY_SEEKING) {
+          await seek(randomAccess.size);
+          return;
+        }
+      } else if (bytes - available >= MIN_BYTES_TO_SKIP_BY_SEEKING) {
+        if (offset + bytes > randomAccess.size) {
+          throw new UnsupportedFormatError('Unexpected EOF while skipping');
+        }
+        await seek(offset + bytes);
+        return;
+      }
+    }
     if (bytes === Infinity) {
       // Skip until EOF
       while (await ensureBytes(1)) {
@@ -358,9 +401,9 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
 
           const hasMp3Track = tracks.some((t) => t.codec === 'mp3');
 
-          // If we don't need to extract samples or table info, and we don't need to sniff MP3,
-          // we can stop early to save bandwidth/time.
-          if (!hasMp3Track && tracks.length > 0 && !options?.onSamples && !options?.sampleTableInfo) {
+          // If moov has already been parsed (all the sample tables are in it), we don't need to extract samples,
+          // and we don't need to sniff MP3, we can stop early to save bandwidth/time.
+          if (!hasMp3Track && tracks.length > 0 && !options?.onSamples) {
             if (logger.isDebug) logger.debug(`Stop parsing when having ${tracks.length} tracks and seeing MDAT at ${atomStart}`);
             shouldKeepParsing = false;
             break;
@@ -459,7 +502,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
             }
 
             // Optimization: If moov was already parsed and we've finished sniffing, stop now.
-            if (!options?.sampleTableInfo && tracks.length > 0 && tracks.every((t) => t.codec !== 'mp3' || t.mp3Sniffed)) {
+            if (tracks.length > 0 && tracks.every((t) => t.codec !== 'mp3' || t.mp3Sniffed)) {
               if (logger.isDebug) logger.debug(`Stop parsing after sniffing all MP3 tracks in MDAT at ${atomStart}`);
               shouldKeepParsing = false;
               break;
@@ -1087,7 +1130,7 @@ export async function parseMp4(stream: ReadableStream<Uint8Array>, options?: Par
         return audioStream;
       });
 
-    return { ...mediaInfo, bytesRead: offset };
+    return { ...mediaInfo, bytesRead: offset - bytesSkippedBySeeking };
   } finally {
     reader.cancel().catch(() => {});
     reader.releaseLock();

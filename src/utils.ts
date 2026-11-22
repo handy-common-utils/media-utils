@@ -61,6 +61,7 @@ export function setupGlobalLogger(flags: { quiet?: boolean; debug?: boolean } | 
 
 export interface ParsingError {
   isUnsupportedFormatError?: boolean;
+  isMaxBytesExceededError?: boolean;
 }
 
 /**
@@ -75,12 +76,56 @@ export class UnsupportedFormatError extends Error implements ParsingError {
   }
 }
 
+/**
+ * Error thrown when the media information could not be determined
+ * without reading more than the number of bytes allowed by the `maxBytesToRead` option.
+ */
+export class MaxBytesExceededError extends Error implements ParsingError {
+  readonly isMaxBytesExceededError = true;
+
+  /**
+   * @param maxBytesToRead The limit that has been reached
+   */
+  constructor(readonly maxBytesToRead: number) {
+    super(`Media information could not be determined within the first ${maxBytesToRead} bytes (maxBytesToRead)`);
+    this.name = 'MaxBytesExceededError';
+  }
+}
+
 export interface ParserRelatedOptions {
   /**
    * Which parser library/package to use
    * The default is 'auto', which will try to use mp4box first and fallback to remotion if mp4box fails.
    */
   useParser?: 'auto' | 'mp4box' | 'remotion' | 'isoboxer' | 'media-utils';
+}
+
+/**
+ * The input of the functions that read media data.
+ * It can be a Web ReadableStream, or a Blob (a File in the browser is also a Blob).
+ *
+ * A Blob allows random access, so that the data can be read more than once and parts of it can be skipped.
+ * For example, for an MP4/MOV file with the `moov` box after the `mdat` box,
+ * the media data in the `mdat` box is skipped instead of being read.
+ * In Node.js (19.8 or later), a file can be opened as a Blob with `fs.openAsBlob(path)`.
+ */
+export type MediaInput = ReadableStream<Uint8Array> | Blob;
+
+/**
+ * Checks whether the input is a Blob (including File) rather than a ReadableStream.
+ * @param input The input
+ * @returns true if the input is a Blob
+ */
+export function isBlobInput(input: MediaInput | unknown): input is Blob {
+  if (input == null || typeof input !== 'object') return false;
+  if (typeof Blob !== 'undefined' && input instanceof Blob) return true;
+  const candidate = input as Partial<Blob> & { getReader?: unknown };
+  return (
+    typeof candidate.getReader !== 'function' &&
+    typeof candidate.slice === 'function' &&
+    typeof candidate.stream === 'function' &&
+    typeof candidate.size === 'number'
+  );
 }
 
 /**
